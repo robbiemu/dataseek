@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataseek"
+version = "0.1.0"
+description = "DataSeek: A standalone data prospecting agent for finding reliable, verifiable data sources"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pydantic>=2.0.0",
+    "pyyaml",
+    "langgraph",
+    "langgraph-checkpoint-sqlite",
+    "langchain-community",
+    "langchain-litellm",
+    "langchain-tavily",
+    "langchain-google-community",
+    "langsmith",
+    "litellm",
+    "requests",
+    "html5lib",
+    "httpx",
+    "attachments",
+    "beautifulsoup4",
+    "google-api-python-client",
+    "google-search-results",
+    "arxiv",
+    "wikipedia",
+    "json-repair",
+    # TUI dependencies
+    "textual>=0.48.0",
+    "typer>=0.9.0",
+    "darkdetect>=0.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+# Optional dependency for the crawler tool, requires playwright is installed on the system
+crawler = ["libcrawler"]
+
+[project.scripts]
+dataseek = "seek.main:main"
+dataseek-tui = "seek.tui.dataseek_tui:main"
+
+[tool.setuptools]
+packages = [
+    "seek",
+    "seek.tui",
+]
+
+[tool.setuptools.package-data]
+"seek" = ["../config/*.yaml", "../settings/*.yaml"]

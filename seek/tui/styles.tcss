@@ -1,0 +1,636 @@
+/* Default styles are for LIGHT MODE */
+Screen {
+    layout: vertical;
+    background: #f6f8fa; /* Light background */
+    color: #24292f;      /* Light default text */
+}
+
+#stats-header {
+    height: 3;
+    background: #eaeef2;
+    color: #24292f;
+    content-align: center middle;
+    text-style: bold;
+}
+
+#main-container {
+    layout: horizontal;
+    height: 1fr;
+    background: #ffffff;
+    padding: 1;
+}
+
+#progress-panel {
+    width: 70%;
+    padding: 1;
+    background: #f0f2f6;
+    margin-right: 1;
+}
+
+#mission-panel {
+    width: 30%;
+    padding: 1;
+    background: #f6f8fa;
+}
+
+#conversation {
+    dock: bottom;
+    height: 12;
+    padding: 1;
+    background: #f0f2f6;
+}
+
+.panel-title {
+    text-style: bold;
+    color: #0969da; /* Light mode blue */
+    margin-bottom: 1;
+}
+
+#main-progress {
+    margin: 1 0;
+    text-align: center;
+    color: #0969da;
+}
+
+MissionSelector {
+    align: center middle;
+    layout: vertical;
+    content-align: center middle;
+    background: rgba(200, 200, 200, 0.5); /* Light semi-transparent overlay */
+}
+
+MissionSelector > Static {
+    text-align: center;
+    text-style: bold;
+    color: #0969da;
+    margin-bottom: 1;
+}
+
+/* Targeting the primary variant button for light mode */
+MissionSelector > Button.-primary {
+    width: 100%;
+    margin-bottom: 1;
+    background: #eaeef2;
+    color: #24292f;
+    text-align: center;
+    border: none;
+    padding: 1;
+}
+
+MissionSelector > Button.-primary:hover {
+    background: #d0d7de;
+    color: #0969da;
+}
+
+#error-modal-container {
+    layout: vertical;
+    width: 80%;
+    height: 80%;
+    background: #f6f8fa;
+    padding: 2;
+    color: #cf222e;
+    border: solid #0969da;
+}
+
+#error-log {
+    height: 1fr;
+    width: 100%;
+    background: #ffffff;
+    color: #24292f;
+    padding: 1;
+}
+
+#close-errors {
+    width: 100%;
+    margin-top: 1;
+    background: #eaeef2;
+    color: #cf222e;
+    padding: 1;
+}
+
+#close-errors:hover {
+    background: #d0d7de;
+    color: #bf8700;
+}
+
+Footer {
+    background: #eaeef2;
+    color: #24292f;
+}
+
+/* Footer key styling - override default orange */
+Footer > Horizontal > FooterKey {
+    color: #0969da !important;
+}
+
+Footer > Horizontal > FooterKey > .footer-key--key {
+    color: #0969da !important;
+}
+
+Footer > Horizontal > FooterKey > .footer-key--description {
+    color: #24292f !important;
+}
+
+
+/* --- DARK MODE OVERRIDES --- */
+/* When the screen has the :dark pseudo-class, these styles will be applied. */
+
+Screen:dark {
+    background: #0d1117;
+    color: #c9d1d9;
+}
+
+Screen:dark #stats-header {
+    background: #21262d;
+    color: #c9d1d9;
+}
+
+Screen:dark #main-container {
+    background: #161b22;
+}
+
+Screen:dark #progress-panel {
+    background: #1b1f27;
+}
+
+Screen:dark #mission-panel {
+    background: #1f2230;
+}
+
+Screen:dark #conversation {
+    background: #1b1f27;
+}
+
+Screen:dark .panel-title {
+    color: #58a6ff;
+}
+
+Screen:dark #main-progress {
+    color: #58a6ff;
+}
+
+Screen:dark MissionSelector {
+    background: rgba(0, 0, 0, 0.5); /* Dark semi-transparent overlay */
+}
+
+Screen:dark MissionSelector > Static {
+    color: #58a6ff;
+}
+
+MissionSelector:dark Button.-primary {
+    background: #2d333b;
+    color: #c9d1d9;
+}
+
+MissionSelector:dark Button.-primary:hover {
+    background: #30363d;
+    color: #58a6ff;
+}
+
+Screen:dark #error-modal-container {
+    background: #1b1f27;
+    color: #f85149;
+    border: solid #58a6ff;
+}
+
+Screen:dark #error-log {
+    background: #161b22;
+    color: #c9d1d9;
+}
+
+Screen:dark #close-errors {
+    background: #2d333b;
+    color: #f85149;
+}
+
+Screen:dark #close-errors:hover {
+    background: #30363d;
+    color: #f0883e;
+}
+
+Screen:dark Footer {
+    background: #21262d;
+    color: #c9d1d9;
+}
+
+/* Dark mode Footer key styling */
+Screen:dark Footer > Horizontal > FooterKey {
+    color: #58a6ff !important;
+}
+
+Screen:dark Footer > Horizontal > FooterKey > .footer-key--key {
+    color: #58a6ff !important;
+}
+
+Screen:dark Footer > Horizontal > FooterKey > .footer-key--description {
+    color: #c9d1d9 !important;
+}
+
+/* Header theme classes for programmatic control */
+Header.light-theme {
+    background: #eaeef2 !important;
+    color: #24292f !important;
+}
+
+Header.dark-theme {
+    background: #21262d !important;
+    color: #c9d1d9 !important;
+}
+
+/* Stats header theme classes for programmatic control */
+#stats-header.light-theme {
+    background: #eaeef2 !important;
+    color: #24292f !important;
+}
+
+#stats-header.dark-theme {
+    background: #21262d !important;
+    color: #c9d1d9 !important;
+}
+
+/* Scrollbar styling - try multiple selectors */
+/* For Log widgets */
+Log .scrollbar {
+    background: #e1e4e8 !important;
+}
+
+Log .scrollbar-thumb {
+    background: #959da5 !important;
+}
+
+Log .scrollbar-thumb:hover {
+    background: #6a737d !important;
+}
+
+/* For ScrollView widgets */
+ScrollView .scrollbar {
+    background: #e1e4e8 !important;
+}
+
+ScrollView .scrollbar-thumb {
+    background: #959da5 !important;
+}
+
+/* Generic scrollbar selectors */
+.scrollbar {
+    background: #e1e4e8 !important;
+}
+
+.scrollbar-thumb {
+    background: #959da5 !important;
+}
+
+/* Dark mode scrollbars */
+Screen:dark Log .scrollbar {
+    background: #21262d !important;
+}
+
+Screen:dark Log .scrollbar-thumb {
+    background: #484f58 !important;
+}
+
+Screen:dark ScrollView .scrollbar {
+    background: #21262d !important;
+}
+
+Screen:dark ScrollView .scrollbar-thumb {
+    background: #484f58 !important;
+}
+
+Screen:dark .scrollbar {
+    background: #21262d !important;
+}
+
+Screen:dark .scrollbar-thumb {
+    background: #484f58 !important;
+}
+
+/* Modal screen background styling */
+ModalScreen {
+    background: rgba(200, 200, 200, 0.5); /* Light semi-transparent overlay */
+}
+
+Screen:dark ModalScreen {
+    background: rgba(0, 0, 0, 0.5); /* Dark semi-transparent overlay */
+}
+
+/* Modal screen theme classes */
+ModalScreen.light-theme {
+    background: rgba(200, 200, 200, 0.5) !important;
+}
+
+ModalScreen.dark-theme {
+    background: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Alternative selector for error modal specifically */
+ErrorModal {
+    background: rgba(200, 200, 200, 0.5);
+}
+
+ErrorModal.dark-theme {
+    background: rgba(0, 0, 0, 0.5) !important;
+}
+
+ErrorModal.light-theme {
+    background: rgba(200, 200, 200, 0.5) !important;
+}
+
+/* Log widget scrollbar styling (for conversation panel) */
+Log > .scrollbar {
+    background: #e1e4e8;
+}
+
+Log > .scrollbar > .scrollbar-thumb {
+    background: #959da5;
+}
+
+Screen:dark Log > .scrollbar {
+    background: #21262d;
+}
+
+Screen:dark Log > .scrollbar > .scrollbar-thumb {
+    background: #484f58;
+}
+
+/* Component theme classes for programmatic control */
+
+/* Progress panel */
+#progress-panel.light-theme {
+    background: #f0f2f6 !important;
+    color: #24292f !important;
+}
+
+#progress-panel.dark-theme {
+    background: #1b1f27 !important;
+    color: #c9d1d9 !important;
+}
+
+#main-progress.light-theme {
+    color: #0969da !important;
+}
+
+#main-progress.dark-theme {
+    color: #58a6ff !important;
+}
+
+#recent-samples.light-theme {
+    color: #24292f !important;
+}
+
+#recent-samples.dark-theme {
+    color: #c9d1d9 !important;
+}
+
+/* Mission panel */
+#mission-panel.light-theme {
+    background: #f6f8fa !important;
+    color: #24292f !important;
+}
+
+#mission-panel.dark-theme {
+    background: #1f2230 !important;
+    color: #c9d1d9 !important;
+}
+
+#mission-info.light-theme {
+    color: #24292f !important;
+}
+
+#mission-info.dark-theme {
+    color: #c9d1d9 !important;
+}
+
+/* Conversation panel */
+#conversation.light-theme {
+    background: #f0f2f6 !important;
+    color: #24292f !important;
+}
+
+#conversation.dark-theme {
+    background: #1b1f27 !important;
+    color: #c9d1d9 !important;
+}
+
+/* Scrollbar styling for themed conversation panel */
+#conversation.light-theme .scrollbar {
+    background: #e1e4e8 !important;
+}
+
+#conversation.light-theme .scrollbar-thumb {
+    background: #959da5 !important;
+}
+
+#conversation.dark-theme .scrollbar {
+    background: #21262d !important;
+}
+
+#conversation.dark-theme .scrollbar-thumb {
+    background: #484f58 !important;
+}
+
+/* Additional scrollbar selectors with theme classes */
+.scrollbar.light-theme {
+    background: #e1e4e8 !important;
+}
+
+.scrollbar-thumb.light-theme {
+    background: #959da5 !important;
+}
+
+.scrollbar.dark-theme {
+    background: #21262d !important;
+}
+
+.scrollbar-thumb.dark-theme {
+    background: #484f58 !important;
+}
+
+/* Try alternative scrollbar selectors */
+Scrollbar.light-theme {
+    background: #e1e4e8 !important;
+}
+
+ScrollbarThumb.light-theme {
+    background: #959da5 !important;
+}
+
+Scrollbar.dark-theme {
+    background: #21262d !important;
+}
+
+ScrollbarThumb.dark-theme {
+    background: #484f58 !important;
+}
+
+/* FooterKey theme classes with higher specificity */
+FooterKey.light-theme {
+    color: #0969da !important;
+}
+
+FooterKey.dark-theme {
+    color: #58a6ff !important;
+}
+
+/* More specific selectors for FooterKey children */
+FooterKey.light-theme > * {
+    color: #0969da !important;
+}
+
+FooterKey.dark-theme > * {
+    color: #58a6ff !important;
+}
+
+/* Try to target specific FooterKey sub-elements */
+FooterKey.light-theme .footer-key--key {
+    color: #0969da !important;
+}
+
+FooterKey.dark-theme .footer-key--key {
+    color: #58a6ff !important;
+}
+
+FooterKey.light-theme .footer-key--description {
+    color: #24292f !important;
+}
+
+FooterKey.dark-theme .footer-key--description {
+    color: #c9d1d9 !important;
+}
+
+/* Mission Selector theme classes with higher specificity */
+MissionSelector.light-theme > Static {
+    color: #0969da !important;
+}
+
+MissionSelector.dark-theme > Static {
+    color: #58a6ff !important;
+}
+
+/* Also target by ID */
+#mission-title.light-theme {
+    color: #0969da !important;
+}
+
+#mission-title.dark-theme {
+    color: #58a6ff !important;
+}
+
+/* Mission buttons with maximum specificity to override Textual's internal styling */
+MissionSelector.light-theme > Button.-primary.mission-button {
+    background: #eaeef2 !important;
+    color: #24292f !important;
+}
+
+MissionSelector.dark-theme > Button.-primary.mission-button {
+    background: #2d333b !important;
+    color: #c9d1d9 !important;
+}
+
+/* Also try targeting with -style-default class */
+MissionSelector.light-theme > Button.-primary.-style-default {
+    background: #eaeef2 !important;
+    color: #24292f !important;
+}
+
+MissionSelector.dark-theme > Button.-primary.-style-default {
+    background: #2d333b !important;
+    color: #c9d1d9 !important;
+}
+
+/* Also target by class for redundancy */
+.mission-button.light-theme {
+    background: #eaeef2 !important;
+    color: #24292f !important;
+}
+
+.mission-button.dark-theme {
+    background: #2d333b !important;
+    color: #c9d1d9 !important;
+}
+
+/* Button hover states with higher specificity */
+MissionSelector.light-theme > Button.-primary:hover {
+    background: #d0d7de !important;
+    color: #0969da !important;
+}
+
+MissionSelector.dark-theme > Button.-primary:hover {
+    background: #30363d !important;
+    color: #58a6ff !important;
+}
+
+/* Also keep class-based selectors */
+.mission-button.light-theme:hover {
+    background: #d0d7de !important;
+    color: #0969da !important;
+}
+
+.mission-button.dark-theme:hover {
+    background: #30363d !important;
+    color: #58a6ff !important;
+}
+
+/* Mission selector modal screen background - keep existing behavior */
+
+/* Panel titles */
+.panel-title.light-theme {
+    color: #0969da !important;
+}
+
+.panel-title.dark-theme {
+    color: #58a6ff !important;
+}
+
+/* Main container */
+#main-container.light-theme {
+    background: #ffffff !important;
+    color: #24292f !important;
+}
+
+#main-container.dark-theme {
+    background: #161b22 !important;
+    color: #c9d1d9 !important;
+}
+
+#mission-title.light-theme {
+    color: #00438f !important;
+}
+
+/* BUTTON FOCUS FIX - add bold text */
+MissionSelector > Button.-primary:focus {
+    background: #d0d7de !important;
+    color: #24292f !important;
+    text-style: bold !important;
+}
+
+Screen:dark MissionSelector > Button.-primary:focus {
+    background: #30363d !important;
+    color: #c9d1d9 !important;
+    text-style: bold !important;
+}
+
+/* SCROLLBAR THEME FIX */
+/* Light Mode */
+#conversation.light-theme,
+#error-log.light-theme {
+    scrollbar-background: #f0f2f6;
+    scrollbar-background-hover: #e1e4e8;
+    scrollbar-background-active: #d0d7de;
+    scrollbar-color: #d0d7de;
+    scrollbar-color-hover: #959da5;
+    scrollbar-color-active: #0969da;
+    scrollbar-corner-color: #f0f2f6;
+}
+
+/* Dark Mode */
+#conversation.dark-theme,
+#error-log.dark-theme {
+    scrollbar-background: #21262d;
+    scrollbar-background-hover: #30363d;
+    scrollbar-background-active: #484f58;
+    scrollbar-color: #484f58;
+    scrollbar-color-hover: #6e7681;
+    scrollbar-color-active: #58a6ff;
+    scrollbar-corner-color: #21262d;
+}

@@ -1,0 +1,72 @@
+# Mission Configuration for Data Seek Agent
+# This file contains the mission parameters and configuration for the Data Seek Agent, separated from the main claimify config.
+
+model_defaults:
+  model: "openai/gpt-5-mini"
+  temperature: 1
+  max_tokens: 2000
+
+web_search:
+  provider: "google/search"
+  # Override global robots behavior just for web_search (optional)
+  respect_robots: true
+  # Requests per second for providers without header-based rate limits (optional)
+  requests_per_second: 2.0
+  # Canonical result cap for providers that support it
+  max_results: 10
+
+recursion_per_sample: 35 # 11 allows for 2 retries at research (4n + 3)
+initial_prompt: |
+  Begin the data prospecting mission based on your configured mission plan.
+
+# Observability configuration for LangSmith
+# You can also set these via environment variables:
+# - LANGCHAIN_API_KEY or LANGSMITH_API_KEY (required for tracing)
+# - LANGCHAIN_TRACING_V2 or LANGSMITH_TRACING (enable/disable tracing)
+# - LANGCHAIN_ENDPOINT or LANGSMITH_ENDPOINT (custom endpoint)
+# - LANGCHAIN_PROJECT or LANGSMITH_PROJECT (project name)
+#
+# Note: LiteLLM may show a non-blocking error about logger initialization when the seek
+# agent starts. This is expected behavior and does not affect functionality - LangSmith
+# tracing will work correctly despite this initial error message. The error occurs because 
+# LiteLLM tries to initialize its custom logger during import, but in subprocess contexts 
+# there may not be an event loop available yet. This is purely informational and can be ignored.
+observability:
+  tracing: true  # Enable/disable tracing
+  # api_key: "your-langsmith-api-key"  # Not recommended in config files, use environment variables instead
+  endpoint: "https://api.smith.langchain.com"  # Custom endpoint for self-hosted deployments
+  project: "dataseek"  # Project name for organizing traces
+
+nodes:
+  research:
+    max_iterations: 7
+
+mission_plan:
+  goal: "Find reliable, verifiable data sources to build a training corpus about the safety and efficacy of GLP-1 agonists for weight loss."
+  nodes:
+    - name: "supervisor"
+      model: "openai/gpt-5-mini"
+      temperature: 1
+      max_tokens: 65536
+    - name: "research"
+      model: "openai/gpt-5-mini"
+      temperature: 1
+      max_tokens: 65536
+      result_char_limit: 65536
+      summary_char_limit: 6000
+    - name: "fitness"
+      model: "openai/gpt-5-mini"
+      temperature: 1
+      max_tokens: 65536
+    - name: "archive"
+      model: "openai/gpt-5-mini"
+      temperature: 1
+      max_tokens: 65536
+    - name: "synthetic"
+      model: "openai/gpt-5-mini"
+      temperature: 1
+      max_tokens: 65536
+
+
+
+checkpointer_path: ".checkpointer.sqlite"

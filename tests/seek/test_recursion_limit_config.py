@@ -26,6 +26,7 @@ def test_recursion_limit_is_top_level_in_config():
         checkpointer=mock_checkpointer,
         app=dummy_app,
         mission_config=mission_config,
+        seek_config={},
     )
 
     # Act: run a single cycle
@@ -36,4 +37,3 @@ def test_recursion_limit_is_top_level_in_config():
     assert dummy_app.last_config.get("recursion_limit") == 14
     # And thread_id remains under configurable
     assert dummy_app.last_config.get("configurable", {}).get("thread_id") == "thread_test"
-

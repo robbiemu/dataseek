@@ -375,3 +375,20 @@ class MissionRunner:
         )
 
         return mission_state
+
+    def get_progress(self, thread_id: str) -> Dict[str, Any]:
+        """Return simple progress metrics for a given thread.
+
+        Computes samples generated, total target, and percentage complete
+        based on the current app state for the provided thread ID.
+        """
+        thread_config = {"configurable": {"thread_id": thread_id}}
+        state = self.app.get_state(thread_config).values
+        samples_generated = state.get("samples_generated", 0)
+        total_target = state.get("total_samples_target", 0)
+        progress_pct = (samples_generated / total_target * 100) if total_target else 0.0
+        return {
+            "samples_generated": samples_generated,
+            "total_target": total_target,
+            "progress_pct": progress_pct,
+        }

@@ -46,19 +46,21 @@ def test_research_node_max_iterations_validation():
 @patch("seek.nodes.get_active_seek_config")
 @patch("seek.nodes.ChatLiteLLM")
 @patch("seek.nodes.get_tools_for_role")
+@patch("seek.nodes.ChatPromptTemplate")
 def test_research_node_uses_config_max_iterations(
-    mock_get_tools, mock_chat_llm, mock_get_active_seek_config
+    mock_prompt, mock_get_tools, mock_chat_llm, mock_get_active_seek_config
 ):
     """Test that research_node uses configured max_iterations."""
     # --- Arrange ---
     # Set up custom config with max_iterations = 5
     mock_research_config = SeekAgentResearchNodeConfig(max_iterations=5)
-    mock_seek_config = SeekAgentConfig(
-        mission_plan=SeekAgentMissionPlanConfig(goal="Test Goal", nodes=[], tools={}),
-        writer=SeekAgentWriterConfig(),
-        nodes=SeekAgentNodesConfig(research=mock_research_config),
-    )
-    mock_get_active_seek_config.return_value = mock_seek_config
+    # Provide a dict-like config matching the new loader behavior
+    mock_get_active_seek_config.return_value = {
+        "model_defaults": {"model": "openai/gpt-5-mini", "temperature": 0.1, "max_tokens": 2000},
+        "mission_plan": {"nodes": []},
+        "nodes": {"research": mock_research_config.model_dump()},
+        "use_robots": True,
+    }
 
     # Mock LLM and tools
     mock_llm_instance = Mock()
@@ -74,6 +76,17 @@ def test_research_node_uses_config_max_iterations(
 
     # Create state
     state = DataSeekState(messages=[HumanMessage(content="Find stuff")])
+
+    # Bypass prompt formatting to call LLM directly
+    class DummyPrompt:
+        @classmethod
+        def from_messages(cls, *_args, **_kwargs):
+            return cls()
+        def partial(self, **_kwargs):
+            return self
+        def __or__(self, other):
+            return other
+    mock_prompt.from_messages.side_effect = DummyPrompt.from_messages
 
     # --- Act ---
     research_node(state)

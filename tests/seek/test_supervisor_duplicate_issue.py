@@ -47,7 +47,20 @@ def test_supervisor_prevents_duplicate_consecutive_agent_calls():
         research_samples_generated=0,
         samples_generated=0,
         total_samples_target=1200,
-        synthetic_budget=0.2
+        synthetic_budget=0.2,
+        current_mission="test_mission",
+        progress={
+            "test_mission": {
+                "Verifiability": {
+                    "target": 1,
+                    "collected": 0,
+                    "topics": {
+                        "news reports": {"collected": 0, "target": 1},
+                        "scientific abstracts": {"collected": 0, "target": 1},
+                    },
+                }
+            }
+        },
     )
     
     # Mock the LLM to return fitness again (simulating the bug scenario)
@@ -63,10 +76,15 @@ def test_supervisor_prevents_duplicate_consecutive_agent_calls():
     
     # Mock the create_llm function to return our mock
     with unittest.mock.patch("seek.nodes.create_llm") as mock_create_llm_func, \
-         unittest.mock.patch("seek.nodes.load_claimify_config") as mock_config_func:
+         unittest.mock.patch("seek.nodes.get_active_seek_config") as mock_config_func:
         
         mock_create_llm_func.return_value = mock_llm
-        mock_config_func.return_value = Mock()
+        mock_config_func.return_value = {
+            "model_defaults": {"model": "openai/gpt-5-mini", "temperature": 0.1, "max_tokens": 2000},
+            "mission_plan": {"nodes": []},
+            "nodes": {},
+            "use_robots": True,
+        }
         
         # Call supervisor_node
         result = supervisor_node(state)

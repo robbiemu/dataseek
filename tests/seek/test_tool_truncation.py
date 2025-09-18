@@ -24,10 +24,13 @@ class TestToolTruncation(unittest.TestCase):
         }
         
         # Test with a large max_tokens limit
-        with patch('seek.tools.load_claimify_config') as mock_config:
-            # Mock config to return a large max_tokens
-            mock_config.return_value.seek_agent.mission_plan.get_node_config.return_value.max_tokens = 1000
-            
+        with patch('seek.tools.get_active_seek_config') as mock_get_cfg:
+            # Mock config to return a large max_tokens for research
+            mock_get_cfg.return_value = {
+                "mission_plan": {"nodes": [{"name": "research", "max_tokens": 1000}]},
+                "nodes": {"research": {"max_iterations": 7}},
+            }
+
             truncated_response = _truncate_response_for_role(response, "research")
             
             # Should be unchanged
@@ -46,10 +49,13 @@ class TestToolTruncation(unittest.TestCase):
         }
         
         # Test with a small max_tokens limit
-        with patch('seek.tools.load_claimify_config') as mock_config:
+        with patch('seek.tools.get_active_seek_config') as mock_get_cfg:
             # Mock config to return a small max_tokens
-            mock_config.return_value.seek_agent.mission_plan.get_node_config.return_value.max_tokens = 10  # 40 characters
-            
+            mock_get_cfg.return_value = {
+                "mission_plan": {"nodes": [{"name": "research", "max_tokens": 10}]},
+                "nodes": {"research": {"max_iterations": 7}},
+            }
+
             truncated_response = _truncate_response_for_role(response, "research")
             
             # Should be truncated

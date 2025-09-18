@@ -532,7 +532,7 @@ def _truncate_response_for_role(
     text_fields = ["results", "markdown", "content", "text", "output"]
     for field in text_fields:
         if field in response and isinstance(response[field], str):
-            max_chars = int(max_tokens) * TOKEN_CHARACTER_RATIO
+            max_chars = int(int(max_tokens) * TOKEN_CHARACTER_RATIO)
             if len(response[field]) > max_chars:
                 truncated = response[field][:max_chars]
                 response[field] = (

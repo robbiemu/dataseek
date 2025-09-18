@@ -34,9 +34,12 @@ class TestTools:
         tool_names = [tool.name for tool in archive_tools]
         assert "write_file" in tool_names
 
+    @patch("seek.tools.get_active_seek_config")
     @patch("seek.tools._run_async_safely")
-    def test_web_search_success(self, mock_run_async_safely):
+    def test_web_search_success(self, mock_run_async_safely, mock_get_cfg):
         """Test successful web search."""
+        # Force a provider that doesn't require extra packages
+        mock_get_cfg.return_value = {"web_search": {"provider": "wikipedia/search"}, "use_robots": True}
         # Create the web search tool inside the test
         web_search = create_web_search_tool()
         
@@ -49,14 +52,16 @@ class TestTools:
         # Verify the result
         assert result["status"] == "ok"
         assert result["query"] == "test query"
-        assert result["results"] == "Test search results"
-        # The provider should now be the configured provider, not the default
-        # Since we're not mocking the config, it will fall back to the default
-        assert result["provider"] == "brave/search"
+        # Results are normalized to a list
+        assert result["results"] == ["Test search results"]
+        # The provider should reflect our mocked provider
+        assert result["provider"] == "wikipedia/search"
 
+    @patch("seek.tools.get_active_seek_config")
     @patch("seek.tools._run_async_safely")
-    def test_web_search_failure(self, mock_run_async_safely):
+    def test_web_search_failure(self, mock_run_async_safely, mock_get_cfg):
         """Test failed web search."""
+        mock_get_cfg.return_value = {"web_search": {"provider": "wikipedia/search"}, "use_robots": True}
         # Create the web search tool inside the test
         web_search = create_web_search_tool()
         
@@ -106,13 +111,13 @@ class TestTools:
         assert result["title"] == ""
         assert "Network error" in result["error"]
 
-    @patch("seek.tools._run_async_safely")
-    def test_safe_request_get_success(self, mock_run_async):
+    @patch("seek.tools.SYNC_HTTP_CLIENT.get")
+    def test_safe_request_get_success(self, mock_sync_get):
         """Test successful safe request."""
-        # Mock the async response
+        # Mock the sync http response
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
-        mock_run_async.return_value = mock_response
+        mock_sync_get.return_value = mock_response
 
         # Call the function
         result = _safe_request_get("http://example.com")
@@ -120,11 +125,11 @@ class TestTools:
         # Verify the result
         assert result == mock_response
 
-    @patch("seek.tools._run_async_safely")
-    def test_safe_request_get_failure(self, mock_run_async):
+    @patch("seek.tools.SYNC_HTTP_CLIENT.get")
+    def test_safe_request_get_failure(self, mock_sync_get):
         """Test failed safe request."""
-        # Mock the async request to raise an exception
-        mock_run_async.side_effect = Exception("Network error")
+        # Mock the sync request to raise an exception
+        mock_sync_get.side_effect = Exception("Network error")
 
         # Call the function and expect it to raise
         with pytest.raises(Exception):

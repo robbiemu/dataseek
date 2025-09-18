@@ -8,11 +8,11 @@ ensuring that our patched version is used.
 Note: We rely on LangChain/LangGraph's native LangSmith tracing via environment
 variables and do not use LiteLLM's custom logger, to avoid event-loop issues.
 """
- 
 
 # Import the modules we need to patch
 import json
 import os
+
 import litellm
 import litellm.litellm_core_utils.prompt_templates.factory
 import litellm.llms.ollama.completion.transformation
@@ -136,8 +136,9 @@ def _direct_ollama_call_with_tools(
         timeout: Optional timeout in seconds. If None, will use config timeout or default to 120.
     """
     try:
-        import requests
         import json
+
+        import requests
         from langchain_core.messages import AIMessage
 
         # Convert LangChain messages to Ollama format
@@ -193,7 +194,7 @@ def _direct_ollama_call_with_tools(
                             # Test if this tool can be serialized
                             json.dumps(tool)
                             cleaned_tools.append(tool)
-                        except:
+                        except Exception:
                             print(f"⚠️ Skipping malformed tool: {tool}")
                     payload["tools"] = cleaned_tools
 
@@ -217,9 +218,7 @@ def _direct_ollama_call_with_tools(
         for attempt in range(max_retries + 1):
             try:
                 if attempt > 0:
-                    print(
-                        f"🔄 Retry attempt {attempt}/{max_retries} for Ollama call..."
-                    )
+                    print(f"🔄 Retry attempt {attempt}/{max_retries} for Ollama call...")
 
                 response = requests.post(
                     "http://localhost:11434/api/chat", json=payload, timeout=timeout
@@ -233,9 +232,7 @@ def _direct_ollama_call_with_tools(
                 if attempt < max_retries:
                     # On timeout, try with a simplified payload for retry
                     if tools and len(tools) > 1:
-                        print(
-                            "🔧 Simplifying payload for retry - reducing tool complexity"
-                        )
+                        print("🔧 Simplifying payload for retry - reducing tool complexity")
                         # Keep only the first tool to reduce complexity
                         payload["tools"] = tools[:1]
                     continue
@@ -317,9 +314,7 @@ def _direct_ollama_call_with_tools(
                                 args = json.loads(args)
                             except json.JSONDecodeError:
                                 # If that fails, try to fix common malformations
-                                print(
-                                    f"🔧 Attempting to fix malformed JSON: {args[:100]}..."
-                                )
+                                print(f"🔧 Attempting to fix malformed JSON: {args[:100]}...")
                                 fixed_args = _fix_malformed_json_arguments(args)
                                 try:
                                     args = json.loads(fixed_args)
@@ -347,9 +342,7 @@ def _direct_ollama_call_with_tools(
             return ai_message
 
         else:
-            print(
-                f"❌ Direct Ollama call failed: {response.status_code} - {response.text}"
-            )
+            print(f"❌ Direct Ollama call failed: {response.status_code} - {response.text}")
             return AIMessage(content="Direct Ollama call failed. Please try again.")
 
     except Exception as e:
@@ -402,9 +395,7 @@ try:
     # Special handling for direct function references that might have been imported
     # Force reload of critical modules with our patch in place
     if "litellm.litellm_core_utils.prompt_templates.factory" in sys.modules:
-        factory_module = sys.modules[
-            "litellm.litellm_core_utils.prompt_templates.factory"
-        ]
+        factory_module = sys.modules["litellm.litellm_core_utils.prompt_templates.factory"]
         factory_module.ollama_pt = _patched_ollama_pt
         _patch_log("✅ Force-patched factory module")
 
@@ -447,11 +438,10 @@ try:
                     submodule = getattr(module, attr, None)
                     if submodule and hasattr(submodule, "ollama_pt"):
                         submodule.ollama_pt = _patched_ollama_pt
-                        _patch_log(
-                            f"✅ Late-patched {name}.{attr}.ollama_pt during import"
-                        )
-                except:
-                    pass
+                        _patch_log(f"✅ Late-patched {name}.{attr}.ollama_pt during import")
+                except Exception as _e:
+                    # Ignore attribute access errors during late patching
+                    pass  # nosec B110 # - late import patch is best-effort only
 
         return module
 
@@ -500,13 +490,10 @@ try:
                     # 1. When tools are expected but missing OR content is missing with tools
                     # 2. When content is missing even without tools (final iteration case)
                     suspicious_response = (
-                        (
-                            has_tools and (tool_calls_empty or content_missing)
-                        )  # Original condition
-                        or (
-                            content_missing
-                        )  # Also trigger if content is missing, regardless of tools
-                    )
+                        has_tools and (tool_calls_empty or content_missing)
+                    ) or (  # Original condition
+                        content_missing
+                    )  # Also trigger if content is missing, regardless of tools
 
                     if suspicious_response:
                         # This looks like Ollama returned content/tool calls but LiteLLM didn't preserve them
@@ -540,10 +527,7 @@ try:
                         # Always preserve content from direct call, regardless of tool calls
                         message.content = direct_result.content or ""
 
-                        if (
-                            hasattr(direct_result, "tool_calls")
-                            and direct_result.tool_calls
-                        ):
+                        if hasattr(direct_result, "tool_calls") and direct_result.tool_calls:
                             # Convert the direct result back to LiteLLM format
 
                             # DEBUG: Show what tool calls we're trying to restore
@@ -567,15 +551,15 @@ try:
                                 # Validate tool call - must have non-empty name and valid args
                                 if tool_name and tool_name.strip():
                                     litellm_tc = {
-                                        "id": tc.get(
-                                            "id", f"call_{len(litellm_tool_calls)}"
-                                        ),
+                                        "id": tc.get("id", f"call_{len(litellm_tool_calls)}"),
                                         "type": "function",
                                         "function": {
                                             "name": tool_name,
-                                            "arguments": json.dumps(tool_args)
-                                            if isinstance(tool_args, dict)
-                                            else str(tool_args),
+                                            "arguments": (
+                                                json.dumps(tool_args)
+                                                if isinstance(tool_args, dict)
+                                                else str(tool_args)
+                                            ),
                                         },
                                     }
                                     litellm_tool_calls.append(litellm_tc)
@@ -609,9 +593,7 @@ try:
                                     f"📝 Added {len(invalid_content_parts)} invalid tool calls as content"
                                 )
                         else:
-                            print(
-                                "✅ Restored content from direct Ollama call (no tool calls)"
-                            )
+                            print("✅ Restored content from direct Ollama call (no tool calls)")
 
             return response
 
@@ -629,10 +611,3 @@ except Exception as e:
     import traceback
 
     _patch_log(f"Traceback: {traceback.format_exc()}")
-
-except Exception as e:
-    _patch_log(f"⚠️  Could not apply LiteLLM completion patch: {e}")
-    import traceback
-
-    _patch_log(f"Traceback: {traceback.format_exc()}")
- 

@@ -1,9 +1,8 @@
-from datetime import datetime, timedelta
 from dataclasses import dataclass
-from typing import Optional
+from datetime import datetime, timedelta
 
-from textual.widgets import Static
 from rich.text import Text
+from textual.widgets import Static
 
 
 @dataclass
@@ -14,8 +13,8 @@ class GenerationStats:
     completed: int = 0
     synthetic_completed: int = 0  # Count of synthetic samples generated
     errors: int = 0
-    started_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    started_at: datetime | None = None
+    updated_at: datetime | None = None
     agent_activities: int = 0  # Count of agent actions/responses
     current_recursion_step: int = 0  # Current recursion step
     total_recursion_steps: int = 30  # Total recursion steps
@@ -26,9 +25,7 @@ class GenerationStats:
     def elapsed_seconds(self) -> float:
         if not self.started_at:
             return 0
-        return (
-            self.updated_at or datetime.now()
-        ).timestamp() - self.started_at.timestamp()
+        return (self.updated_at or datetime.now()).timestamp() - self.started_at.timestamp()
 
     @property
     def samples_per_second(self) -> float:
@@ -92,7 +89,7 @@ class StatsHeader(Static):
 
     def update_stats(self, stats: GenerationStats):
         self.stats = stats
-        progress_pct = int(100 * stats.completed / max(1, stats.target))
+        int(100 * stats.completed / max(1, stats.target))
         synthetic_pct = stats.synthetic_percentage
 
         # Determine color for synthetic percentage
@@ -102,9 +99,7 @@ class StatsHeader(Static):
         # Calculate target percentage and lambda threshold
         target_synthetic_pct = stats.synthetic_budget * 100  # e.g., 20% for 0.2 budget
         lambda_factor = 0.8
-        lower_threshold_pct = (
-            target_synthetic_pct * lambda_factor
-        )  # e.g., 16% for 20% target
+        lower_threshold_pct = target_synthetic_pct * lambda_factor  # e.g., 16% for 20% target
 
         # Color coding logic:
         # - At 0/n progress: Default color (no coloring)
@@ -159,13 +154,17 @@ class StatsHeader(Static):
 
         # Debug: Log stats header updates
         try:
-            with open("/tmp/tui_debug.log", "a") as f:
+            import os
+            import tempfile
+
+            debug_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")
+            with open(debug_path, "a") as f:
                 f.write(f"STATS HEADER UPDATE: {status_line}\n")
                 f.write(
                     f"  Synthetic %: {synthetic_pct:.1f}% (target: {target_synthetic_pct}%), Color: {synth_color or 'default'}\n"
                 )
         except Exception:
-            pass
+            pass  # nosec B110 # - debug logging failure is non-fatal
 
         # Use Rich Text object for proper color rendering
         self.update(status_text)

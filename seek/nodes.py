@@ -4,35 +4,31 @@ Agent nodes for the Data Seek graph.
 """
 
 import json
+import secrets
+import time
+from datetime import datetime
+
 import json_repair
 import yaml
-from datetime import datetime
-import time
-from typing import Dict, List, Optional
-
-import random
-
-from langchain_litellm import ChatLiteLLM
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import AIMessage, ToolMessage
-
-from .tools import (
-    get_tools_for_role,
-    write_file,
-    _truncate_response_for_role,
-)
-from .utils import (
-    get_characteristic_context,
-    get_claimify_strategy_block,
-    append_to_pedigree,
-    strip_reasoning_block,
-)
-
-from .state import DataSeekState
-from .models import FitnessReport
-from .config import get_active_seek_config
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_litellm import ChatLiteLLM
 from pydantic import BaseModel, Field
 
+from .config import get_active_seek_config
+from .models import FitnessReport
+from .state import DataSeekState
+from .tools import (
+    _truncate_response_for_role,
+    get_tools_for_role,
+    write_file,
+)
+from .utils import (
+    append_to_pedigree,
+    get_characteristic_context,
+    get_claimify_strategy_block,
+    strip_reasoning_block,
+)
 
 # Define the minimum step cost for a successful research cycle
 MIN_STEPS_FOR_SUCCESSFUL_RESEARCH = (
@@ -47,7 +43,7 @@ class SupervisorDecision(BaseModel):
         ...,
         description="The name of the next agent to route to (e.g., 'research', 'fitness').",
     )
-    new_task: Optional[Dict] = Field(
+    new_task: dict | None = Field(
         None,
         description="Optional: A new task to assign if the supervisor decides to switch focus.",
     )
@@ -109,8 +105,8 @@ def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str):
 
 
 def _get_next_task_from_progress(
-    progress: Dict, exclude: Optional[List[tuple[str, str]]] = None
-) -> Optional[Dict]:
+    progress: dict, exclude: list[tuple[str, str]] | None = None
+) -> dict | None:
     """Finds the next uncompleted characteristic/topic pair."""
     if not progress:
         return None
@@ -127,10 +123,11 @@ def _get_next_task_from_progress(
     if not eligible_tasks:
         return None
 
-    return random.choice(eligible_tasks)
+    # Non-cryptographic randomness is not required; using secrets.choice for Bandit compliance
+    return secrets.choice(eligible_tasks)
 
 
-def supervisor_node(state: DataSeekState) -> Dict:
+def supervisor_node(state: DataSeekState) -> dict:
     """The supervisor node, now driven by a progress tracker."""
     llm = create_llm("supervisor")
 
@@ -151,18 +148,14 @@ def supervisor_node(state: DataSeekState) -> Dict:
     # --- CACHED-ONLY MODE CHECK ---
     # If we're in cached-only mode, deterministically route to research without LLM consultation
     if state.get("cached_only_mode"):
-        print(
-            "🔁 Supervisor: In cached-only mode. Checking quotas and routing deterministically."
-        )
+        print("🔁 Supervisor: In cached-only mode. Checking quotas and routing deterministically.")
 
         current_task = state.get("current_task")
         progress = state.get("progress", {})
 
         # Verify quotas again
         if not needs_more_for_current_pair(progress, current_task, pending_increment=0):
-            print(
-                "   📊 Supervisor: Quota satisfied for cached mode. Setting exhausted flag."
-            )
+            print("   📊 Supervisor: Quota satisfied for cached mode. Setting exhausted flag.")
             next_agent = "end"
             steps_to_add = calculate_predictive_steps(next_agent)
             next_step_count = step_count + steps_to_add
@@ -180,21 +173,15 @@ def supervisor_node(state: DataSeekState) -> Dict:
                 "consecutive_failures": state.get("consecutive_failures", 0),
                 "last_action_status": "success",
                 "last_action_agent": "supervisor",
-                "synthetic_samples_generated": state.get(
-                    "synthetic_samples_generated", 0
-                ),
-                "research_samples_generated": state.get(
-                    "research_samples_generated", 0
-                ),
+                "synthetic_samples_generated": state.get("synthetic_samples_generated", 0),
+                "research_samples_generated": state.get("research_samples_generated", 0),
                 "synthetic_budget": state.get("synthetic_budget", 0.2),
                 "fitness_report": None,
                 "step_count": next_step_count,  # Increment step count for next iteration
             }
 
         # Check if we have any allowed URLs left
-        allowed = set(state.get("allowed_url_whitelist", [])) - set(
-            state.get("excluded_urls", [])
-        )
+        allowed = set(state.get("allowed_url_whitelist", [])) - set(state.get("excluded_urls", []))
         if not allowed:
             print(
                 "   🚫 Supervisor: No allowed URLs remaining in cached mode. Setting exhausted flag."
@@ -216,12 +203,8 @@ def supervisor_node(state: DataSeekState) -> Dict:
                 "consecutive_failures": state.get("consecutive_failures", 0),
                 "last_action_status": "success",
                 "last_action_agent": "supervisor",
-                "synthetic_samples_generated": state.get(
-                    "synthetic_samples_generated", 0
-                ),
-                "research_samples_generated": state.get(
-                    "research_samples_generated", 0
-                ),
+                "synthetic_samples_generated": state.get("synthetic_samples_generated", 0),
+                "research_samples_generated": state.get("research_samples_generated", 0),
                 "synthetic_budget": state.get("synthetic_budget", 0.2),
                 "fitness_report": None,
                 "step_count": next_step_count,  # Increment step count for next iteration
@@ -290,7 +273,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
     characteristic = next_task.get("characteristic", "Verifiability")
     topic = next_task.get("topic", "general domain")
     try:
-        with open("settings/mission_config.yaml", "r") as f:
+        with open("settings/mission_config.yaml") as f:
             content = f.read()
             if content.startswith("#"):
                 first_newline = content.find("\n")
@@ -302,12 +285,8 @@ def supervisor_node(state: DataSeekState) -> Dict:
         characteristic_context = None
 
     if characteristic_context:
-        print(
-            f"   ✅ Supervisor: Using dynamic context for '{characteristic}' from mission plan."
-        )
-        strategy_block = (
-            f"**Strategic Focus for '{characteristic}':**\n{characteristic_context}"
-        )
+        print(f"   ✅ Supervisor: Using dynamic context for '{characteristic}' from mission plan.")
+        strategy_block = f"**Strategic Focus for '{characteristic}':**\n{characteristic_context}"
     else:
         print(
             f"   ⚠️  Supervisor: Could not find dynamic context for '{characteristic}'. Using built-in fallback."
@@ -323,18 +302,14 @@ def supervisor_node(state: DataSeekState) -> Dict:
 
     # If the last action was a successful archive, evaluate for cached reuse.
     if last_action_agent == "archive":
-        print(
-            "✅ Supervisor: Detected a successful archival. Evaluating for cached reuse."
-        )
+        print("✅ Supervisor: Detected a successful archival. Evaluating for cached reuse.")
 
         # 1) Update exclusions
         research_findings = state.get("research_findings", [])
         used_urls = extract_used_urls_from_findings(research_findings)
         current_excluded = state.get("excluded_urls", [])
         # Normalize and deduplicate URLs
-        all_excluded = list(
-            set([normalize_url(url) for url in current_excluded + used_urls])
-        )
+        all_excluded = list(set([normalize_url(url) for url in current_excluded + used_urls]))
 
         print(
             f"   📝 Supervisor: Adding {len(used_urls)} URLs to exclusion list. Total excluded: {len(all_excluded)}"
@@ -362,12 +337,8 @@ def supervisor_node(state: DataSeekState) -> Dict:
                 "consecutive_failures": state.get("consecutive_failures", 0),
                 "last_action_status": "success",
                 "last_action_agent": "supervisor",
-                "synthetic_samples_generated": state.get(
-                    "synthetic_samples_generated", 0
-                ),
-                "research_samples_generated": state.get(
-                    "research_samples_generated", 0
-                ),
+                "synthetic_samples_generated": state.get("synthetic_samples_generated", 0),
+                "research_samples_generated": state.get("research_samples_generated", 0),
                 "synthetic_budget": state.get("synthetic_budget", 0.2),
                 "fitness_report": None,
                 "step_count": next_step_count,  # Increment step count for next iteration
@@ -396,12 +367,8 @@ def supervisor_node(state: DataSeekState) -> Dict:
                 "consecutive_failures": state.get("consecutive_failures", 0),
                 "last_action_status": "success",
                 "last_action_agent": "supervisor",
-                "synthetic_samples_generated": state.get(
-                    "synthetic_samples_generated", 0
-                ),
-                "research_samples_generated": state.get(
-                    "research_samples_generated", 0
-                ),
+                "synthetic_samples_generated": state.get("synthetic_samples_generated", 0),
+                "research_samples_generated": state.get("research_samples_generated", 0),
                 "synthetic_budget": state.get("synthetic_budget", 0.2),
                 "fitness_report": None,
                 "step_count": next_step_count,  # Increment step count for next iteration
@@ -411,13 +378,9 @@ def supervisor_node(state: DataSeekState) -> Dict:
         cache_index = index_research_cache(state.get("research_session_cache", []))
         # Filter to exclude already used URLs
         excluded_set = set(all_excluded)
-        available_candidates = [
-            entry for entry in cache_index if entry["url"] not in excluded_set
-        ]
+        available_candidates = [entry for entry in cache_index if entry["url"] not in excluded_set]
 
-        print(
-            f"   🗂️  Supervisor: Found {len(available_candidates)} unused cached sources"
-        )
+        print(f"   🗂️  Supervisor: Found {len(available_candidates)} unused cached sources")
 
         if not available_candidates:
             print("   📭 Supervisor: No unused cached sources available. Ending cycle.")
@@ -437,12 +400,8 @@ def supervisor_node(state: DataSeekState) -> Dict:
                 "consecutive_failures": state.get("consecutive_failures", 0),
                 "last_action_status": "success",
                 "last_action_agent": "supervisor",
-                "synthetic_samples_generated": state.get(
-                    "synthetic_samples_generated", 0
-                ),
-                "research_samples_generated": state.get(
-                    "research_samples_generated", 0
-                ),
+                "synthetic_samples_generated": state.get("synthetic_samples_generated", 0),
+                "research_samples_generated": state.get("research_samples_generated", 0),
                 "synthetic_budget": state.get("synthetic_budget", 0.2),
                 "fitness_report": None,
                 "step_count": next_step_count,  # Increment step count for next iteration
@@ -456,9 +415,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
         # Get synthetic budget info for LLM context
         synthetic_samples_generated = state.get("synthetic_samples_generated", 0)
         research_samples_generated = state.get("research_samples_generated", 0)
-        total_samples_generated = (
-            synthetic_samples_generated + research_samples_generated
-        )
+        total_samples_generated = synthetic_samples_generated + research_samples_generated
         synthetic_budget = state.get("synthetic_budget", 0.2)
 
         # Calculate total target from progress
@@ -482,9 +439,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
             total_samples_target=total_samples_target,
         )
 
-        print(
-            f"   🎯 Supervisor: LLM decision='{decision}', selected={len(selected_urls)} URLs"
-        )
+        print(f"   🎯 Supervisor: LLM decision='{decision}', selected={len(selected_urls)} URLs")
         print(f"   💭 Supervisor: Rationale: {rationale}")
 
         if decision == "reuse_cached" and selected_urls:
@@ -522,12 +477,8 @@ def supervisor_node(state: DataSeekState) -> Dict:
                     "consecutive_failures": state.get("consecutive_failures", 0),
                     "last_action_status": "success",
                     "last_action_agent": "supervisor",
-                    "synthetic_samples_generated": state.get(
-                        "synthetic_samples_generated", 0
-                    ),
-                    "research_samples_generated": state.get(
-                        "research_samples_generated", 0
-                    ),
+                    "synthetic_samples_generated": state.get("synthetic_samples_generated", 0),
+                    "research_samples_generated": state.get("research_samples_generated", 0),
                     "synthetic_budget": state.get("synthetic_budget", 0.2),
                     "fitness_report": None,
                     "step_count": next_step_count,  # Increment step count for next iteration
@@ -575,9 +526,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
     )
 
     # Only check for old fitness reports if we don't have a new research report
-    fitness_report = (
-        state.get("fitness_report") if not has_new_research_report else None
-    )
+    fitness_report = state.get("fitness_report") if not has_new_research_report else None
 
     if fitness_report:
         if fitness_report.passed:
@@ -647,9 +596,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
                     for char_data in progress[mission_name].values():
                         total_samples_target += char_data["target"]
                 max_synthetic_samples = int(total_samples_target * synthetic_budget)
-                synthetic_samples_generated = state.get(
-                    "synthetic_samples_generated", 0
-                )
+                synthetic_samples_generated = state.get("synthetic_samples_generated", 0)
 
                 last_action_analysis = f"""**3. Last Action Analysis:** FAILURE
    - **Agent:** fitness
@@ -726,8 +673,10 @@ def supervisor_node(state: DataSeekState) -> Dict:
                         parts = line.split("`")
                         if len(parts) > 1:
                             report_url = parts[1].strip()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(
+                            f"   ⚠️  Supervisor: Failed to extract Source URL from line: {line!r} ({e})"
+                        )
                     break
 
             if report_url:
@@ -797,13 +746,11 @@ def supervisor_node(state: DataSeekState) -> Dict:
                         # Replace the token with the actual tool output
                         tool_output = evidence.get("output", "")
                         report_content = str(tool_output)
-                        print(
-                            f"✅ Supervisor: Resolved cache reference for call_id '{call_id}'."
-                        )
+                        print(f"✅ Supervisor: Resolved cache reference for call_id '{call_id}'.")
                         break
             except IndexError:
                 print("⚠️ Supervisor: Malformed cache reference found.")
-                pass  # Keep the original report_content if reference is malformed
+                pass
 
         research_findings.append(report_content)
 
@@ -817,7 +764,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
                     else:
                         source_url = None
                 except IndexError:
-                    pass  # Keep source_url as None
+                    pass
                 break
 
         # Verify provenance if a URL was found
@@ -831,9 +778,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
                 )
                 if is_valid_evidence:
                     args = evidence["args"]
-                    found_url = (
-                        args.get("url") or args.get("base_url") or args.get("start_url")
-                    )
+                    found_url = args.get("url") or args.get("base_url") or args.get("start_url")
                     if found_url == source_url:
                         output = evidence.get("output", {})
                         if isinstance(output, dict) and output.get("status") == "ok":
@@ -877,9 +822,7 @@ def supervisor_node(state: DataSeekState) -> Dict:
         }
 
     research_detail = (
-        "\n- `research`: Finds source documents from the web."
-        if not research_is_off_limits
-        else ""
+        "\n- `research`: Finds source documents from the web." if not research_is_off_limits else ""
     )
 
     base_prompt = f"""You are the supervisor of a team of Data Prospecting agents. Your role is to analyze the current mission status and decide which agent should act next.
@@ -892,7 +835,9 @@ def supervisor_node(state: DataSeekState) -> Dict:
 
     characteristic = next_task.get("characteristic", "N/A")
     topic = next_task.get("topic", "N/A")
-    current_task_str = f"   - Find sources for the characteristic '{characteristic}' in the topic '{topic}'."
+    current_task_str = (
+        f"   - Find sources for the characteristic '{characteristic}' in the topic '{topic}'."
+    )
 
     total_samples_target = 0
     if progress:
@@ -911,16 +856,12 @@ def supervisor_node(state: DataSeekState) -> Dict:
     research_success_rate = (
         "high"
         if consecutive_failures < 2 and research_attempts < 3
-        else "moderate"
-        if consecutive_failures < 4
-        else "low"
+        else "moderate" if consecutive_failures < 4 else "low"
     )
 
     # More integrated status summary
     progress_pct = (
-        (total_samples_generated / total_samples_target) * 100
-        if total_samples_target > 0
-        else 0
+        (total_samples_generated / total_samples_target) * 100 if total_samples_target > 0 else 0
     )
     mission_status = f"{total_samples_generated}/{total_samples_target} samples ({progress_pct:.0f}%) | {current_synthetic_pct:.0%} synthetic | {research_success_rate} research success"
 
@@ -957,9 +898,7 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
 - **Mission end**: If approaching completion, balance final ratio toward target if possible"""
 
     last_action_analysis = ""
-    last_message_content = (
-        str(messages[-1].content) if messages else "No recent messages."
-    )
+    last_message_content = str(messages[-1].content) if messages else "No recent messages."
 
     if last_action_status == "failure":
         failure_agent = last_action_agent if last_action_agent else "unknown"
@@ -1026,9 +965,7 @@ Your response MUST be a JSON object matching the required schema, with a single 
 
         # Override research choice if it's off-limits due to insufficient steps
         if research_is_off_limits and next_agent == "research":
-            print(
-                "   ⚠️ Supervisor: LLM chose 'research' despite limit. Overriding to 'end'."
-            )
+            print("   ⚠️ Supervisor: LLM chose 'research' despite limit. Overriding to 'end'.")
             # You could also add logic here to try 'synthetic' if it's cheaper and budget allows.
             next_agent = "end"
 
@@ -1039,21 +976,21 @@ Your response MUST be a JSON object matching the required schema, with a single 
             # Recalculate strategy block for the new task
             characteristic = next_task.get("characteristic", "Verifiability")
             try:
-                with open("settings/mission_config.yaml", "r") as f:
+                with open("settings/mission_config.yaml") as f:
                     content = f.read()
                     if content.startswith("#"):
                         first_newline = content.find("\n")
                         if first_newline != -1:
                             content = content[first_newline + 1 :]
                     mission_config = yaml.safe_load(content)
-                characteristic_context = get_characteristic_context(
-                    next_task, mission_config
-                )
+                characteristic_context = get_characteristic_context(next_task, mission_config)
             except Exception:
                 characteristic_context = None
 
             if characteristic_context:
-                strategy_block = f"**Strategic Focus for '{characteristic}':**\n{characteristic_context}"
+                strategy_block = (
+                    f"**Strategic Focus for '{characteristic}':**\n{characteristic_context}"
+                )
             else:
                 strategy_block = get_claimify_strategy_block(characteristic)
 
@@ -1091,7 +1028,7 @@ Your response MUST be a JSON object matching the required schema, with a single 
     }
 
 
-def research_node(state: "DataSeekState") -> Dict:
+def research_node(state: "DataSeekState") -> dict:
     """
     Verifiable Research Workflow:
     - Dynamically scoped ReAct loop (discover -> extract -> synthesize)
@@ -1109,9 +1046,7 @@ def research_node(state: "DataSeekState") -> Dict:
     # --- Read session tool/domain blocklist ---
     session_tool_domain_blocklist = state.get("session_tool_domain_blocklist", [])
     if session_tool_domain_blocklist:
-        print(
-            f"   🚫 Session blocklist contains {len(session_tool_domain_blocklist)} entries:"
-        )
+        print(f"   🚫 Session blocklist contains {len(session_tool_domain_blocklist)} entries:")
         for tool_name, domain in session_tool_domain_blocklist:
             print(f"      - {tool_name} blocked for domain {domain}")
 
@@ -1120,9 +1055,7 @@ def research_node(state: "DataSeekState") -> Dict:
     for msg in reversed(state.get("messages", [])):
         # LangChain HumanMessage or any object with type == "human"
         if getattr(msg, "content", None):
-            if getattr(msg, "type", None) == "human" or "HumanMessage" in str(
-                type(msg)
-            ):
+            if getattr(msg, "type", None) == "human" or "HumanMessage" in str(type(msg)):
                 user_question = msg.content
                 break
 
@@ -1140,9 +1073,7 @@ def research_node(state: "DataSeekState") -> Dict:
         }
 
     # --- Evidence cache (auditable log of work for Supervisor) ---
-    session_cache = list(
-        state.get("research_session_cache", [])
-    )  # make a copy we can append to
+    session_cache = list(state.get("research_session_cache", []))  # make a copy we can append to
     print(f"   Session cache (pre-run): {len(session_cache)} items")
 
     # --- Tools & Mission Context ---
@@ -1173,8 +1104,7 @@ def research_node(state: "DataSeekState") -> Dict:
     # --- CACHED-ONLY MODE CHECK ---
     cached_only = state.get("cached_only_mode") or state.get("no_search_tools")
     allowed_urls = list(
-        set(state.get("allowed_url_whitelist", []))
-        - set(state.get("excluded_urls", []))
+        set(state.get("allowed_url_whitelist", [])) - set(state.get("excluded_urls", []))
     )
 
     if cached_only:
@@ -1201,9 +1131,7 @@ def research_node(state: "DataSeekState") -> Dict:
             if entry["url"] in {normalize_url(url) for url in allowed_urls}
         ]
 
-        print(
-            f"   🗂️  Research: Found {len(allowed_cache_entries)} cached entries for allowed URLs"
-        )
+        print(f"   🗂️  Research: Found {len(allowed_cache_entries)} cached entries for allowed URLs")
 
         # Build cached entries description for LLM
         cache_descriptions = []
@@ -1352,9 +1280,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
     # Get max_iterations from seek config, with fallback to default
     max_iterations = 8  # Default value
     if seek_config and "nodes" in seek_config and "research" in seek_config["nodes"]:
-        max_iterations = int(
-            seek_config["nodes"]["research"].get("max_iterations", max_iterations)
-        )
+        max_iterations = int(seek_config["nodes"]["research"].get("max_iterations", max_iterations))
 
     print(f"   🔄 ReAct loop starting (max_iterations={max_iterations})")
 
@@ -1367,9 +1293,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
 
         # Context tracking for research progress
         history_char_count = sum(len(str(m.content)) for m in react_messages)
-        print(
-            f"   📊 CONTEXT: {len(react_messages)} messages, ~{history_char_count} chars"
-        )
+        print(f"   📊 CONTEXT: {len(react_messages)} messages, ~{history_char_count} chars")
 
         # Dynamic scoping + warnings
         warning_message = ""
@@ -1436,9 +1360,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
 
         # Build runnable and invoke
         react_agent = (
-            prompt_template.partial(
-                system_prompt_for_iteration=system_prompt_for_iteration
-            )
+            prompt_template.partial(system_prompt_for_iteration=system_prompt_for_iteration)
             | llm_with_tools
         )
 
@@ -1452,9 +1374,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
 
             # RECOVERY: Handle empty responses on final iteration with sleep-and-retry
             raw_content = getattr(result, "content", "")
-            if iteration == max_iterations and (
-                not raw_content or not raw_content.strip()
-            ):
+            if iteration == max_iterations and (not raw_content or not raw_content.strip()):
                 print(
                     "      🚨 CRITICAL: Empty response on final iteration - attempting retry after brief pause"
                 )
@@ -1491,10 +1411,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
             print(
                 f"      🕵️‍♀️ Checking for final report in content: {getattr(result, 'content', '')[:100]}..."
             )
-            if (
-                getattr(result, "content", "")
-                and "# Data Prospecting Report" in result.content
-            ):
+            if getattr(result, "content", "") and "# Data Prospecting Report" in result.content:
                 print("      🏁 Final submission detected ('Data Prospecting Report').")
                 final_report_msg = result
                 break
@@ -1542,9 +1459,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                             status = tool_result.get("status")
                             if status == "error":
                                 error_detail = tool_result.get("error", "")
-                                print(
-                                    f"         📊 Tool result status: {status} {error_detail}"
-                                )
+                                print(f"         📊 Tool result status: {status} {error_detail}")
                             else:
                                 print(f"         📊 Tool result status: {status}")
 
@@ -1566,11 +1481,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                             else:
                                 results_data = tool_result.get("results")
                                 data_type = type(results_data).__name__
-                                num_items = (
-                                    len(results_data)
-                                    if results_data
-                                    else "None/Negative"
-                                )
+                                num_items = len(results_data) if results_data else "None/Negative"
                                 print(
                                     f"         📊 Tool result data: <class '{data_type}'> - {num_items} items"
                                 )
@@ -1587,14 +1498,10 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                         ] and isinstance(tool_result, dict):
                             if tool_name == "web_search":
                                 # Only proceed with validation if there are results left
-                                if tool_result.get(
-                                    "status"
-                                ) == "ok" and tool_result.get("results"):
+                                if tool_result.get("status") == "ok" and tool_result.get("results"):
                                     from .seek_utils import _validate_search_results
 
-                                    print(
-                                        f"         🔍 Validating {tool_name} results..."
-                                    )
+                                    print(f"         🔍 Validating {tool_name} results...")
                                     validation_result = _validate_search_results(
                                         tool_result["results"],
                                         tool_name,
@@ -1603,9 +1510,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                         session_tool_domain_blocklist,  # Pass the blocklist
                                     )
 
-                                    tool_result["results"] = validation_result[
-                                        "results"
-                                    ]
+                                    tool_result["results"] = validation_result["results"]
                                     tool_result["validation_info"] = validation_result
                                     print(
                                         f"         ✅ {tool_name} results validated ({len(validation_result['results'])} results)"
@@ -1614,9 +1519,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                     # Log retry information if performed
                                     if validation_result.get("retry_performed"):
                                         if validation_result.get("retry_successful"):
-                                            print(
-                                                f"         🔄 {tool_name}: Auto-retry successful"
-                                            )
+                                            print(f"         🔄 {tool_name}: Auto-retry successful")
                                         else:
                                             print(
                                                 f"         🔄 {tool_name}: Auto-retry attempted but unsuccessful"
@@ -1624,12 +1527,8 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                 else:
                                     # Handle error or genuinely empty results
                                     if tool_result.get("status") == "error":
-                                        error_msg = tool_result.get(
-                                            "error", "Unknown error"
-                                        )
-                                        print(
-                                            f"         ❌ {tool_name} tool failed: {error_msg}"
-                                        )
+                                        error_msg = tool_result.get("error", "Unknown error")
+                                        print(f"         ❌ {tool_name} tool failed: {error_msg}")
                                     else:
                                         print(
                                             f"         ⚠️  No results returned by {tool_name} tool"
@@ -1645,14 +1544,10 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                     }
                             else:
                                 # For non-web_search tools, proceed with normal validation
-                                if tool_result.get(
-                                    "status"
-                                ) == "ok" and tool_result.get("results"):
+                                if tool_result.get("status") == "ok" and tool_result.get("results"):
                                     from .seek_utils import _validate_search_results
 
-                                    print(
-                                        f"         🔍 Validating {tool_name} results..."
-                                    )
+                                    print(f"         🔍 Validating {tool_name} results...")
                                     validation_result = _validate_search_results(
                                         tool_result["results"],
                                         tool_name,
@@ -1661,9 +1556,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                         session_tool_domain_blocklist,  # Pass the blocklist
                                     )
 
-                                    tool_result["results"] = validation_result[
-                                        "results"
-                                    ]
+                                    tool_result["results"] = validation_result["results"]
                                     tool_result["validation_info"] = validation_result
                                     print(
                                         f"         ✅ {tool_name} results validated ({len(validation_result['results'])} results)"
@@ -1672,9 +1565,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                     # Log retry information if performed
                                     if validation_result.get("retry_performed"):
                                         if validation_result.get("retry_successful"):
-                                            print(
-                                                f"         🔄 {tool_name}: Auto-retry successful"
-                                            )
+                                            print(f"         🔄 {tool_name}: Auto-retry successful")
                                         else:
                                             print(
                                                 f"         🔄 {tool_name}: Auto-retry attempted but unsuccessful"
@@ -1714,9 +1605,9 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                         react_messages.append(
                             ToolMessage(
                                 content=f"Tool '{tool_name}' failed: {tool_error}",
-                                tool_call_id=tool_id
-                                if "tool_id" in locals()
-                                else f"error_{iteration}_{idx}",
+                                tool_call_id=(
+                                    tool_id if "tool_id" in locals() else f"error_{iteration}_{idx}"
+                                ),
                             )
                         )
 
@@ -1736,13 +1627,8 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                     if domain:
                                         # Check if this combination is already blocked
                                         block_entry = (tool_name, domain)
-                                        if (
-                                            block_entry
-                                            not in session_tool_domain_blocklist
-                                        ):
-                                            session_tool_domain_blocklist.append(
-                                                block_entry
-                                            )
+                                        if block_entry not in session_tool_domain_blocklist:
+                                            session_tool_domain_blocklist.append(block_entry)
                                             print(
                                                 f"         🚫 Added to blocklist: {tool_name} for domain {domain}"
                                             )
@@ -1804,14 +1690,10 @@ When you have successfully found and extracted a suitable source, you MUST outpu
 """
         final_report_msg = AIMessage(content=fallback_report)
     elif not final_report_msg.content.startswith("# Data Prospecting Report"):
-        final_report_msg.content = (
-            "# Data Prospecting Report\n\n" + final_report_msg.content
-        )
+        final_report_msg.content = "# Data Prospecting Report\n\n" + final_report_msg.content
 
     # --- Return only the final submission + full evidence cache ---
-    print(
-        f"   🧾 Returning final submission + evidence (cache size: {len(session_cache)})"
-    )
+    print(f"   🧾 Returning final submission + evidence (cache size: {len(session_cache)})")
     return {
         "messages": [final_report_msg],  # Append the final Data Prospecting Report ONLY
         "research_session_cache": session_cache,  # Full, updated evidence cache (no clearing)
@@ -1819,13 +1701,13 @@ When you have successfully found and extracted a suitable source, you MUST outpu
     }
 
 
-def archive_node(state: "DataSeekState") -> Dict:
+def archive_node(state: "DataSeekState") -> dict:
     """
     The archive node, responsible for saving data and updating the audit trail
     using a procedural approach.
     """
     # Load seek config instead of main config for writer paths
-    seek_config = get_active_seek_config()
+    get_active_seek_config()
     llm = create_llm("archive")
 
     # --- FIX: Get content from research_findings, not messages ---
@@ -1859,9 +1741,7 @@ def archive_node(state: "DataSeekState") -> Dict:
     characteristic = "unknown"
     topic = "unknown"
     if current_task:
-        characteristic = (
-            current_task.get("characteristic", "unknown").lower().replace(" ", "_")
-        )
+        characteristic = current_task.get("characteristic", "unknown").lower().replace(" ", "_")
         topic = current_task.get("topic", "unknown").lower().replace(" ", "_")
 
     # --- FIX: Remove JSON and ask for the raw markdown string directly ---
@@ -1899,9 +1779,7 @@ Respond ONLY with the Markdown content for the pedigree entry. Do NOT include an
     filepath = f"{samples_path}/{filename}"
 
     # Now use this 'filepath' variable in the write_file tool.
-    write_result = write_file.invoke(
-        {"filepath": filepath, "content": document_content}
-    )
+    write_result = write_file.invoke({"filepath": filepath, "content": document_content})
 
     if write_result.get("status") == "ok":
         run_id = state.get("run_id")
@@ -1931,9 +1809,7 @@ Respond ONLY with the Markdown content for the pedigree entry. Do NOT include an
     samples_generated = state.get("samples_generated", 0) + 1
     total_target = state.get("total_samples_target", 1200)
     total_samples = synthetic_samples_generated + research_samples_generated
-    synthetic_pct = (
-        (synthetic_samples_generated / total_samples) if total_samples > 0 else 0.0
-    )
+    synthetic_pct = (synthetic_samples_generated / total_samples) if total_samples > 0 else 0.0
     progress_pct = (samples_generated / total_target) * 100 if total_target > 0 else 0
     source_type = "synthetic" if is_synthetic_sample else "research"
 
@@ -1956,7 +1832,7 @@ Respond ONLY with the Markdown content for the pedigree entry. Do NOT include an
     }
 
 
-def fitness_node(state: "DataSeekState") -> Dict:
+def fitness_node(state: "DataSeekState") -> dict:
     """The fitness node, responsible for evaluating content and producing a structured report."""
     llm = create_llm("fitness")
 
@@ -1967,7 +1843,9 @@ def fitness_node(state: "DataSeekState") -> Dict:
     # 2. Construct dynamic guidance based on provenance
     provenance_guidance = ""
     if provenance == "researched":
-        provenance_guidance = "**Provenance Note:** The source of this document has been programmatically verified."
+        provenance_guidance = (
+            "**Provenance Note:** The source of this document has been programmatically verified."
+        )
     elif provenance == "synthetic":
         provenance_guidance = "\n**Provenance Note:** The indicated source for this document could not be programmatically verified, suggesting the content may be synthetic. Please evaluate its content and style on its own merits against the mission rubric, focusing on its potential value as a training example rather than its real-world origin."
     # --- END: PROVENANCE-AWARE LOGIC ---
@@ -1992,9 +1870,7 @@ def fitness_node(state: "DataSeekState") -> Dict:
 
     research_findings = state.get("research_findings", [])
     # Escape braces in research findings to prevent template errors
-    escaped_research_findings = (
-        str(research_findings).replace("{", "{{").replace("}", "}}")
-    )
+    escaped_research_findings = str(research_findings).replace("{", "{{").replace("}", "}}")
     fitness_schema = json.dumps(FitnessReport.model_json_schema(), indent=2)
 
     # Escape curly braces in the JSON schema to prevent f-string template conflicts
@@ -2072,13 +1948,11 @@ Evaluate the retrieved content against the mission. Is this document a goldmine 
         "messages": [AIMessage(content=log_message_content)],
         "fitness_report": report,
         "current_sample_provenance": provenance,  # Pass through provenance from state
-        "research_findings": state.get(
-            "research_findings", []
-        ),  # Pass through content for archive
+        "research_findings": state.get("research_findings", []),  # Pass through content for archive
     }
 
 
-def synthetic_node(state: DataSeekState) -> Dict:
+def synthetic_node(state: DataSeekState) -> dict:
     """The synthetic node, responsible for generating synthetic data when syntethic results are preferable or when research fails."""
     llm = create_llm("synthetic")
 
@@ -2170,16 +2044,12 @@ Focus on creating a book that will be a goldmine for the Copy Editor to extract 
     }
 
 
-def get_node_config(node_name: str) -> Optional[Dict]:
+def get_node_config(node_name: str) -> dict | None:
     """Retrieve the configuration for a specific node by name."""
     # Load the seek config instead of using the old config.seek_agent
     seek_config = get_active_seek_config()
 
-    if (
-        seek_config
-        and "mission_plan" in seek_config
-        and "nodes" in seek_config["mission_plan"]
-    ):
+    if seek_config and "mission_plan" in seek_config and "nodes" in seek_config["mission_plan"]:
         # Find the node config that matches the node_name
         for node in seek_config["mission_plan"]["nodes"]:
             if node.get("name") == node_name:
@@ -2208,7 +2078,7 @@ def calculate_predictive_steps(next_agent: str) -> int:
 
 
 def needs_more_for_current_pair(
-    progress: Dict, current_task: Optional[Dict], pending_increment: int = 0
+    progress: dict, current_task: dict | None, pending_increment: int = 0
 ) -> bool:
     """Compute if we need more samples for the current characteristic/topic pair."""
     if not progress or not current_task:
@@ -2233,7 +2103,7 @@ def needs_more_for_current_pair(
     return collected < target
 
 
-def extract_used_urls_from_findings(research_findings: List) -> List[str]:
+def extract_used_urls_from_findings(research_findings: list) -> list[str]:
     """Parse Source URLs from Data Prospecting Reports in research findings."""
     urls = []
 
@@ -2253,7 +2123,8 @@ def extract_used_urls_from_findings(research_findings: List) -> List[str]:
                         url = parts[1].strip()
                         if url and url not in urls:
                             urls.append(url)
-                except Exception:
+                except Exception as e:
+                    print(f"   ⚠️  URL parse error in research findings line: {line!r} ({e})")
                     continue
 
     return urls
@@ -2272,7 +2143,7 @@ def normalize_url(url: str) -> str:
         return url
 
 
-def index_research_cache(cache: List[Dict]) -> List[Dict]:
+def index_research_cache(cache: list[dict]) -> list[dict]:
     """Index research cache entries by URL with metadata."""
     indexed = []
     seen_urls = set()
@@ -2343,14 +2214,14 @@ def llm_select_cached_sources(
     characteristic: str,
     topic: str,
     strategy_block: str,
-    excluded_urls: List[str],
-    cache_index: List[Dict],
+    excluded_urls: list[str],
+    cache_index: list[dict],
     max_candidates: int = 15,
     synthetic_samples_generated: int = 0,
     total_samples_generated: int = 0,
     synthetic_budget: float = 0.2,
     total_samples_target: int = 0,
-) -> tuple[str, List[str], str]:
+) -> tuple[str, list[str], str]:
     """Have LLM select cached sources for reuse.
 
     Returns:
@@ -2359,9 +2230,7 @@ def llm_select_cached_sources(
     # Filter cache to remove excluded URLs and limit candidates
     excluded_set = {normalize_url(url) for url in excluded_urls}
     available_candidates = [
-        entry
-        for entry in cache_index
-        if entry["url"] not in excluded_set and entry["ok_status"]
+        entry for entry in cache_index if entry["url"] not in excluded_set and entry["ok_status"]
     ][:max_candidates]
 
     if not available_candidates:
@@ -2450,9 +2319,7 @@ Respond ONLY with the JSON object, no other text."""
 
         # Filter out any excluded URLs that might have slipped through
         if isinstance(selected_urls, list):
-            selected_urls = [
-                url for url in selected_urls if normalize_url(url) not in excluded_set
-            ]
+            selected_urls = [url for url in selected_urls if normalize_url(url) not in excluded_set]
         else:
             selected_urls = []
 

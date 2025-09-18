@@ -1,9 +1,8 @@
-from textual.screen import ModalScreen
-from textual.widgets import RichLog, Button
-from textual.containers import Container
 from textual.app import ComposeResult
 from textual.binding import Binding
-from typing import List
+from textual.containers import Container
+from textual.screen import ModalScreen
+from textual.widgets import Button, RichLog
 
 
 class ErrorModal(ModalScreen):
@@ -14,7 +13,7 @@ class ErrorModal(ModalScreen):
         Binding("e", "close_modal", "Close", show=False),
     ]
 
-    def __init__(self, error_messages: List[str], **kwargs):
+    def __init__(self, error_messages: list[str], **kwargs):
         super().__init__(**kwargs)
         self.error_messages = error_messages
 
@@ -75,8 +74,8 @@ class ErrorModal(ModalScreen):
                     screen_bg = "rgba(200, 200, 200, 0.5)"  # Light semi-transparent
 
                 self.styles.background = screen_bg
-            except:
-                pass
+            except Exception:
+                pass  # nosec B110 # - styling failure is non-fatal
 
             # Apply styling to modal components
             try:
@@ -84,25 +83,26 @@ class ErrorModal(ModalScreen):
                 container.styles.background = container_bg
                 container.styles.color = text_color
                 container.styles.border = ("solid", border_color)
-            except:
-                pass
+            except Exception:
+                pass  # nosec B110 # - styling failure is non-fatal
 
             try:
                 error_log = self.query_one("#error-log")
                 error_log.styles.background = log_bg
                 error_log.styles.color = log_text
-            except:
-                pass
+            except Exception:
+                pass  # nosec B110 # - styling failure is non-fatal
 
             try:
                 close_button = self.query_one("#close-errors")
                 close_button.styles.background = button_bg
                 close_button.styles.color = button_text
-            except:
-                pass
+            except Exception:
+                pass  # nosec B110 # - styling failure is non-fatal
 
         except Exception:
-            pass  # Silently continue if styling fails
+            # Silently continue if styling fails
+            pass  # nosec B110 # - non-critical visual styling failure
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-errors":

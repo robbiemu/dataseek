@@ -3,8 +3,8 @@
 Test script to verify that the Arxiv and Wikipedia search tools work correctly.
 """
 
-import sys
 import os
+import sys
 
 # Add the project root to the path so we can import the seek module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -15,6 +15,7 @@ def test_arxiv_search():
     print("Testing Arxiv search tool...")
     try:
         from seek.tools import arxiv_search
+
         result = arxiv_search("machine learning")
         print(f"Arxiv search result: {result}")
         if result.get("status") == "ok":
@@ -24,6 +25,7 @@ def test_arxiv_search():
     except Exception as e:
         print(f"❌ Error testing Arxiv search tool: {e}")
         import traceback
+
         traceback.print_exc()
     print()
 
@@ -33,6 +35,7 @@ def test_wikipedia_search():
     print("Testing Wikipedia search tool...")
     try:
         from seek.tools import wikipedia_search
+
         result = wikipedia_search("artificial intelligence")
         print(f"Wikipedia search result: {result}")
         if result.get("status") == "ok":
@@ -42,6 +45,7 @@ def test_wikipedia_search():
     except Exception as e:
         print(f"❌ Error testing Wikipedia search tool: {e}")
         import traceback
+
         traceback.print_exc()
     print()
 

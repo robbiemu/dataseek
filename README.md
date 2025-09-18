@@ -109,6 +109,58 @@ source .venv/bin/activate
 uv pip install -e .[dev]
 ```
 
+### Developer Setup (uv)
+
+- Create venv + install dev deps
+  ```bash
+  uv venv && source .venv/bin/activate
+  uv pip install -e .[dev]
+  ```
+
+- Optional: install pre-commit hooks
+  ```bash
+  pip install pre-commit
+  pre-commit install
+  ```
+
+- Without activating the venv, you can use `uv run` to execute commands:
+  ```bash
+  pytest -q
+  ruff check --fix .
+  black .
+  mypy seek
+  bandit -c pyproject.toml -r seek
+  ```
+
+### Quality Checks
+
+- Format (Black)
+  ```bash
+  black .
+  ```
+
+- Lint + import sort + modernize (Ruff)
+  ```bash
+  ruff check --fix .
+  ```
+
+- Type check (MyPy)
+  ```bash
+  mypy seek
+  ```
+
+- Security scan (Bandit)
+  ```bash
+  bandit -c pyproject.toml -r seek
+  ```
+
+- Tests with coverage
+  ```bash
+  pytest -q --cov=seek
+  ```
+
+Note on tests and networking: tests block outbound network connections by default. If you intentionally need network for an explicit integration test, set `ALLOW_NET_TESTS=1` in the environment.
+
 ## Testing
 
 Run tests with:

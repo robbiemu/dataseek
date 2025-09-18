@@ -1,7 +1,8 @@
+from typing import Any
+
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
-from typing import Dict, Any
 
 
 class MissionPanel(Static):
@@ -12,7 +13,7 @@ class MissionPanel(Static):
         mission_path: str,
         mission_name: str,
         total_samples_target: int,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ):
         super().__init__(id="mission-panel")
         self.mission_path = mission_path
@@ -29,11 +30,10 @@ class MissionPanel(Static):
             mission_plan = self.config.get("mission_plan", {})
             nodes = mission_plan.get("nodes", [])
             model = nodes[0].get("model", "unknown") if nodes else "unknown"
-            provider = (
-                (self.config.get("web_search") or {}).get("provider")
-                or self.config.get("search_provider", "unknown")
+            provider = (self.config.get("web_search") or {}).get("provider") or self.config.get(
+                "search_provider", "unknown"
             )
-            
+
             mission_info = (
                 f"Mission: {self.mission_name}\n"
                 f"Target: {self.total_samples_target} samples\n"
@@ -43,7 +43,7 @@ class MissionPanel(Static):
             )
             self.mission_info_widget = Static(mission_info, id="mission-info")
             yield self.mission_info_widget
-    
+
     def update_status(self, new_status: str):
         """Update the mission status displayed in the panel."""
         self.current_status = new_status
@@ -52,11 +52,10 @@ class MissionPanel(Static):
             mission_plan = self.config.get("mission_plan", {})
             nodes = mission_plan.get("nodes", [])
             model = nodes[0].get("model", "unknown") if nodes else "unknown"
-            provider = (
-                (self.config.get("web_search") or {}).get("provider")
-                or self.config.get("search_provider", "unknown")
+            provider = (self.config.get("web_search") or {}).get("provider") or self.config.get(
+                "search_provider", "unknown"
             )
-            
+
             mission_info = (
                 f"Mission: {self.mission_name}\n"
                 f"Target: {self.total_samples_target} samples\n"

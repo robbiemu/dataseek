@@ -3,7 +3,8 @@
 Defines the overall state for the Data Seek agent graph.
 """
 
-from typing import TypedDict, List, Dict, Optional, Annotated, Any
+from typing import Annotated, Any, TypedDict
+
 from langgraph.graph.message import add_messages
 
 from .models import FitnessReport
@@ -50,13 +51,13 @@ class DataSeekState(TypedDict):
     """
     messages: Annotated[list, add_messages]
     run_id: str
-    progress: Dict
-    current_task: Optional[Dict]
-    research_findings: List[Dict]
-    research_session_cache: List[Dict]
+    progress: dict
+    current_task: dict | None
+    research_findings: list[dict]
+    research_session_cache: list[dict]
     pedigree_path: str
     next_agent: str
-    decision_history: List[str]
+    decision_history: list[str]
     tool_execution_failures: int
     research_attempts: int
     samples_generated: int
@@ -68,15 +69,15 @@ class DataSeekState(TypedDict):
     last_action_status: str
     last_action_agent: str
     synthetic_budget: float
-    fitness_report: Optional[FitnessReport]
-    current_sample_provenance: Optional[str]
-    task_history: List[tuple[str, str, str]]
-    excluded_urls: List[str]
+    fitness_report: FitnessReport | None
+    current_sample_provenance: str | None
+    task_history: list[tuple[str, str, str]]
+    excluded_urls: list[str]
     cached_only_mode: bool
     no_search_tools: bool
-    allowed_url_whitelist: List[str]
+    allowed_url_whitelist: list[str]
     cached_exhausted: bool
-    next_cycle_cached_reuse: Optional[Dict[str, Any]]
+    next_cycle_cached_reuse: dict[str, Any] | None
     step_count: int
     max_recursion_steps: int
-    session_tool_domain_blocklist: List[tuple[str, str]]
+    session_tool_domain_blocklist: list[tuple[str, str]]

@@ -4,9 +4,12 @@ Handles loading mission-specific configuration from separate config files.
 """
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
+
 import yaml
+
+from .models import SeekAgentMissionPlanToolConfig
+
 
 def merge_configs(default: dict, override: dict) -> dict:
     """Recursively merge two dictionaries."""
@@ -17,7 +20,6 @@ def merge_configs(default: dict, override: dict) -> dict:
             default[key] = value
     return default
 
-from .models import SeekAgentMissionPlanToolConfig
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +59,10 @@ def get_active_seek_config() -> "StructuredSeekConfig":
 
 class StructuredSeekConfig:
     """Structured configuration wrapper that provides object-oriented access to seek config."""
-    
-    def __init__(self, config_dict: Dict[str, Any]):
+
+    def __init__(self, config_dict: dict[str, Any]):
         self._raw_config = config_dict
-        
+
         # Extract mission plan tools if they exist
         self._tools = {}
         mission_plan = self._raw_config.get("mission_plan", {})
@@ -70,50 +72,50 @@ class StructuredSeekConfig:
                 for tool_name, tool_config in tools_config.items():
                     if isinstance(tool_config, dict):
                         self._tools[tool_name] = SeekAgentMissionPlanToolConfig(**tool_config)
-    
+
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to the raw config dictionary."""
         return self._raw_config.get(name)
-    
+
     def __getitem__(self, key: str) -> Any:
         """Dictionary-style access to config values."""
         return self._raw_config.get(key)
-    
+
     def __contains__(self, key: str) -> bool:
         """Check if a key exists in the config."""
         return key in self._raw_config
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """Dictionary-style access to config values with default."""
         return self._raw_config.get(key, default)
-    
+
     def keys(self) -> Any:
         """Return the keys of the config dictionary."""
         return self._raw_config.keys()
-    
+
     def values(self) -> Any:
         """Return the values of the config dictionary."""
         return self._raw_config.values()
-    
+
     def items(self) -> Any:
         """Return the items of the config dictionary."""
         return self._raw_config.items()
-    
+
     def __iter__(self):
         """Make the config iterable like a dictionary."""
         return iter(self._raw_config)
-    
-    def get_tool_config(self, tool_name: str) -> Optional[SeekAgentMissionPlanToolConfig]:
+
+    def get_tool_config(self, tool_name: str) -> SeekAgentMissionPlanToolConfig | None:
         """Retrieve the configuration for a specific tool by name."""
         return self._tools.get(tool_name)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Return the raw configuration dictionary."""
         return self._raw_config.copy()
 
 
 def load_seek_config(
-    config_path: Optional[str] = None, use_robots: Optional[bool] = None
+    config_path: str | None = None, use_robots: bool | None = None
 ) -> StructuredSeekConfig:
     """
     Load mission configuration for the seek agent from a separate config file.
@@ -129,7 +131,7 @@ def load_seek_config(
 
     # Load default config
     try:
-        with open(default_config_path, "r") as f:
+        with open(default_config_path) as f:
             config_data = yaml.safe_load(f) or {}
     except FileNotFoundError:
         logger.error(f"Default configuration file not found: {default_config_path}")
@@ -138,7 +140,7 @@ def load_seek_config(
     # Load override config if provided
     if config_path:
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 override_config = yaml.safe_load(f) or {}
             config_data = merge_configs(config_data, override_config)
         except FileNotFoundError:
@@ -151,5 +153,5 @@ def load_seek_config(
     # Add use_robots to the config
     config_data["use_robots"] = use_robots
 
-    logger.debug(f"Loaded seek configuration.")
+    logger.debug("Loaded seek configuration.")
     return StructuredSeekConfig(config_data)

@@ -51,9 +51,7 @@ class ProgressPanel(Static):
         # Update the widget
         if self.recent_samples_widget:
             if self.recent_samples:
-                content = "\n\n".join(
-                    self.recent_samples
-                )  # Extra spacing for readability
+                content = "\n\n".join(self.recent_samples)  # Extra spacing for readability
             else:
                 content = "Recent samples will appear here..."
             self.recent_samples_widget.update(content)

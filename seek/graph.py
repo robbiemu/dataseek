@@ -3,18 +3,18 @@
 Builds the LangGraph application graph for the Data Seek agent.
 """
 
-from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.graph import END, StateGraph
+from langgraph.prebuilt import ToolNode
 
-from .state import DataSeekState
 from .nodes import (
-    supervisor_node,
-    research_node,
     archive_node,
     fitness_node,
+    research_node,
+    supervisor_node,
     synthetic_node,
 )
+from .state import DataSeekState
 from .tools import get_tools_for_role
 
 
@@ -40,7 +40,7 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict):
 
     # --- Define Role-Specific Tool Nodes ---
     use_robots = seek_config.get("use_robots", True)
-    
+
     research_tools = get_tools_for_role("research", use_robots=use_robots)
     archive_tools = get_tools_for_role("archive", use_robots=use_robots)
 
@@ -62,9 +62,7 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict):
 
         next_agent = state.get("next_agent")
         decision_history = state.get("decision_history", [])
-        print(
-            f"🔀 Graph Router: next_agent = '{next_agent}' (type: {type(next_agent)})"
-        )
+        print(f"🔀 Graph Router: next_agent = '{next_agent}' (type: {type(next_agent)})")
         print(f"🔀 Graph Router: decision_history = {decision_history[-5:]}")
         print(f"🔀 Graph Router: messages count = {len(state.get('messages', []))}")
 
@@ -84,9 +82,7 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict):
             print("🎨 Graph Router: Routing to synthetic")
             return "synthetic"
         else:
-            print(
-                f"⚠️  Graph Router: Unknown next_agent '{next_agent}', defaulting to END"
-            )
+            print(f"⚠️  Graph Router: Unknown next_agent '{next_agent}', defaulting to END")
             return "end"
 
     workflow.add_conditional_edges(

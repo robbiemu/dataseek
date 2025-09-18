@@ -1,4 +1,4 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,9 +14,7 @@ from seek.models import (
 @patch("seek.main.input")
 @patch("seek.main.MissionRunner")
 @patch("seek.main.load_seek_config")
-def test_seek_agent_runnable_new_mission(
-    mock_load_config, mock_mission_runner, mock_input
-):
+def test_seek_agent_runnable_new_mission(mock_load_config, mock_mission_runner, mock_input):
     """
     Tests that the seek agent can start a new mission.
     """
@@ -42,8 +40,10 @@ def test_seek_agent_runnable_new_mission(
     }
 
     # Ensure the mission exists in the mission plan and name list
-    with patch("seek.main.load_mission_plan") as mock_load_mission_plan, \
-         patch("seek.main.get_mission_names") as mock_get_mission_names:
+    with (
+        patch("seek.main.load_mission_plan") as mock_load_mission_plan,
+        patch("seek.main.get_mission_names") as mock_get_mission_names,
+    ):
         mock_get_mission_names.return_value = ["test_mission"]
         mock_load_mission_plan.return_value = {
             "missions": [{"name": "test_mission", "target_size": 1, "goals": []}],
@@ -62,9 +62,7 @@ def test_seek_agent_runnable_new_mission(
 @patch("seek.main.input")
 @patch("seek.main.MissionRunner")
 @patch("seek.main.load_seek_config")
-def test_seek_agent_runnable_resume_mission(
-    mock_load_config, mock_mission_runner, mock_input
-):
+def test_seek_agent_runnable_resume_mission(mock_load_config, mock_mission_runner, mock_input):
     """
     Tests that the seek agent can resume a mission.
     """

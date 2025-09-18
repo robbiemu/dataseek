@@ -1,3 +1,5 @@
+import os
+import tempfile
 from datetime import datetime
 
 from textual.widgets import Log
@@ -18,9 +20,7 @@ class ConversationPanel(Log):
     def add_message(self, role: str, content: str):
         """Add a message to the conversation log with role-based coloring."""
         # Store the message for later extraction
-        self.messages.append(
-            {"role": role, "content": content, "timestamp": datetime.now()}
-        )
+        self.messages.append({"role": role, "content": content, "timestamp": datetime.now()})
 
         # Keep only the last 50 messages to avoid memory issues
         if len(self.messages) > 50:
@@ -50,10 +50,11 @@ class ConversationPanel(Log):
         # Debug: Log what we're trying to write if debug enabled
         if self.debug:
             try:
-                with open("/tmp/tui_debug.log", "a") as f:
+                debug_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")
+                with open(debug_path, "a") as f:
                     f.write(f"TUI WRITE ATTEMPT: {role} -> {message_line}\n")
             except Exception:
-                pass
+                pass  # nosec B110 # - debug logging failure is non-fatal
 
         # Use write() with explicit newline to ensure each message is on its own line
         try:
@@ -62,16 +63,23 @@ class ConversationPanel(Log):
             self.refresh()
             if self.debug:
                 try:
-                    with open("/tmp/tui_debug.log", "a") as f:
+                    debug_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")
+                    with open(debug_path, "a") as f:
                         f.write(f"TUI WRITE SUCCESS: {role}\n")
-                except Exception:
+                except OSError:
                     pass
         except Exception as e:
             # Debug: write to a file if widget writing fails
             if self.debug:
-                try:
-                    with open("/tmp/tui_debug.log", "a") as f:
-                        f.write(f"ERROR writing message: {e}\n")
-                        f.write(f"Role: {role}, Content: {content[:100]}...\n")
-                except Exception:
-                    pass
+                self._write_debug_log(e, role, content)
+
+    def _write_debug_log(self, e, role, content):
+        """A best-effort, non-critical debug logger."""
+        try:
+            debug_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")
+            with open(debug_path, "a") as f:
+                f.write(f"ERROR writing message: {e}\n")
+                f.write(f"Role: {role}, Content: {content[:100]}...\n")
+        except OSError:
+            # This best-effort logging can fail silently.
+            pass

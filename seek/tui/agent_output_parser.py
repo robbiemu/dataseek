@@ -1,6 +1,6 @@
 import re
+from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Generator
 
 
 @dataclass
@@ -46,13 +46,7 @@ class AgentOutputParser:
         self,
         line: str,
     ) -> Generator[
-        ProgressUpdate
-        | NewMessage
-        | ErrorMessage
-        | SyntheticSampleUpdate
-        | RecursionStepUpdate,
-        None,
-        None,
+        ProgressUpdate | NewMessage | ErrorMessage | SyntheticSampleUpdate | RecursionStepUpdate
     ]:
         """Parses a single line of agent output."""
         clean_line = self.ansi_escape.sub("", line).strip()
@@ -71,9 +65,7 @@ class AgentOutputParser:
             return
 
         # 2. Alternative progress pattern: "📊 Progress: 123/1200 samples (10.3%)"
-        progress_match2 = re.search(
-            r"📊 Progress: (\d+)/(\d+) samples \((\d+\.\d+)%\)", clean_line
-        )
+        progress_match2 = re.search(r"📊 Progress: (\d+)/(\d+) samples \((\d+\.\d+)%\)", clean_line)
         if progress_match2:
             yield ProgressUpdate(
                 completed=int(progress_match2.group(1)),
@@ -82,9 +74,7 @@ class AgentOutputParser:
             return
 
         # 3. Sample archived: "📊 Sample #123 archived (10.3% complete) - Source: research/synthetic"
-        sample_match = re.search(
-            r"📊 Sample #(\d+) archived.*Source: (\w+)", clean_line
-        )
+        sample_match = re.search(r"📊 Sample #(\d+) archived.*Source: (\w+)", clean_line)
         if sample_match:
             completed = int(sample_match.group(1))
             source_type = sample_match.group(2)
@@ -116,9 +106,7 @@ class AgentOutputParser:
             return
 
         # 6. Recursion step info: "🔄 Supervisor: Recursion step 1/30"
-        recursion_step_match = re.search(
-            r"🔄 Supervisor: Recursion step (\d+)/(\d+)", clean_line
-        )
+        recursion_step_match = re.search(r"🔄 Supervisor: Recursion step (\d+)/(\d+)", clean_line)
         if recursion_step_match:
             current_step = int(recursion_step_match.group(1))
             total_steps = int(recursion_step_match.group(2))
@@ -135,10 +123,7 @@ class AgentOutputParser:
             return
 
         # 7. Supervisor messages: "🔍 Supervisor: ..." (excluding end decisions)
-        if (
-            clean_line.startswith("🔍 Supervisor:")
-            and "Decided on 'end'" not in clean_line
-        ):
+        if clean_line.startswith("🔍 Supervisor:") and "Decided on 'end'" not in clean_line:
             yield NewMessage(role="assistant", content=clean_line)
             return
 
@@ -152,10 +137,7 @@ class AgentOutputParser:
             return
 
         # 9. Success messages: "✅ Supervisor: ..." (excluding end decisions)
-        if (
-            clean_line.startswith("✅ Supervisor:")
-            and "Decided on 'end'" not in clean_line
-        ):
+        if clean_line.startswith("✅ Supervisor:") and "Decided on 'end'" not in clean_line:
             yield NewMessage(role="assistant", content=clean_line)
             return
 
@@ -196,10 +178,7 @@ class AgentOutputParser:
 
         # 17. Error patterns
         clean_lower = clean_line.lower()
-        if any(
-            keyword in clean_lower
-            for keyword in ["error", "failed", "exception", "traceback"]
-        ):
+        if any(keyword in clean_lower for keyword in ["error", "failed", "exception", "traceback"]):
             yield ErrorMessage(message=clean_line)
             return
 
@@ -230,10 +209,7 @@ class AgentOutputParser:
             return
 
         # 23. Agent responses that contain synthetic sample information
-        if (
-            "synthetic sample" in clean_line.lower()
-            or "source: synthetic" in clean_line.lower()
-        ):
+        if "synthetic sample" in clean_line.lower() or "source: synthetic" in clean_line.lower():
             # Only increment if we haven't already tracked this from the archive pattern
             if "archived" not in clean_line.lower():
                 self.synthetic_count += 1

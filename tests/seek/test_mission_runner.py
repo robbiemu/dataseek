@@ -36,7 +36,9 @@ class TestMissionRunner(unittest.TestCase):
         self.assertEqual(progress["progress_pct"], 10.0)
 
         # 6. Verify that the correct method was called on the mock
-        mock_app.get_state.assert_called_once_with({"configurable": {"thread_id": "some_thread_id"}})
+        mock_app.get_state.assert_called_once_with(
+            {"configurable": {"thread_id": "some_thread_id"}}
+        )
 
 
 if __name__ == "__main__":

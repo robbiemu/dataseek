@@ -8,7 +8,7 @@ on the research_session_cache in the state.
 import os
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 def strip_reasoning_block(content: str, tags: list[str] = None) -> str:
@@ -49,7 +49,7 @@ def strip_reasoning_block(content: str, tags: list[str] = None) -> str:
     return re.sub(pattern, "", content, count=1, flags=re.DOTALL | re.IGNORECASE)
 
 
-def get_characteristic_context(task: Dict, mission_config: Dict) -> Optional[str]:
+def get_characteristic_context(task: dict, mission_config: dict) -> str | None:
     """
     Finds the definitional context for a characteristic from the mission config.
     """
@@ -125,8 +125,8 @@ The best documents will have simple, direct sentences where the logical relation
 
 
 def append_to_pedigree(
-    pedigree_path: str, entry_markdown: str, run_id: Optional[str] = None
-) -> Dict[str, Any]:
+    pedigree_path: str, entry_markdown: str, run_id: str | None = None
+) -> dict[str, Any]:
     """
     Appends a markdown entry to the pedigree file in a standardized block with a timestamp.
 

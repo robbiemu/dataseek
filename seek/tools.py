@@ -1,15 +1,17 @@
 "Production-ready tool implementations for the Data Seek Agent."
 
 from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
 import os
 import re
-import time
-import json
-import hashlib
-import tempfile
-import asyncio
 import shutil
-from typing import Optional, List, Dict, Any, Callable
+import tempfile
+import time
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -18,15 +20,14 @@ import pydantic
 from bs4 import BeautifulSoup
 from langchain_core.tools import tool
 
-from .litesearch import AsyncRateLimitManager, SearchProviderProxy
 from .config import get_active_seek_config
-
+from .litesearch import AsyncRateLimitManager, SearchProviderProxy
 
 TOKEN_CHARACTER_RATIO = 3.5
 
 
 # Avoid circular import with seek_utils by defining a minimal local helper
-def _find_url_field(results: List[Dict[str, Any]]) -> Optional[str]:
+def _find_url_field(results: list[dict[str, Any]]) -> str | None:
     if not results:
         return None
     first = results[0]
@@ -121,11 +122,7 @@ def create_web_search_tool(use_robots: bool = True):
     """
     # Use the active seek configuration established at startup
     config = get_active_seek_config()
-    ws_cfg = (
-        (config.get("web_search") or {})
-        if isinstance(config.get("web_search"), dict)
-        else {}
-    )
+    ws_cfg = (config.get("web_search") or {}) if isinstance(config.get("web_search"), dict) else {}
     # Backward compat: fall back to root search_provider if present
     search_provider = ws_cfg.get(
         "provider",
@@ -147,7 +144,7 @@ def create_web_search_tool(use_robots: bool = True):
     )
 
     @tool("web_search", args_schema=WebSearchInput)
-    def web_search(query: str) -> Dict[str, Any]:
+    def web_search(query: str) -> dict[str, Any]:
         """
         Performs a web search using the configured provider and returns the results.
         This tool is rate-limited to avoid API abuse.
@@ -239,7 +236,7 @@ class ArxivSearchInput(pydantic.BaseModel):
 
 
 @tool("arxiv_search", args_schema=ArxivSearchInput)
-def arxiv_search(query: str) -> Dict[str, Any]:
+def arxiv_search(query: str) -> dict[str, Any]:
     """
     Performs a search on Arxiv and returns the results.
     This tool is rate-limited to avoid API abuse.
@@ -275,13 +272,11 @@ def arxiv_search(query: str) -> Dict[str, Any]:
 class ArxivGetContentInput(pydantic.BaseModel):
     """Input schema for the arxiv_get_content tool."""
 
-    query: str = pydantic.Field(
-        description="The search query to get content for from Arxiv."
-    )
+    query: str = pydantic.Field(description="The search query to get content for from Arxiv.")
 
 
 @tool("arxiv_get_content", args_schema=ArxivGetContentInput)
-def arxiv_get_content(query: str) -> Dict[str, Any]:
+def arxiv_get_content(query: str) -> dict[str, Any]:
     """
     Retrieves detailed content from Arxiv based on a search query.
     This tool is rate-limited to avoid API abuse.
@@ -339,7 +334,7 @@ class WikipediaSearchInput(pydantic.BaseModel):
 
 
 @tool("wikipedia_search", args_schema=WikipediaSearchInput)
-def wikipedia_search(query: str) -> Dict[str, Any]:
+def wikipedia_search(query: str) -> dict[str, Any]:
     """
     Performs a search on Wikipedia and returns the results.
     This tool is rate-limited to avoid API abuse.
@@ -375,13 +370,11 @@ def wikipedia_search(query: str) -> Dict[str, Any]:
 class WikipediaGetContentInput(pydantic.BaseModel):
     """Input schema for the wikipedia_get_content tool."""
 
-    query: str = pydantic.Field(
-        description="The search query to get content for from Wikipedia."
-    )
+    query: str = pydantic.Field(description="The search query to get content for from Wikipedia.")
 
 
 @tool("wikipedia_get_content", args_schema=WikipediaGetContentInput)
-def wikipedia_get_content(query: str) -> Dict[str, Any]:
+def wikipedia_get_content(query: str) -> dict[str, Any]:
     """
     Retrieves detailed content from Wikipedia based on a search query.
     This tool is rate-limited to avoid API abuse.
@@ -435,8 +428,8 @@ def wikipedia_get_content(query: str) -> Dict[str, Any]:
 
 
 def _truncate_response_for_role(
-    response: Dict[str, Any], role: str, tool_name: Optional[str] = None
-) -> Dict[str, Any]:
+    response: dict[str, Any], role: str, tool_name: str | None = None
+) -> dict[str, Any]:
     """
     Truncate tool responses based on the max_tokens setting for the given role.
 
@@ -468,9 +461,7 @@ def _truncate_response_for_role(
                     for item in items:
                         if isinstance(item, str):
                             if len(item) > summary_char_limit:
-                                new_items.append(
-                                    item[:summary_char_limit] + "\n[Entry truncated]"
-                                )
+                                new_items.append(item[:summary_char_limit] + "\n[Entry truncated]")
                             else:
                                 new_items.append(item)
                         elif isinstance(item, dict):
@@ -484,9 +475,7 @@ def _truncate_response_for_role(
                             ):
                                 v = truncated.get(k)
                                 if isinstance(v, str) and len(v) > summary_char_limit:
-                                    truncated[k] = (
-                                        v[:summary_char_limit] + "\n[Entry truncated]"
-                                    )
+                                    truncated[k] = v[:summary_char_limit] + "\n[Entry truncated]"
                             new_items.append(truncated)
                         else:
                             new_items.append(item)
@@ -499,9 +488,7 @@ def _truncate_response_for_role(
                             response["markdown"][:result_char_limit]
                             + "\n\n[Markdown truncated due to size]"
                         )
-                if "full_markdown" in response and isinstance(
-                    response["full_markdown"], str
-                ):
+                if "full_markdown" in response and isinstance(response["full_markdown"], str):
                     if len(response["full_markdown"]) > result_char_limit:
                         response["full_markdown"] = (
                             response["full_markdown"][:result_char_limit]
@@ -523,16 +510,14 @@ def _truncate_response_for_role(
     except Exception:
         max_tokens = None
     if max_tokens is None:
-        max_tokens = ((config.get("nodes", {}) or {}).get(role, {}) or {}).get(
-            "max_tokens"
-        )
+        max_tokens = ((config.get("nodes", {}) or {}).get(role, {}) or {}).get("max_tokens")
     if max_tokens is None:
         max_tokens = 2000
 
     text_fields = ["results", "markdown", "content", "text", "output"]
     for field in text_fields:
         if field in response and isinstance(response[field], str):
-            max_chars = int(int(max_tokens) * TOKEN_CHARACTER_RATIO)
+            max_chars = int(max_tokens * TOKEN_CHARACTER_RATIO)
             if len(response[field]) > max_chars:
                 truncated = response[field][:max_chars]
                 response[field] = (
@@ -564,13 +549,13 @@ def _get_research_limits_from_config() -> tuple[int, int]:
         result_char_limit = None
 
     if summary_char_limit is None:
-        summary_char_limit = (
-            (cfg.get("nodes", {}) or {}).get("research", {}) or {}
-        ).get("summary_char_limit")
+        summary_char_limit = ((cfg.get("nodes", {}) or {}).get("research", {}) or {}).get(
+            "summary_char_limit"
+        )
     if result_char_limit is None:
-        result_char_limit = (
-            (cfg.get("nodes", {}) or {}).get("research", {}) or {}
-        ).get("result_char_limit")
+        result_char_limit = ((cfg.get("nodes", {}) or {}).get("research", {}) or {}).get(
+            "result_char_limit"
+        )
 
     # Derive a reasonable default for summary_char_limit if not present
     if summary_char_limit is None:
@@ -584,9 +569,9 @@ def _get_research_limits_from_config() -> tuple[int, int]:
         except Exception:
             role_max_tokens = None
         if role_max_tokens is None:
-            role_max_tokens = (
-                (cfg.get("nodes", {}) or {}).get("research", {}) or {}
-            ).get("max_tokens")
+            role_max_tokens = ((cfg.get("nodes", {}) or {}).get("research", {}) or {}).get(
+                "max_tokens"
+            )
         if role_max_tokens is None:
             role_max_tokens = 2000
         # Default ~80% of 4 chars/token budget across 5 sources
@@ -677,16 +662,12 @@ def _safe_request_get(
     raise last_exc  # pragma: no cover
 
 
-def _extract_main_text_and_title(
-    html: str, css_selector: Optional[str] = None
-) -> Dict[str, str]:
+def _extract_main_text_and_title(html: str, css_selector: str | None = None) -> dict[str, str]:
     """Extract title and main textual content from HTML."""
     soup = BeautifulSoup(html, "html5lib")
     title_tag = soup.find("title")
     title = title_tag.get_text(strip=True) if title_tag else ""
-    for tag in soup(
-        ["script", "style", "nav", "footer", "header", "aside", "noscript", "svg"]
-    ):
+    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript", "svg"]):
         tag.decompose()
     content_text = soup.get_text(" ", strip=True)
     content_text = re.sub(r" \s+\n", "\n", content_text)
@@ -695,7 +676,7 @@ def _extract_main_text_and_title(
 
 
 def _to_markdown_simple(
-    title: str, text: str, url: Optional[str] = None, add_front_matter: bool = True
+    title: str, text: str, url: str | None = None, add_front_matter: bool = True
 ) -> str:
     """Produce a simple Markdown representation."""
     parts = []
@@ -733,7 +714,7 @@ class UrlToMarkdownInput(pydantic.BaseModel):
     url: str = pydantic.Field(
         description="Fully qualified URL to fetch (e.g., https://example.com/article)."
     )
-    css_selector: Optional[str] = pydantic.Field(
+    css_selector: str | None = pydantic.Field(
         default=None, description="Optional CSS selector to isolate the main content."
     )
     timeout_s: int = pydantic.Field(default=15, description="HTTP timeout in seconds.")
@@ -750,12 +731,12 @@ class UrlToMarkdownInput(pydantic.BaseModel):
 @tool("url_to_markdown", args_schema=UrlToMarkdownInput)
 def url_to_markdown(
     url: str,
-    css_selector: Optional[str] = None,
+    css_selector: str | None = None,
     timeout_s: int = 15,
     max_retries: int = 2,
     add_front_matter: bool = True,
     user_agent: str = "DataSeek/1.0",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Fetch a single web page, extract the main textual content and title, and return a Markdown string plus metadata.
     This tool respects robots.txt by default.
@@ -787,9 +768,7 @@ def url_to_markdown(
                     }
             except Exception as e:
                 # It's often fine to proceed if robots.txt is unavailable or malformed
-                print(
-                    f"      ⚠️ Could not fetch or parse robots.txt at {robots_url}: {e}"
-                )
+                print(f"      ⚠️ Could not fetch or parse robots.txt at {robots_url}: {e}")
 
         resp = _safe_request_get(url, timeout_s=timeout_s, max_retries=max_retries)
         html = resp.text
@@ -816,9 +795,7 @@ def url_to_markdown(
                     if add_front_matter:
                         fm = {
                             "source_url": url or "",
-                            "extracted_at": time.strftime(
-                                "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-                            ),
+                            "extracted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                         }
                         parts_md.append(f"\n{fm}\n\n")
                     parts_md.append(md)
@@ -827,7 +804,8 @@ def url_to_markdown(
                 try:
                     os.remove(temp_path)
                 except Exception:
-                    pass
+                    # Best-effort cleanup; ignore failure
+                    pass  # nosec B110 # - best-effort temp cleanup only
         except Exception:
             markdown = None
 
@@ -874,11 +852,11 @@ class CrawlInput(pydantic.BaseModel):
     max_depth: int = pydantic.Field(
         default=3, description="Max crawl depth to avoid runaway crawls."
     )
-    allowed_paths: Optional[List[str]] = pydantic.Field(
+    allowed_paths: list[str] | None = pydantic.Field(
         default=None,
         description="Optional list of URL paths to include during crawling.",
     )
-    ignore_paths: Optional[List[str]] = pydantic.Field(
+    ignore_paths: list[str] | None = pydantic.Field(
         default=None, description="Optional list of URL paths to skip during crawling."
     )
     timeout_s: int = pydantic.Field(
@@ -896,11 +874,11 @@ if _HAVE_LIBCRAWLER:
         base_url: str,
         starting_point: str,
         max_depth: int = 3,
-        allowed_paths: Optional[List[str]] = None,
-        ignore_paths: Optional[List[str]] = None,
+        allowed_paths: list[str] | None = None,
+        ignore_paths: list[str] | None = None,
         timeout_s: int = 30,
         similarity_threshold: float = 0.7,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Deep-crawl a documentation site using Playwright for JS rendering and return a structured result.
 
@@ -921,9 +899,7 @@ if _HAVE_LIBCRAWLER:
             config = get_active_seek_config()
             resp = _safe_request_get(start_url, timeout_s=timeout_s, max_retries=1)
             soup = BeautifulSoup(resp.text, "html5lib")
-            hrefs = {
-                urljoin(start_url, a["href"]) for a in soup.find_all("a", href=True)
-            }
+            hrefs = {urljoin(start_url, a["href"]) for a in soup.find_all("a", href=True)}
 
             # Extract page title for better context
             title_tag = soup.find("title")
@@ -951,9 +927,7 @@ if _HAVE_LIBCRAWLER:
                     if segments:
                         # Track common first segments (e.g., /docs, /api, /guides)
                         first_segment = "/" + segments[0] if segments else "/"
-                        common_prefixes[first_segment] = (
-                            common_prefixes.get(first_segment, 0) + 1
-                        )
+                        common_prefixes[first_segment] = common_prefixes.get(first_segment, 0) + 1
 
                         # Track path depth frequencies
                         depth = len(segments)
@@ -1011,7 +985,7 @@ if _HAVE_LIBCRAWLER:
                 )
             )
             if os.path.exists(output_file):
-                with open(output_file, "r", encoding="utf-8") as f:
+                with open(output_file, encoding="utf-8") as f:
                     md_all = f.read()
                 summary = md_all[:1000] + ("..." if len(md_all) > 1000 else "")
                 pedigree_entry = f"""### {time.strftime("%Y-%m-%d")} — Documentation Crawl: {base_url}
@@ -1048,6 +1022,7 @@ if _HAVE_LIBCRAWLER:
             }
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
 else:
     documentation_crawler = None
 
@@ -1055,14 +1030,12 @@ else:
 class WriteFileInput(pydantic.BaseModel):
     """Input schema for write_file tool."""
 
-    filepath: str = pydantic.Field(
-        description="Full path (directory + filename) to write."
-    )
+    filepath: str = pydantic.Field(description="Full path (directory + filename) to write.")
     content: str = pydantic.Field(description="Text content to write.")
 
 
 @tool("write_file", args_schema=WriteFileInput)
-def write_file(filepath: str, content: str) -> Dict[str, Any]:
+def write_file(filepath: str, content: str) -> dict[str, Any]:
     """Writes text content to a file, creating directories if needed. Returns metadata including a sha256 checksum."""
     try:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -1097,7 +1070,7 @@ def write_file(filepath: str, content: str) -> Dict[str, Any]:
 # -------------------------
 
 
-def get_available_tools() -> List[Callable]:
+def get_available_tools() -> list[Callable]:
     """Return actual tool callables available in this environment."""
     # Create the web_search tool with the configured provider
     web_search = create_web_search_tool()
@@ -1114,7 +1087,7 @@ def get_available_tools() -> List[Callable]:
     return core_tools + optional
 
 
-def get_tools_for_role(role: str, use_robots: bool = True) -> List[Callable]:
+def get_tools_for_role(role: str, use_robots: bool = True) -> list[Callable]:
     """Return tools intended for a specific role."""
     role = (role or "").lower()
 
@@ -1152,8 +1125,4 @@ def get_tools_for_role(role: str, use_robots: bool = True) -> List[Callable]:
         role_mapping["research"].append("documentation_crawler")
 
     tool_names_for_role = role_mapping.get(role, [])
-    return [
-        all_tools[tool_name]
-        for tool_name in tool_names_for_role
-        if tool_name in all_tools
-    ]
+    return [all_tools[tool_name] for tool_name in tool_names_for_role if tool_name in all_tools]

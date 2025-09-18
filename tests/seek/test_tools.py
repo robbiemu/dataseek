@@ -1,10 +1,12 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from seek.tools import (
-    create_web_search_tool,
-    url_to_markdown,
     _safe_request_get,
+    create_web_search_tool,
     get_tools_for_role,
+    url_to_markdown,
 )
 
 # Don't create the web_search tool at module level since it causes issues with mocking
@@ -39,10 +41,13 @@ class TestTools:
     def test_web_search_success(self, mock_run_async_safely, mock_get_cfg):
         """Test successful web search."""
         # Force a provider that doesn't require extra packages
-        mock_get_cfg.return_value = {"web_search": {"provider": "wikipedia/search"}, "use_robots": True}
+        mock_get_cfg.return_value = {
+            "web_search": {"provider": "wikipedia/search"},
+            "use_robots": True,
+        }
         # Create the web search tool inside the test
         web_search = create_web_search_tool()
-        
+
         # Mock the async result
         mock_run_async_safely.return_value = "Test search results"
 
@@ -61,10 +66,13 @@ class TestTools:
     @patch("seek.tools._run_async_safely")
     def test_web_search_failure(self, mock_run_async_safely, mock_get_cfg):
         """Test failed web search."""
-        mock_get_cfg.return_value = {"web_search": {"provider": "wikipedia/search"}, "use_robots": True}
+        mock_get_cfg.return_value = {
+            "web_search": {"provider": "wikipedia/search"},
+            "use_robots": True,
+        }
         # Create the web search tool inside the test
         web_search = create_web_search_tool()
-        
+
         # Mock the async result to raise an exception
         mock_run_async_safely.side_effect = Exception("Search failed")
 
@@ -82,7 +90,9 @@ class TestTools:
         """Test successful URL to markdown conversion."""
         # Mock the HTTP response
         mock_response = MagicMock()
-        mock_response.text = "<html><head><title>Test Title</title></head><body><p>Test content</p></body></html>"
+        mock_response.text = (
+            "<html><head><title>Test Title</title></head><body><p>Test content</p></body></html>"
+        )
         mock_safe_request.return_value = mock_response
 
         # Call the tool
@@ -128,9 +138,9 @@ class TestTools:
     @patch("seek.tools.SYNC_HTTP_CLIENT.get")
     def test_safe_request_get_failure(self, mock_sync_get):
         """Test failed safe request."""
-        # Mock the sync request to raise an exception
-        mock_sync_get.side_effect = Exception("Network error")
+        # Mock the sync request to raise a specific exception
+        mock_sync_get.side_effect = RuntimeError("Network error")
 
         # Call the function and expect it to raise
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError, match="Network error"):
             _safe_request_get("http://example.com", max_retries=0)

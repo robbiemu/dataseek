@@ -2,18 +2,18 @@
 Test for configurable ReAct max_iterations functionality.
 """
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage
+from pydantic import ValidationError
+
 from seek.models import (
-    SeekAgentConfig,
     SeekAgentNodesConfig,
     SeekAgentResearchNodeConfig,
-    SeekAgentMissionPlanConfig,
-    SeekAgentWriterConfig,
 )
 from seek.nodes import research_node
 from seek.state import DataSeekState
-from langchain_core.messages import HumanMessage, AIMessage
 
 
 def test_research_node_max_iterations_default():
@@ -24,9 +24,7 @@ def test_research_node_max_iterations_default():
 
 def test_research_node_max_iterations_custom():
     """Test that custom max_iterations for the research node is respected."""
-    config = SeekAgentNodesConfig(
-        research=SeekAgentResearchNodeConfig(max_iterations=5)
-    )
+    config = SeekAgentNodesConfig(research=SeekAgentResearchNodeConfig(max_iterations=5))
     assert config.research.max_iterations == 5
 
 
@@ -37,9 +35,9 @@ def test_research_node_max_iterations_validation():
     SeekAgentResearchNodeConfig(max_iterations=50)
 
     # Invalid values should raise validation error
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         SeekAgentResearchNodeConfig(max_iterations=0)
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         SeekAgentResearchNodeConfig(max_iterations=51)
 
 
@@ -70,9 +68,7 @@ def test_research_node_uses_config_max_iterations(
     # Mock LLM to return a final report on the last iteration
     final_report = AIMessage(content="# Data Prospecting Report\nSuccess")
     # Simulate the loop by having invoke return non-reports until the last call
-    mock_llm_instance.invoke.side_effect = [AIMessage(content="Thinking...")] * 4 + [
-        final_report
-    ]
+    mock_llm_instance.invoke.side_effect = [AIMessage(content="Thinking...")] * 4 + [final_report]
 
     # Create state
     state = DataSeekState(messages=[HumanMessage(content="Find stuff")])
@@ -82,10 +78,13 @@ def test_research_node_uses_config_max_iterations(
         @classmethod
         def from_messages(cls, *_args, **_kwargs):
             return cls()
+
         def partial(self, **_kwargs):
             return self
+
         def __or__(self, other):
             return other
+
     mock_prompt.from_messages.side_effect = DummyPrompt.from_messages
 
     # --- Act ---

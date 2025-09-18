@@ -5,16 +5,16 @@ This module provides functionality to validate search results by checking URL ac
 filtering blocked domains, and handling retry logic for failed searches.
 """
 
-from typing import Dict, Any, List, Optional, Set, Tuple
 import logging
 import time
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 import yaml
 
 from .config import get_active_seek_config
-from .tools import _safe_request_get, _run_async_safely, RATE_MANAGER, HTTP_CLIENT
+from .tools import HTTP_CLIENT, RATE_MANAGER, _run_async_safely, _safe_request_get
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ URL_VALIDATION_TIMEOUT = 10
 RATE_LIMIT_RPS = 2.0
 
 
-def find_url_field(results: List[Dict[str, Any]]) -> Optional[str]:
+def find_url_field(results: list[dict[str, Any]]) -> str | None:
     """Find the URL field name in search results."""
     if not results:
         return None
@@ -72,11 +72,11 @@ class SearchResultsValidator:
 
     def validate_search_results(
         self,
-        results: List[Dict[str, Any]],
-        tool_args: Optional[Dict[str, Any]] = None,
+        results: list[dict[str, Any]],
+        tool_args: dict[str, Any] | None = None,
         matching_tool=None,
-        session_tool_domain_blocklist: Optional[List[Tuple[str, str]]] = None,
-    ) -> Dict[str, Any]:
+        session_tool_domain_blocklist: list[tuple[str, str]] | None = None,
+    ) -> dict[str, Any]:
         """
         Validate search results by filtering blocked domains and checking URL accessibility.
 
@@ -117,9 +117,7 @@ class SearchResultsValidator:
         logger.info(f"Validating {len(validation_batch)} results for {self.tool_name}")
 
         validated_results = self._validate_url_batch(validation_batch)
-        accessible_results = [
-            r for r in validated_results if r.get("status") == "accessible"
-        ]
+        accessible_results = [r for r in validated_results if r.get("status") == "accessible"]
 
         # Retry if no accessible results found
         if (
@@ -137,9 +135,7 @@ class SearchResultsValidator:
             if retry_results:
                 return retry_results
 
-        filtered_count = len(
-            [r for r in validated_results if r.get("status") == "inaccessible"]
-        )
+        filtered_count = len([r for r in validated_results if r.get("status") == "inaccessible"])
 
         return self._create_response(
             validated_results,
@@ -150,9 +146,9 @@ class SearchResultsValidator:
 
     def _filter_blocked_domains(
         self,
-        results: List[Dict[str, Any]],
-        blocklist: Optional[List[Tuple[str, str]]],
-    ) -> Tuple[List[Dict[str, Any]], int]:
+        results: list[dict[str, Any]],
+        blocklist: list[tuple[str, str]] | None,
+    ) -> tuple[list[dict[str, Any]], int]:
         """Filter out results from blocked domains."""
         if not results or not blocklist:
             return results, 0
@@ -182,23 +178,19 @@ class SearchResultsValidator:
                 filtered_results.append(result)
 
         if blocked_count > 0:
-            logger.info(
-                f"Filtered {blocked_count} blocked results for {self.tool_name}"
-            )
+            logger.info(f"Filtered {blocked_count} blocked results for {self.tool_name}")
 
         return filtered_results, blocked_count
 
     def _expand_search_results(
         self,
-        filtered_results: List[Dict[str, Any]],
-        tool_args: Dict[str, Any],
+        filtered_results: list[dict[str, Any]],
+        tool_args: dict[str, Any],
         matching_tool,
-        blocklist: Optional[List[Tuple[str, str]]],
-    ) -> List[Dict[str, Any]]:
+        blocklist: list[tuple[str, str]] | None,
+    ) -> list[dict[str, Any]]:
         """Expand search results when insufficient results remain after filtering."""
-        logger.info(
-            f"Expanding search: only {len(filtered_results)} results after filtering"
-        )
+        logger.info(f"Expanding search: only {len(filtered_results)} results after filtering")
 
         expanded_queries = self._generate_expanded_queries(tool_args.get("query", ""))
         expanded_results = []
@@ -215,16 +207,12 @@ class SearchResultsValidator:
 
                 expanded_tool_result = matching_tool.invoke(expanded_tool_args)
 
-                if isinstance(expanded_tool_result, dict) and expanded_tool_result.get(
-                    "results"
-                ):
+                if isinstance(expanded_tool_result, dict) and expanded_tool_result.get("results"):
                     new_results, _ = self._filter_blocked_domains(
                         expanded_tool_result["results"], blocklist
                     )
                     expanded_results.extend(new_results)
-                    logger.info(
-                        f"Expanded query yielded {len(new_results)} new results"
-                    )
+                    logger.info(f"Expanded query yielded {len(new_results)} new results")
 
             except Exception as e:
                 logger.warning(f"Expanded query failed: {e}")
@@ -239,7 +227,7 @@ class SearchResultsValidator:
 
         return final_results
 
-    def _generate_expanded_queries(self, original_query: str) -> List[str]:
+    def _generate_expanded_queries(self, original_query: str) -> list[str]:
         """Generate expanded search queries for retry attempts."""
         return [
             f"{original_query} site:*",
@@ -249,10 +237,10 @@ class SearchResultsValidator:
 
     def _deduplicate_results(
         self,
-        results: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        results: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Remove duplicate results based on URL."""
-        seen_urls: Set[str] = set()
+        seen_urls: set[str] = set()
         unique_results = []
 
         for result in results:
@@ -272,8 +260,8 @@ class SearchResultsValidator:
 
     def _validate_url_batch(
         self,
-        results_batch: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        results_batch: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Validate a batch of search results by checking URL accessibility."""
         validated_results = []
 
@@ -299,30 +287,24 @@ class SearchResultsValidator:
 
         return validated_results
 
-    def _check_url_accessibility(self, url: str) -> Tuple[str, Optional[str]]:
+    def _check_url_accessibility(self, url: str) -> tuple[str, str | None]:
         """Check if a URL is accessible."""
         try:
             response = self._safe_request_head(url)
             if response.status_code == 200:
                 return "accessible", None
             else:
-                logger.warning(
-                    f"URL {url} inaccessible (status {response.status_code})"
-                )
+                logger.warning(f"URL {url} inaccessible (status {response.status_code})")
                 return "inaccessible", f"HTTP {response.status_code}"
 
         except Exception:
             # Fallback to GET request
             try:
-                response = _safe_request_get(
-                    url, timeout_s=URL_VALIDATION_TIMEOUT, max_retries=1
-                )
+                response = _safe_request_get(url, timeout_s=URL_VALIDATION_TIMEOUT, max_retries=1)
                 if response.status_code == 200:
                     return "accessible", None
                 else:
-                    logger.warning(
-                        f"URL {url} inaccessible (status {response.status_code})"
-                    )
+                    logger.warning(f"URL {url} inaccessible (status {response.status_code})")
                     return "inaccessible", f"HTTP {response.status_code}"
 
             except Exception as e:
@@ -364,14 +346,12 @@ class SearchResultsValidator:
 
     def _perform_retry(
         self,
-        failed_results: List[Dict[str, Any]],
-        tool_args: Dict[str, Any],
+        failed_results: list[dict[str, Any]],
+        tool_args: dict[str, Any],
         matching_tool,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Perform retry with expanded parameters when all initial results fail."""
-        logger.info(
-            "All initial results inaccessible, attempting retry with expanded results"
-        )
+        logger.info("All initial results inaccessible, attempting retry with expanded results")
 
         bad_urls = {
             r.get("url")
@@ -382,33 +362,20 @@ class SearchResultsValidator:
         for attempt in range(self.max_retries):
             try:
                 expanded_args = self._create_expanded_args(tool_args)
-                logger.info(
-                    f"Retry attempt {attempt + 1}/{self.max_retries} with: {expanded_args}"
-                )
+                logger.info(f"Retry attempt {attempt + 1}/{self.max_retries} with: {expanded_args}")
 
                 expanded_result = matching_tool.invoke(expanded_args)
 
-                if (
-                    isinstance(expanded_result, dict)
-                    and expanded_result.get("status") == "ok"
-                ):
+                if isinstance(expanded_result, dict) and expanded_result.get("status") == "ok":
                     expanded_results = expanded_result.get("results", [])
-                    fresh_results = self._filter_fresh_results(
-                        expanded_results, bad_urls
-                    )
+                    fresh_results = self._filter_fresh_results(expanded_results, bad_urls)
 
                     if fresh_results:
-                        validation_limit = min(
-                            self.prefetch_limit * 2, len(fresh_results)
-                        )
-                        validated_fresh = self._validate_url_batch(
-                            fresh_results[:validation_limit]
-                        )
+                        validation_limit = min(self.prefetch_limit * 2, len(fresh_results))
+                        validated_fresh = self._validate_url_batch(fresh_results[:validation_limit])
 
                         accessible_fresh = [
-                            r
-                            for r in validated_fresh
-                            if r.get("status") == "accessible"
+                            r for r in validated_fresh if r.get("status") == "accessible"
                         ]
 
                         if accessible_fresh:
@@ -418,8 +385,7 @@ class SearchResultsValidator:
                             return self._create_response(
                                 validated_fresh,
                                 validation_performed=True,
-                                filtered_count=len(validated_fresh)
-                                - len(accessible_fresh),
+                                filtered_count=len(validated_fresh) - len(accessible_fresh),
                                 original_count=len(failed_results),
                                 retry_performed=True,
                                 retry_successful=True,
@@ -439,7 +405,7 @@ class SearchResultsValidator:
         logger.error("All retry attempts failed")
         return None
 
-    def _create_expanded_args(self, tool_args: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_expanded_args(self, tool_args: dict[str, Any]) -> dict[str, Any]:
         """Create expanded arguments for retry attempts."""
         expanded_args = tool_args.copy()
 
@@ -453,9 +419,9 @@ class SearchResultsValidator:
 
     def _filter_fresh_results(
         self,
-        results: List[Dict[str, Any]],
-        bad_urls: Set[str],
-    ) -> List[Dict[str, Any]]:
+        results: list[dict[str, Any]],
+        bad_urls: set[str],
+    ) -> list[dict[str, Any]]:
         """Filter out results with URLs we already know are bad."""
         fresh_results = []
 
@@ -471,22 +437,22 @@ class SearchResultsValidator:
 
         return fresh_results
 
-    def _extract_url_from_result(self, result: Dict[str, Any]) -> Optional[str]:
+    def _extract_url_from_result(self, result: dict[str, Any]) -> str | None:
         """Extract URL from a search result."""
         url_field = find_url_field([result])
         return result[url_field] if url_field else None
 
     def _create_response(
         self,
-        results: List[Dict[str, Any]],
+        results: list[dict[str, Any]],
         validation_performed: bool = False,
         needs_retry: bool = False,
         filtered_count: int = 0,
-        original_count: Optional[int] = None,
+        original_count: int | None = None,
         retry_performed: bool = False,
         retry_successful: bool = False,
-        bad_urls_excluded: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        bad_urls_excluded: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Create a standardized response dictionary."""
         response = {
             "results": results,
@@ -509,12 +475,12 @@ class SearchResultsValidator:
 
 
 def _validate_search_results(
-    results: List[Dict[str, Any]],
+    results: list[dict[str, Any]],
     tool_name: str,
-    tool_args: Dict[str, Any] = None,
+    tool_args: dict[str, Any] = None,
     matching_tool=None,
-    session_tool_domain_blocklist: List[Tuple[str, str]] = None,
-) -> Dict[str, Any]:
+    session_tool_domain_blocklist: list[tuple[str, str]] = None,
+) -> dict[str, Any]:
     """
     Legacy function wrapper for backward compatibility.
 
@@ -540,7 +506,7 @@ class MissionDetailsParser:
     @staticmethod
     def get_mission_details_from_file(
         mission_plan_path: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Parse mission_config.yaml to extract mission names and target sizes.
 
@@ -551,7 +517,7 @@ class MissionDetailsParser:
             Dictionary with mission names and targets, or None if parsing fails
         """
         try:
-            with open(mission_plan_path, "r", encoding="utf-8") as f:
+            with open(mission_plan_path, encoding="utf-8") as f:
                 content = f.read()
 
                 # Remove comment header if present
@@ -579,7 +545,7 @@ class MissionDetailsParser:
             return None
 
     @staticmethod
-    def _extract_mission_info(mission_plan: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_mission_info(mission_plan: dict[str, Any]) -> dict[str, Any]:
         """Extract mission information from parsed YAML."""
         mission_names = []
         mission_targets = {}
@@ -602,6 +568,6 @@ class MissionDetailsParser:
 
 
 # Legacy function for backward compatibility
-def get_mission_details_from_file(mission_plan_path: str) -> Optional[Dict[str, Any]]:
+def get_mission_details_from_file(mission_plan_path: str) -> dict[str, Any] | None:
     """Legacy wrapper for mission details parsing."""
     return MissionDetailsParser.get_mission_details_from_file(mission_plan_path)

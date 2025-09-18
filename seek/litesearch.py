@@ -1,24 +1,25 @@
+import asyncio
 import os
 import time
-import asyncio
-import httpx
-from typing import Any, Dict, Optional, Tuple
-from contextlib import asynccontextmanager
 from collections import deque
+from contextlib import asynccontextmanager
+from typing import Any
+
+import httpx
+from langchain_community.tools import DuckDuckGoSearchRun
 
 # Import all the necessary wrappers from the LangChain ecosystem
 from langchain_community.utilities import (
+    ArxivAPIWrapper,
     # BraveSearchWrapper,
     BingSearchAPIWrapper,
+    PubMedAPIWrapper,
     SerpAPIWrapper,
     WikipediaAPIWrapper,
-    ArxivAPIWrapper,
-    PubMedAPIWrapper,
 )
-from langchain_community.tools import DuckDuckGoSearchRun
-from langchain_tavily import TavilySearch
 from langchain_community.utilities.you import YouSearchAPIWrapper
 from langchain_google_community import GoogleSearchAPIWrapper
+from langchain_tavily import TavilySearch
 
 
 class AsyncRateLimitManager:
@@ -31,9 +32,9 @@ class AsyncRateLimitManager:
     """
 
     def __init__(self):
-        self._providers: Dict[str, Dict[str, Any]] = {}
+        self._providers: dict[str, dict[str, Any]] = {}
 
-    def _get_provider_state(self, provider: str) -> Dict[str, Any]:
+    def _get_provider_state(self, provider: str) -> dict[str, Any]:
         """Initializes and/or returns the state for a given provider."""
         if provider not in self._providers:
             self._providers[provider] = {
@@ -49,7 +50,7 @@ class AsyncRateLimitManager:
     async def acquire(
         self,
         provider: str,
-        requests_per_second: Optional[float] = None,
+        requests_per_second: float | None = None,
     ):
         """
         An async context manager to acquire a slot for an API call.
@@ -60,10 +61,7 @@ class AsyncRateLimitManager:
             # Case 1: Provider uses a fixed, explicit time-based limit.
             if requests_per_second:
                 now = time.time()
-                while (
-                    state["request_timestamps"]
-                    and state["request_timestamps"][0] <= now - 1.0
-                ):
+                while state["request_timestamps"] and state["request_timestamps"][0] <= now - 1.0:
                     state["request_timestamps"].popleft()
 
                 if len(state["request_timestamps"]) >= requests_per_second:
@@ -77,8 +75,7 @@ class AsyncRateLimitManager:
                 if not state["initialized"]:
                     now = time.time()
                     while (
-                        state["request_timestamps"]
-                        and state["request_timestamps"][0] <= now - 1.0
+                        state["request_timestamps"] and state["request_timestamps"][0] <= now - 1.0
                     ):
                         state["request_timestamps"].popleft()
 
@@ -100,7 +97,7 @@ class AsyncRateLimitManager:
         finally:
             pass
 
-    def update_from_headers(self, provider: str, headers: Dict[str, Any]):
+    def update_from_headers(self, provider: str, headers: dict[str, Any]):
         """Updates the rate limit state from API response headers."""
         state = self._get_provider_state(provider)
         headers = {k.lower(): v for k, v in headers.items()}
@@ -155,7 +152,7 @@ class SearchProviderProxy:
         self.http_client = http_client
         self.client, self.is_custom = self._get_client()
 
-    def _get_client(self) -> Tuple[Any, bool]:
+    def _get_client(self) -> tuple[Any, bool]:
         """
         Maps the provider string to a handler.
 
@@ -188,12 +185,8 @@ class SearchProviderProxy:
                     "GOOGLE_SEARCH_API_KEY environment variable not set for Google Search provider"
                 )
             if not cse_id:
-                raise ValueError(
-                    "CSE_ID environment variable not set for Google Search provider"
-                )
-            return GoogleSearchAPIWrapper(
-                google_api_key=api_key, google_cse_id=cse_id
-            ), False
+                raise ValueError("CSE_ID environment variable not set for Google Search provider")
+            return GoogleSearchAPIWrapper(google_api_key=api_key, google_cse_id=cse_id), False
         elif self.provider == "duckduckgo/search":
             return DuckDuckGoSearchRun(), False
 
@@ -259,21 +252,15 @@ class SearchProviderProxy:
                 # Google: structured list via results(query, num_results)
                 if self.provider == "google/search" and hasattr(self.client, "results"):
                     num_results = max_results if max_results is not None else 10
-                    return await asyncio.to_thread(
-                        self.client.results, query, num_results
-                    )
+                    return await asyncio.to_thread(self.client.results, query, num_results)
 
                 # Bing: structured list via results(query, num_results=)
                 if self.provider == "bing/search" and hasattr(self.client, "results"):
                     num_results = max_results if max_results is not None else 10
-                    return await asyncio.to_thread(
-                        self.client.results, query, num_results
-                    )
+                    return await asyncio.to_thread(self.client.results, query, num_results)
 
                 # SerpAPI: structured via results(query, num=)
-                if self.provider == "serpapi/search" and hasattr(
-                    self.client, "results"
-                ):
+                if self.provider == "serpapi/search" and hasattr(self.client, "results"):
                     num = max_results if max_results is not None else 10
                     # Pass as positional to avoid kwarg mismatches across versions
                     return await asyncio.to_thread(self.client.results, query, num)
@@ -283,9 +270,7 @@ class SearchProviderProxy:
                     kwargs_local = {}
                     if max_results is not None:
                         kwargs_local["max_results"] = max_results
-                    return await asyncio.to_thread(
-                        self.client.search, query, **kwargs_local
-                    )
+                    return await asyncio.to_thread(self.client.search, query, **kwargs_local)
 
                 # You.com: run(query, num_web_results=)
                 if self.provider == "you/search" and hasattr(self.client, "run"):
@@ -301,9 +286,7 @@ class SearchProviderProxy:
 
                 # Default path: run() with any remaining kwargs
                 if not hasattr(self.client, "run"):
-                    raise NotImplementedError(
-                        f"Client for '{self.provider}' has no 'run' method."
-                    )
+                    raise NotImplementedError(f"Client for '{self.provider}' has no 'run' method.")
                 return await asyncio.to_thread(self.client.run, query, **kwargs)
 
 
@@ -318,9 +301,7 @@ async def main():
     async with httpx.AsyncClient() as http_client:
         print("--- Testing DuckDuckGo (fixed 2 req/sec limit) ---")
         try:
-            ddg_proxy = SearchProviderProxy(
-                "duckduckgo/search", rate_manager, http_client
-            )
+            ddg_proxy = SearchProviderProxy("duckduckgo/search", rate_manager, http_client)
             tasks = [
                 ddg_proxy.run("Benefits of serverless computing?"),
                 ddg_proxy.run("What is WebAssembly?"),
@@ -337,9 +318,7 @@ async def main():
         print("--- Testing Brave Search (starts with 1 req/sec, then uses headers) ---")
         if os.getenv("BRAVE_SEARCH_API_KEY"):
             try:
-                brave_proxy = SearchProviderProxy(
-                    "brave/search", rate_manager, http_client
-                )
+                brave_proxy = SearchProviderProxy("brave/search", rate_manager, http_client)
                 # These three will be spaced out by the default 1 req/sec limit
                 tasks = [
                     brave_proxy.run("What is LangGraph?"),

@@ -2,7 +2,7 @@
 """
 Data models for the Data Seek agent.
 """
-from typing import List, Optional, Dict
+
 from pydantic import BaseModel, Field
 
 
@@ -33,9 +33,7 @@ class SeekAgentResearchNodeConfig(BaseModel):
 class SeekAgentNodesConfig(BaseModel):
     """Container for node-specific configurations."""
 
-    research: SeekAgentResearchNodeConfig = Field(
-        default_factory=SeekAgentResearchNodeConfig
-    )
+    research: SeekAgentResearchNodeConfig = Field(default_factory=SeekAgentResearchNodeConfig)
     # We can add configs for other nodes here later if needed
 
 
@@ -71,28 +69,24 @@ class SeekAgentMissionPlanToolConfig(BaseModel):
 class SeekAgentMissionPlanConfig(BaseModel):
     """Defines the mission plan for the Data Seek Agent."""
 
-    goal: str = Field(
-        ..., description="The high-level goal for the data seeking mission."
-    )
-    nodes: List[SeekAgentMissionPlanNodeConfig] = Field(
+    goal: str = Field(..., description="The high-level goal for the data seeking mission.")
+    nodes: list[SeekAgentMissionPlanNodeConfig] = Field(
         default_factory=list,
         description="Configuration for each node in the agent graph.",
     )
-    tools: Dict[str, SeekAgentMissionPlanToolConfig] = Field(
+    tools: dict[str, SeekAgentMissionPlanToolConfig] = Field(
         default_factory=dict,
         description="Configuration for individual tools used in the mission.",
     )
 
-    def get_node_config(self, name: str) -> Optional[SeekAgentMissionPlanNodeConfig]:
+    def get_node_config(self, name: str) -> SeekAgentMissionPlanNodeConfig | None:
         """Retrieve the configuration for a specific node by name."""
         for node in self.nodes:
             if node.name == name:
                 return node
         return None
 
-    def get_tool_config(
-        self, tool_name: str
-    ) -> Optional[SeekAgentMissionPlanToolConfig]:
+    def get_tool_config(self, tool_name: str) -> SeekAgentMissionPlanToolConfig | None:
         """Retrieve the configuration for a specific tool by name."""
         return self.tools.get(tool_name)
 
@@ -116,7 +110,7 @@ class SeekAgentWriterConfig(BaseModel):
 class SeekAgentConfig(BaseModel):
     """Main configuration for the Data Seek Agent."""
 
-    search_provider: Optional[str] = Field(
+    search_provider: str | None = Field(
         default="duckduckgo/search",
         description="The default search provider to use (e.g., 'duckduckgo/search', 'brave/search')",
     )
@@ -133,7 +127,7 @@ class SeekAgentConfig(BaseModel):
     )
 
     # The initial prompt to send to the agent to start the mission
-    initial_prompt: Optional[str] = Field(
+    initial_prompt: str | None = Field(
         default=None,
         description="The initial prompt to send to the agent to start the mission. If not provided, the TUI will ask for it interactively.",
     )
@@ -146,5 +140,8 @@ class SeekAgentConfig(BaseModel):
 
 class FitnessReport(BaseModel):
     """A structured report from the FitnessAgent evaluating a source document."""
+
     passed: bool = Field(description="True if the document is approved, False if it is rejected.")
-    reason: str = Field(description="A brief justification for the decision, explaining why the document was approved or rejected.")
+    reason: str = Field(
+        description="A brief justification for the decision, explaining why the document was approved or rejected."
+    )

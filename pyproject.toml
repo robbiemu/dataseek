@@ -6,6 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "dataseek"
 version = "0.1.0"
 description = "DataSeek: A standalone data prospecting agent for finding reliable, verifiable data sources"
+authors = [
+    { name = "Robert Collins", email = "roberto.tomas.cuentas@gmail.com"}
+]
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -38,6 +41,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
+    "black>=24.0.0",
+    "ruff>=0.6.9",
+    "mypy>=1.10.0",
+    "bandit>=1.7.5",
+    "pre-commit>=3.7.0",
 ]
 # Optional dependency for the crawler tool, requires playwright is installed on the system
 crawler = ["libcrawler"]
@@ -54,3 +63,38 @@ packages = [
 
 [tool.setuptools.package-data]
 "seek" = ["../config/*.yaml", "../settings/*.yaml"]
+
+[tool.black]
+line-length = 100
+target-version = ["py313"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+[tool.ruff.lint]
+extend-select = [
+    "B",   # flake8-bugbear
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**.py" = [
+    "ARG002",  # Unused arguments in tests (fixtures, mocks)
+    "F841",    # Assigned but unused (side-effect tests)
+    "SIM117",  # try/finally often clearer in tests
+    "B018",    # Useless expression (docstrings in tests)
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_site_packages = false
+files = ["seek"]
+
+[tool.bandit]
+skips = ["B101", "B608"]
+exclude_dirs = [".venv", "tests"]

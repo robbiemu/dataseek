@@ -3,10 +3,10 @@
 Data Seek Agent TUI - A modern terminal interface for sample generation.
 """
 
-import os
-from datetime import datetime
-from typing import Optional
 import io
+import os
+import tempfile
+from datetime import datetime
 
 try:
     import darkdetect
@@ -15,26 +15,27 @@ try:
 except ImportError:
     DARKDETECT_AVAILABLE = False
 
+import typer
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
-from textual.widgets import Header, Footer
-import typer
+from textual.widgets import Footer, Header
 
-from seek.tui.components.stats_header import StatsHeader, GenerationStats
-from seek.tui.components.progress_panel import ProgressPanel
-from seek.tui.components.mission_panel import MissionPanel
-from seek.tui.components.conversation_panel import ConversationPanel
-from seek.tui.components.mission_selector import MissionSelector
-from seek.tui.agent_process_manager import AgentProcessManager
 from seek.tui.agent_output_parser import (
     AgentOutputParser,
-    ProgressUpdate,
-    NewMessage,
     ErrorMessage,
-    SyntheticSampleUpdate,
+    NewMessage,
+    ProgressUpdate,
     RecursionStepUpdate,
+    SyntheticSampleUpdate,
 )
+from seek.tui.agent_process_manager import AgentProcessManager
+from seek.tui.components.conversation_panel import ConversationPanel
+from seek.tui.components.mission_panel import MissionPanel
+from seek.tui.components.mission_selector import MissionSelector
+from seek.tui.components.progress_panel import ProgressPanel
+from seek.tui.components.stats_header import GenerationStats, StatsHeader
+
 from ..config import load_seek_config, set_active_seek_config
 from ..seek_utils import get_mission_details_from_file
 
@@ -42,9 +43,7 @@ from ..seek_utils import get_mission_details_from_file
 class DataSeekTUI(App):
     """Main TUI application."""
 
-    CSS_PATH = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "styles.tcss"
-    )
+    CSS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "styles.tcss")
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
@@ -58,11 +57,11 @@ class DataSeekTUI(App):
     def __init__(
         self,
         mission_plan_path: str = "config/mission_config.yaml",
-        log_file: Optional[str] = None,
+        log_file: str | None = None,
         debug: bool = False,
-        seek_config_path: Optional[str] = None,
+        seek_config_path: str | None = None,
         use_robots: bool = True,
-        mission_name: Optional[str] = None,
+        mission_name: str | None = None,
     ):
         super().__init__()
         self.mission_plan_path = mission_plan_path
@@ -71,12 +70,13 @@ class DataSeekTUI(App):
         self.seek_config_path = seek_config_path
         self.use_robots = use_robots
         self.mission_name = mission_name
+        self._debug_log_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")
         if debug:
-            print("Writing debug log to /tmp/tui_debug.log")
+            print(f"Writing debug log to {self._debug_log_path}")
         self.stats = GenerationStats()
-        self.agent_process_manager: Optional[AgentProcessManager] = None
+        self.agent_process_manager: AgentProcessManager | None = None
         self.agent_output_parser = AgentOutputParser()
-        self.log_handle: Optional[io.TextIOWrapper] = None
+        self.log_handle: io.TextIOWrapper | None = None
 
         # System theme detection
         self.system_theme_sync_enabled = DARKDETECT_AVAILABLE
@@ -89,12 +89,13 @@ class DataSeekTUI(App):
         """Log debug message if debug mode is enabled."""
         if self.debug_enabled:
             try:
-                with open("/tmp/tui_debug.log", "a") as f:
+                with open(self._debug_log_path, "a") as f:
                     f.write(f"{message}\n")
-            except Exception:
-                pass  # Ignore debug logging errors
+            except Exception as _e:
+                # Ignore debug logging errors
+                pass  # nosec B110 # - debug logging failure is non-fatal
 
-    def detect_system_theme(self) -> Optional[str]:
+    def detect_system_theme(self) -> str | None:
         """Detect the current system theme (dark/light)."""
         if not DARKDETECT_AVAILABLE:
             return None
@@ -150,7 +151,7 @@ class DataSeekTUI(App):
         try:
             import yaml
 
-            with open(self.mission_plan_path, "r") as f:
+            with open(self.mission_plan_path) as f:
                 content = f.read()
                 # Remove comment header if it exists
                 if content.startswith("#"):
@@ -200,7 +201,9 @@ class DataSeekTUI(App):
 
         if self.mission_name:
             if self.mission_name not in mission_details["mission_names"]:
-                self.exit(message=f"❌ Mission '{self.mission_name}' not found in {self.mission_plan_path}")
+                self.exit(
+                    message=f"❌ Mission '{self.mission_name}' not found in {self.mission_plan_path}"
+                )
                 return
             self.on_mission_selected(self.mission_name)
         else:
@@ -242,8 +245,8 @@ class DataSeekTUI(App):
                         for key in footer.query(selector):
                             key.add_class(theme_class)
                             key.remove_class(opposite_class)
-                except:
-                    pass
+                except Exception:
+                    pass  # nosec B110 # - non-critical visual update failure
 
                 self.debug_log(
                     f"Footer key styling - selectors tried: {selectors_tried}, keys found: {keys_found}, color: {key_color}"
@@ -289,8 +292,8 @@ class DataSeekTUI(App):
                 try:
                     self.screen.styles.background = bg_color
                     self.screen.styles.color = text_color
-                except:
-                    pass
+                except Exception:
+                    pass  # nosec B110 # - non-critical visual update failure
 
                 # Apply built-in Header widget styling with multiple approaches
                 try:
@@ -307,19 +310,17 @@ class DataSeekTUI(App):
 
                     # Try setting CSS variables if they exist
                     try:
-                        header_widget.styles.update(
-                            background=header_bg, color=text_color
-                        )
-                    except:
-                        pass
+                        header_widget.styles.update(background=header_bg, color=text_color)
+                    except Exception as e:
+                        self.debug_log(f"Failed removing stats_header class: {e}")
 
                     # Try accessing sub-components of the header
                     try:
                         for child in header_widget.children:
                             child.styles.background = header_bg
                             child.styles.color = text_color
-                    except:
-                        pass
+                    except Exception:
+                        pass  # nosec B110 # - non-critical visual update failure
 
                     # Try adding/removing CSS classes for theme control
                     try:
@@ -329,8 +330,8 @@ class DataSeekTUI(App):
                         else:
                             header_widget.add_class("light-theme")
                             header_widget.remove_class("dark-theme")
-                    except:
-                        pass
+                    except Exception:
+                        pass  # nosec B110 # - non-critical visual update failure
 
                     self.debug_log(
                         f"Applied Header widget styling: bg={header_bg}, color={text_color}"
@@ -347,7 +348,7 @@ class DataSeekTUI(App):
                         self.stats_header.styles.color = text_color
                         # Force refresh to pick up the new colors
                         self.stats_header.refresh()
-                        self.debug_log(f"Applied stats_header reference styling")
+                        self.debug_log("Applied stats_header reference styling")
 
                     # Also try targeting by ID
                     try:
@@ -355,9 +356,9 @@ class DataSeekTUI(App):
                         stats_header.styles.background = header_bg
                         stats_header.styles.color = text_color
                         stats_header.refresh()
-                        self.debug_log(f"Applied stats_header ID styling")
-                    except:
-                        pass
+                        self.debug_log("Applied stats_header ID styling")
+                    except Exception:
+                        pass  # nosec B110 # - non-critical visual update failure
 
                     # Try adding CSS classes for theme control
                     try:
@@ -368,8 +369,8 @@ class DataSeekTUI(App):
                             else:
                                 self.stats_header.add_class("light-theme")
                                 self.stats_header.remove_class("dark-theme")
-                    except:
-                        pass
+                    except Exception:
+                        pass  # nosec B110 # - non-critical visual update failure
 
                 except Exception as e:
                     self.debug_log(f"Stats header styling failed: {e}")
@@ -379,46 +380,46 @@ class DataSeekTUI(App):
                     container = self.query_one("#main-container")
                     container.styles.background = container_bg
                     container.styles.color = text_color
-                except:
-                    pass
+                except Exception as e:
+                    self.debug_log(f"Failed styling main container: {e}")
 
                 # Apply progress panel styling
                 if hasattr(self, "progress_panel"):
                     try:
                         self.progress_panel.styles.background = progress_bg
                         self.progress_panel.styles.color = text_color
-                    except:
-                        pass
+                    except Exception as e:
+                        self.debug_log(f"Failed styling progress_panel: {e}")
 
                 # Apply mission panel styling
                 if hasattr(self, "mission_panel"):
                     try:
                         self.mission_panel.styles.background = mission_bg
                         self.mission_panel.styles.color = text_color
-                    except:
-                        pass
+                    except Exception as e:
+                        self.debug_log(f"Failed styling mission_panel: {e}")
 
                 # Apply conversation styling
                 if hasattr(self, "conversation"):
                     try:
                         self.conversation.styles.background = conversation_bg
                         self.conversation.styles.color = text_color
-                    except:
-                        pass
+                    except Exception as e:
+                        self.debug_log(f"Failed styling conversation panel: {e}")
 
                 # Apply title styling
                 for title in self.query(".panel-title"):
                     try:
                         title.styles.color = title_color
-                    except:
-                        pass
+                    except Exception as e:
+                        self.debug_log(f"Failed styling header title: {e}")
 
                 # Apply progress text styling
                 try:
                     progress = self.query_one("#main-progress")
                     progress.styles.color = progress_text_color
-                except:
-                    pass
+                except Exception as e:
+                    self.debug_log(f"Failed styling footer progress: {e}")
 
                 # Apply CSS classes to all elements for theme control
                 try:
@@ -442,16 +443,16 @@ class DataSeekTUI(App):
                             element = self.query_one(selector)
                             element.add_class(theme_class)
                             element.remove_class(opposite_class)
-                        except:
-                            pass
+                        except Exception as e:
+                            self.debug_log(f"Failed updating title classes: {e}")
 
                     # Apply theme class to all panel titles
                     for title in self.query(".panel-title"):
                         try:
                             title.add_class(theme_class)
                             title.remove_class(opposite_class)
-                        except:
-                            pass
+                        except Exception as e:
+                            self.debug_log(f"Failed updating scrollbar class via {selector}: {e}")
 
                     self.debug_log(f"Applied CSS theme classes: {theme_class}")
 
@@ -479,8 +480,8 @@ class DataSeekTUI(App):
                             for scrollbar in self.query(selector):
                                 scrollbar.add_class(theme_class)
                                 scrollbar.remove_class(opposite_class)
-                        except:
-                            pass
+                        except Exception as e:
+                            self.debug_log(f"Failed updating thumb class via {selector}: {e}")
 
                     # Apply to all scrollbar thumb elements
                     for selector in thumb_selectors:
@@ -488,8 +489,8 @@ class DataSeekTUI(App):
                             for thumb in self.query(selector):
                                 thumb.add_class(theme_class)
                                 thumb.remove_class(opposite_class)
-                        except:
-                            pass
+                        except Exception as e:
+                            self.debug_log(f"Failed querying elements for selector {selector}: {e}")
 
                     # Debug: Log what scrollbar elements we can find
                     found_elements = []
@@ -497,16 +498,12 @@ class DataSeekTUI(App):
                         try:
                             elements = self.query(selector)
                             if elements:
-                                found_elements.append(
-                                    f"{selector}: {len(elements)} elements"
-                                )
-                        except:
-                            pass
+                                found_elements.append(f"{selector}: {len(elements)} elements")
+                        except Exception as e:
+                            self.debug_log(f"Failed enumerating all elements: {e}")
 
                     if found_elements:
-                        self.debug_log(
-                            f"Found scrollbar elements: {', '.join(found_elements)}"
-                        )
+                        self.debug_log(f"Found scrollbar elements: {', '.join(found_elements)}")
                     else:
                         self.debug_log("No scrollbar elements found with any selector")
 
@@ -525,8 +522,8 @@ class DataSeekTUI(App):
                                 self.debug_log(
                                     f"All elements with IDs or scroll-related: {', '.join(set(all_elements))}"
                                 )
-                        except:
-                            pass
+                        except Exception as e:
+                            self.debug_log(f"Failed to log found elements: {e}")
 
                 except Exception as e:
                     self.debug_log(f"Scrollbar styling failed: {e}")
@@ -578,12 +575,8 @@ class DataSeekTUI(App):
 
         # Show user feedback
         if hasattr(self, "conversation"):
-            sync_status = (
-                " (manual override)" if self.system_theme_sync_enabled else ""
-            )
-            self.conversation.add_message(
-                "info", f"🎨 Switched to {theme_name} theme{sync_status}"
-            )
+            sync_status = " (manual override)" if self.system_theme_sync_enabled else ""
+            self.conversation.add_message("info", f"🎨 Switched to {theme_name} theme{sync_status}")
 
         self.debug_log(f"Theme manually toggled to: {theme_name}")
 
@@ -607,22 +600,18 @@ class DataSeekTUI(App):
                 self.log_handle.flush()
             except Exception as _e:
                 # Log error but continue
-                pass
+                self.debug_log(f"Failed flushing log header: {_e}")
 
         mission_details = get_mission_details_from_file(self.mission_plan_path)
-        total_samples_target = mission_details["mission_targets"].get(
-            mission_name, 1200
-        )
+        total_samples_target = mission_details["mission_targets"].get(mission_name, 1200)
         self.stats.target = total_samples_target
 
-        seek_config = load_seek_config(
-            self.seek_config_path, use_robots=self.use_robots
-        )
+        seek_config = load_seek_config(self.seek_config_path, use_robots=self.use_robots)
         # Set active config for TUI context as well (non-subprocess usage)
         try:
             set_active_seek_config(seek_config)
-        except Exception:
-            pass
+        except Exception as e:
+            self.debug_log(f"Failed to set active seek config: {e}")
         recursion_limit = seek_config.get("recursion_per_sample", 27)
 
         # Get synthetic budget and target size from mission config (not seek config)
@@ -726,16 +715,19 @@ class DataSeekTUI(App):
                             timestamp = datetime.now().strftime("%H:%M:%S")
                             self.log_handle.write(f"[{timestamp}] {line}\n")
                             self.log_handle.flush()
-                        except Exception:
-                            pass  # Continue if log writing fails
+                        except Exception as e:
+                            self.debug_log(f"Failed writing log line: {e}")
 
                     # Parse the line and handle events
                     events = list(self.agent_output_parser.parse_line(line))
                     if events:
-                        with open("/tmp/tui_debug.log", "a") as f:
-                            f.write(
-                                f"GENERATED {len(events)} EVENTS for line: {line[:100]}...\n"
-                            )
+                        try:
+                            with open(self._debug_log_path, "a") as f:
+                                f.write(
+                                    f"GENERATED {len(events)} EVENTS for line: {line[:100]}...\n"
+                                )
+                        except Exception as e:
+                            self.debug_log(f"Failed writing debug events: {e}")
                     for event in events:
                         self._handle_agent_event(event)
         except Exception as e:
@@ -773,13 +765,9 @@ class DataSeekTUI(App):
             self.stats.current_recursion_step = event.current_step
             self.stats.total_recursion_steps = event.total_steps
             self.stats_header.update_stats(self.stats)
-            self.debug_log(
-                f"RECURSION STEP UPDATE: {event.current_step}/{event.total_steps}"
-            )
+            self.debug_log(f"RECURSION STEP UPDATE: {event.current_step}/{event.total_steps}")
         elif isinstance(event, NewMessage):
-            self.debug_log(
-                f"NEW MESSAGE EVENT: {event.role} -> {event.content[:100]}..."
-            )
+            self.debug_log(f"NEW MESSAGE EVENT: {event.role} -> {event.content[:100]}...")
             self.conversation.add_message(event.role, event.content)
 
             # Update mission status based on message content
@@ -787,9 +775,7 @@ class DataSeekTUI(App):
 
             # Check for Graph Router patterns
             if "Graph Router: Routing to" in event.content:
-                route_match = re.search(
-                    r"Graph Router: Routing to (\w+)", event.content
-                )
+                route_match = re.search(r"Graph Router: Routing to (\w+)", event.content)
                 if route_match:
                     route_name = route_match.group(1)
                     if route_name.lower() == "end":
@@ -834,16 +820,11 @@ class DataSeekTUI(App):
                     self.stats_header.update_stats(self.stats)
 
             # Check for routing to END (fallback pattern)
-            elif (
-                "Routing to END" in event.content or "Decided on 'end'" in event.content
-            ):
+            elif "Routing to END" in event.content or "Decided on 'end'" in event.content:
                 self.mission_panel.update_status("Sample Completed")
 
             # Check for sample archival and add to recent samples
-            elif (
-                "sample #" in event.content.lower()
-                and "archived" in event.content.lower()
-            ):
+            elif "sample #" in event.content.lower() and "archived" in event.content.lower():
                 sample_match = re.search(r"#(\d+)", event.content)
                 if sample_match:
                     sample_num = int(sample_match.group(1))
@@ -860,9 +841,13 @@ class DataSeekTUI(App):
                     sample_excerpt = self._extract_recent_sample_excerpt()
 
                     if sample_excerpt:
-                        description = f"{sample_excerpt} ({completion_pct}% complete) - Source: {source_type}"
+                        description = (
+                            f"{sample_excerpt} ({completion_pct}% complete) - Source: {source_type}"
+                        )
                     else:
-                        description = f"Archived ({completion_pct}% complete) - Source: {source_type}"
+                        description = (
+                            f"Archived ({completion_pct}% complete) - Source: {source_type}"
+                        )
 
                     self.progress_panel.add_sample(sample_num, description)
         elif isinstance(event, ErrorMessage):
@@ -883,8 +868,8 @@ class DataSeekTUI(App):
                     f"\n=== Data Seek TUI Session Ended at {datetime.now().isoformat()} ===\n"
                 )
                 self.log_handle.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
+            except Exception as e:
+                self.debug_log(f"Failed closing log handle: {e}")
 
         self.exit()
 
@@ -900,9 +885,7 @@ class DataSeekTUI(App):
         from seek.tui.components.error_modal import ErrorModal
 
         error_messages = [
-            msg["content"]
-            for msg in self.conversation.messages
-            if msg["role"] == "error"
+            msg["content"] for msg in self.conversation.messages if msg["role"] == "error"
         ]
         if not error_messages:
             error_messages = ["No errors recorded yet."]
@@ -921,15 +904,11 @@ class DataSeekTUI(App):
 
             print(f"Vertical scrollbar: {v_scrollbar}")
             print(f"Vertical scrollbar type: {type(v_scrollbar).__name__}")
-            print(
-                f"Vertical scrollbar classes: {getattr(v_scrollbar, 'classes', 'none')}"
-            )
+            print(f"Vertical scrollbar classes: {getattr(v_scrollbar, 'classes', 'none')}")
 
             print(f"Horizontal scrollbar: {h_scrollbar}")
             print(f"Horizontal scrollbar type: {type(h_scrollbar).__name__}")
-            print(
-                f"Horizontal scrollbar classes: {getattr(h_scrollbar, 'classes', 'none')}"
-            )
+            print(f"Horizontal scrollbar classes: {getattr(h_scrollbar, 'classes', 'none')}")
 
             # Try to access scrollbar styles
             if v_scrollbar:
@@ -1038,9 +1017,7 @@ class DataSeekTUI(App):
                 )
             elif end_boundary is None:
                 # Search subsequent messages for either end boundary
-                self.debug_log(
-                    "End boundary not in same message, searching subsequent messages"
-                )
+                self.debug_log("End boundary not in same message, searching subsequent messages")
                 accumulated_content = [content_after_marker]
 
                 for i in range(content_message_idx + 1, len(messages)):
@@ -1153,13 +1130,13 @@ cli_app = typer.Typer()
 
 @cli_app.command()
 def generate(
-    mission: Optional[str] = typer.Option(None, "--mission", "-m", help="The name of the mission to run."),
-    log: Optional[str] = typer.Option(
+    mission: str | None = typer.Option(
+        None, "--mission", "-m", help="The name of the mission to run."
+    ),
+    log: str | None = typer.Option(
         None, "--log", help="Log file to save terminal output for debugging"
     ),
-    debug: bool = typer.Option(
-        False, "--debug", help="Enable debug logging to /tmp/tui_debug.log"
-    ),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug logging to /tmp/tui_debug.log"),
     config: str = typer.Option(
         "config/seek_config.yaml",
         "--config",
@@ -1171,9 +1148,7 @@ def generate(
         "--mission-config",
         help="Path to the mission configuration file.",
     ),
-    no_robots: bool = typer.Option(
-        False, "--no-robots", help="Ignore robots.txt rules"
-    ),
+    no_robots: bool = typer.Option(False, "--no-robots", help="Ignore robots.txt rules"),
 ):
     """Start the Data Seek Agent TUI for sample generation."""
     if not os.path.exists(mission_config):
@@ -1196,6 +1171,7 @@ def generate(
 
 def main():
     cli_app()
+
 
 if __name__ == "__main__":
     main()

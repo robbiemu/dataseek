@@ -4,10 +4,10 @@ CLI entry point for the Data Seek Agent.
 
 import os
 import sys
-from typing import Optional, Dict, Any
+from typing import Any
+
 import typer
 import yaml
-
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 # Force unbuffered output for live progress updates
@@ -15,19 +15,19 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 try:
     sys.stdout.reconfigure(line_buffering=True)
 except AttributeError:
-    # stdout doesn't support reconfigure (e.g., when redirected to StringIO in TUI)
+    # stdout doesn't support reconfigure (e.g., redirected to StringIO)
     pass
 
+from .config import get_active_seek_config, load_seek_config, set_active_seek_config
 from .graph import build_graph
 from .mission_runner import MissionRunner
 from .tools import _HAVE_LIBCRAWLER
-from .config import load_seek_config, set_active_seek_config, get_active_seek_config
 
 
 def get_mission_names(mission_plan_path: str) -> list[str]:
     """Loads the mission YAML and returns a list of mission names."""
     try:
-        with open(mission_plan_path, "r") as f:
+        with open(mission_plan_path) as f:
             content = f.read()
             if content.startswith("#"):
                 first_newline = content.find("\n")
@@ -41,7 +41,7 @@ def get_mission_names(mission_plan_path: str) -> list[str]:
 
 def load_mission_plan(
     mission_plan_path: str = "settings/mission_config.yaml",
-    mission_name: Optional[str] = None,
+    mission_name: str | None = None,
 ) -> dict:
     """
     Load and parse the mission plan YAML file to calculate target sample counts.
@@ -53,7 +53,7 @@ def load_mission_plan(
         Dictionary with mission plan information including total target samples
     """
     try:
-        with open(mission_plan_path, "r") as f:
+        with open(mission_plan_path) as f:
             # Skip the first line which is a comment
             content = f.read()
             if content.startswith("#"):
@@ -97,7 +97,7 @@ def load_mission_plan(
         }
 
 
-def setup_observability(seek_config: Dict[str, Any]):
+def setup_observability(seek_config: dict[str, Any]):
     """Configure LangSmith tracing via LangChain/LangGraph environment variables.
 
     Avoids LiteLLM's custom logger (which requires a running event loop in-thread)
@@ -146,24 +146,20 @@ def setup_observability(seek_config: Dict[str, Any]):
                 "Warning: Tracing requested but no API key provided (LANGCHAIN_API_KEY/LANGSMITH_API_KEY)."
             )
         else:
-            print(
-                "Note: No LangSmith configuration found. Skipping observability setup."
-            )
+            print("Note: No LangSmith configuration found. Skipping observability setup.")
 
 
 def run_agent_process(
-    mission_name: Optional[str] = None,
-    recursion_limit: Optional[int] = None,
-    max_samples: Optional[int] = None,
-    resume_from: Optional[str] = None,
-    seek_config_path: Optional[str] = None,
+    mission_name: str | None = None,
+    recursion_limit: int | None = None,
+    max_samples: int | None = None,
+    resume_from: str | None = None,
+    seek_config_path: str | None = None,
     mission_plan_path: str = "settings/mission_config.yaml",
     use_robots: bool = True,
 ):
     """Main function to set up and run the seek agent mission."""
-    with SqliteSaver.from_conn_string(
-        "checkpoints/mission_checkpoints.db"
-    ) as checkpointer:
+    with SqliteSaver.from_conn_string("checkpoints/mission_checkpoints.db") as checkpointer:
         if resume_from:
             # If resuming, mission_name is not required from the command line
             mission_config = {}  # The runner will load the config from the saved state
@@ -183,18 +179,12 @@ def run_agent_process(
 
             mission_plan = load_mission_plan(mission_plan_path, mission_name)
             mission_config = next(
-                (
-                    m
-                    for m in mission_plan.get("missions", [])
-                    if m.get("name") == mission_name
-                ),
+                (m for m in mission_plan.get("missions", []) if m.get("name") == mission_name),
                 None,
             )
 
             if not mission_config:
-                print(
-                    f"❌ Error: Could not load configuration for mission '{mission_name}'."
-                )
+                print(f"❌ Error: Could not load configuration for mission '{mission_name}'.")
                 return
 
         # Load mission-specific configuration once and set active
@@ -239,9 +229,7 @@ def run_agent_process(
                 seek_config=seek_config,
                 resume_from_mission_id=resume_from,
             )
-            mission_runner.run_mission(
-                recursion_limit=recursion_limit, max_samples=max_samples
-            )
+            mission_runner.run_mission(recursion_limit=recursion_limit, max_samples=max_samples)
 
         except Exception as e:
             import traceback
@@ -255,14 +243,14 @@ def run_agent_process(
 
 # This function is the actual entry point called by the console script
 def run(
-    mission_name: Optional[str] = typer.Option(
+    mission_name: str | None = typer.Option(
         None, "--mission", "-m", help="The name of the mission to run."
     ),
     recursion_limit: int = typer.Option(None, "--recursion-limit"),
     max_samples: int = typer.Option(
         None, "--max-samples", help="Maximum number of samples to generate."
     ),
-    resume_from: Optional[str] = typer.Option(
+    resume_from: str | None = typer.Option(
         None, "--resume-from", help="The mission ID to resume from."
     ),
     config: str = typer.Option(
@@ -276,9 +264,7 @@ def run(
         "--mission-config",
         help="Path to the mission configuration file.",
     ),
-    no_robots: bool = typer.Option(
-        False, "--no-robots", help="Ignore robots.txt rules"
-    ),
+    no_robots: bool = typer.Option(False, "--no-robots", help="Ignore robots.txt rules"),
 ):
     # Handle --no-robots flag
     use_robots = not no_robots
@@ -294,9 +280,7 @@ def run(
     seek_config = load_seek_config(config, use_robots=use_robots)
     set_active_seek_config(seek_config)
 
-    print(
-        f"[DEBUG] Loaded seek config with use_robots={seek_config.get('use_robots')}"
-    )
+    print(f"[DEBUG] Loaded seek config with use_robots={seek_config.get('use_robots')}")
 
     # Set up observability with the seek configuration
     setup_observability(seek_config)

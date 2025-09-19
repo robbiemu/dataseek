@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 
-from seek.mission_runner import MissionRunner
+from seek.components.mission_runner.mission_runner import MissionRunner
 
 
 class TestMissionRunner(unittest.TestCase):

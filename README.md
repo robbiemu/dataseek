@@ -26,7 +26,7 @@ DataSeek is a powerful tool for automated data collection and prospecting. It us
    ```
 
 4. **Review and customize configuration files**:
-   - Agent configuration: `config/seek_config.yaml` (see [Agent Configuration Guide](SEEK_CONFIG_GUIDE.md))
+   - Agent configuration: `config/seek_config.yaml` (see [Agent Configuration Guide](docs/guides/seek_config_guide.md))
    - Mission configuration: `settings/mission_config.yaml` (see [Mission Configuration Guide](docs/guides/data-seek-agent.md))
 
 5. **Run a data prospecting mission**:
@@ -91,7 +91,7 @@ DataSeek uses two types of configuration files:
 
 This file configures the overall behavior of the DataSeek agent, including model settings, search parameters, and output paths. 
 
-See [Agent Configuration Guide](SEEK_CONFIG_GUIDE.md) for detailed documentation.
+See [Agent Configuration Guide](docs/guides/seek_config_guide.md) for detailed documentation.
 
 ### 2. Mission Configuration (`settings/mission_config.yaml`)
 
@@ -168,3 +168,20 @@ Run tests with:
 ```bash
 pytest
 ```
+
+Test discovery looks in `tests/` and component-local `seek/components/**/tests/` as configured in `pyproject.toml`.
+
+### Repository Layout
+
+Core modules live under `seek/`:
+- Common utilities: `seek/common/` (config, models, utils)
+- Components: `seek/components/`
+  - Mission Runner: `seek/components/mission_runner/`
+  - Search Graph: `seek/components/search_graph/`
+  - Tool Manager: `seek/components/tool_manager/`
+  - TUI: `seek/components/tui/`
+
+Note on LiteLLM/Ollama
+- Some Ollama models (e.g., gpt-oss-20b) may not work reliably with LiteLLM’s default transformations.
+- We apply a small runtime shim in `seek/components/patch.py` and import it early in `seek/__init__.py` to stabilize tool-call handling.
+- This patch is intentionally not part of Tool Manager because it affects LLM call plumbing across components.

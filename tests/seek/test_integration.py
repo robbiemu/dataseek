@@ -3,16 +3,16 @@ from unittest.mock import MagicMock, patch
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from seek.graph import build_graph
+from seek.components.search_graph.graph import build_graph
 
 
 class TestIntegration:
     """Integration tests for the Data Seek Agent workflow."""
 
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.ChatLiteLLM")
-    @patch("seek.nodes.ChatPromptTemplate")
-    @patch("seek.nodes.supervisor_node")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.ChatLiteLLM")
+    @patch("seek.components.search_graph.nodes.ChatPromptTemplate")
+    @patch("seek.components.search_graph.nodes.supervisor_node")
     def test_full_workflow_success(
         self, mock_supervisor, mock_prompt, mock_chat_llm, mock_get_active_cfg
     ):
@@ -104,10 +104,10 @@ class TestIntegration:
         assert "decision_history" in final_state
         assert len(final_state["decision_history"]) > 0
 
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.ChatLiteLLM")
-    @patch("seek.nodes.ChatPromptTemplate")
-    @patch("seek.nodes.supervisor_node")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.ChatLiteLLM")
+    @patch("seek.components.search_graph.nodes.ChatPromptTemplate")
+    @patch("seek.components.search_graph.nodes.supervisor_node")
     def test_synthetic_fallback_workflow(
         self, mock_supervisor, mock_prompt, mock_chat_llm, mock_get_active_cfg
     ):

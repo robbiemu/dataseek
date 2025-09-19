@@ -14,7 +14,7 @@ def test_research_role_tools():
     """Test that the research role has access to the new tools."""
     print("Testing research role tools...")
     try:
-        from seek.tools import get_tools_for_role
+        from seek.components.tool_manager.tools import get_tools_for_role
 
         # Get tools for the research role
         research_tools = get_tools_for_role("research")
@@ -43,7 +43,7 @@ def test_tool_availability():
     """Test that all tools are available through get_available_tools."""
     print("Testing tool availability...")
     try:
-        from seek.tools import get_available_tools
+        from seek.components.tool_manager.tools import get_available_tools
 
         # Get all available tools
         all_tools = get_available_tools()

@@ -55,13 +55,11 @@ crawler = ["libcrawler"]
 
 [project.scripts]
 dataseek = "seek.main:main"
-dataseek-tui = "seek.tui.dataseek_tui:main"
+dataseek-tui = "seek.components.tui.dataseek_tui:main"
 
 [tool.setuptools]
-packages = [
-    "seek",
-    "seek.tui",
-]
+# Auto-discover all seek* packages so moved components are included
+packages = { find = { where = ["."], include = ["seek*"] } }
 
 [tool.setuptools.package-data]
 "seek" = ["../config/*.yaml", "../settings/*.yaml"]
@@ -97,6 +95,22 @@ ignore_missing_imports = true
 no_site_packages = false
 files = ["seek"]
 
+[[tool.mypy.overrides]]
+# Skip mypy checks for all test modules, including component-local tests under seek/**/tests
+module = [
+  "seek.*.tests.*",
+]
+ignore_errors = true
+
 [tool.bandit]
 skips = ["B101", "B608"]
 exclude_dirs = [".venv", "tests"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+# Discover both root tests and component-local tests
+testpaths = [
+  "tests",
+  "seek/components",
+]
+pythonpath = ["."]

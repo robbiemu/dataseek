@@ -7,7 +7,7 @@ from typing import Annotated, Any, TypedDict
 
 from langgraph.graph.message import add_messages
 
-from .models import FitnessReport
+from seek.common.models import FitnessReport
 
 
 class DataSeekState(TypedDict):

@@ -1,12 +1,21 @@
-# patch.py
 """
-Applies a more aggressive runtime patch to the litellm library.
+LiteLLM/Ollama patch shims (component-level).
 
-This patch directly targets the function in the module where it is defined,
-ensuring that our patched version is used.
+Why this exists
+- Some Ollama models (notably gpt-oss-20b) do not interoperate reliably with
+  LiteLLM’s default transformation pipeline. Symptoms include dropped tool calls
+  and empty content when using tool-enabled prompts. This file installs a
+  targeted runtime patch to make those code paths robust in our environment.
 
-Note: We rely on LangChain/LangGraph's native LangSmith tracing via environment
-variables and do not use LiteLLM's custom logger, to avoid event-loop issues.
+Placement rationale
+- This is not a tool definition; it affects model invocation semantics used by
+  multiple components. We keep it at `seek/components/patch.py` so it’s applied
+  early via `seek/__init__.py` but remains separate from the tool manager.
+
+Observability
+- We prefer LangChain/LangGraph’s tracing (LANGCHAIN_TRACING_V2) over LiteLLM’s
+  logger to avoid event-loop pitfalls. This file prints only if
+  VERBOSE_PATCHING=true.
 """
 
 # Import the modules we need to patch
@@ -210,7 +219,7 @@ def _direct_ollama_call_with_tools(
         # Determine timeout - use provided timeout, config timeout, or default to 120 seconds
         if timeout is None:
             try:
-                from .config import get_active_seek_config
+                from seek.common.config import get_active_seek_config
 
                 config = get_active_seek_config()
                 timeout = config.get("timeout_seconds", 120)
@@ -524,7 +533,7 @@ try:
 
                         # Get timeout from config for consistency
                         try:
-                            from .config import get_active_seek_config
+                            from seek.common.config import get_active_seek_config
 
                             config = get_active_seek_config()
                             timeout = config.get("timeout_seconds", 120)

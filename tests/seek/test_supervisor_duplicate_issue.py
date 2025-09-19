@@ -10,8 +10,8 @@ from unittest.mock import Mock
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from seek.nodes import supervisor_node
-from seek.state import DataSeekState
+from seek.components.mission_runner.state import DataSeekState
+from seek.components.search_graph.nodes import supervisor_node
 
 
 def test_supervisor_prevents_duplicate_consecutive_agent_calls():
@@ -86,8 +86,12 @@ def test_supervisor_prevents_duplicate_consecutive_agent_calls():
 
     # Mock the create_llm function to return our mock
     with (
-        unittest.mock.patch("seek.nodes.create_llm") as mock_create_llm_func,
-        unittest.mock.patch("seek.nodes.get_active_seek_config") as mock_config_func,
+        unittest.mock.patch(
+            "seek.components.search_graph.nodes.create_llm"
+        ) as mock_create_llm_func,
+        unittest.mock.patch(
+            "seek.components.search_graph.nodes.get_active_seek_config"
+        ) as mock_config_func,
     ):
 
         mock_create_llm_func.return_value = mock_llm

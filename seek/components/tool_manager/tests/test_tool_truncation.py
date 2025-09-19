@@ -11,7 +11,7 @@ from unittest.mock import patch
 # Add the project root to the path so we can import the seek module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from seek.tools import _truncate_response_for_role, get_tools_for_role
+from seek.components.tool_manager.tools import _truncate_response_for_role, get_tools_for_role
 
 
 class TestToolTruncation(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestToolTruncation(unittest.TestCase):
         }
 
         # Test with a large max_tokens limit
-        with patch("seek.tools.get_active_seek_config") as mock_get_cfg:
+        with patch("seek.components.tool_manager.tools.get_active_seek_config") as mock_get_cfg:
             # Mock config to return a large max_tokens for research
             mock_get_cfg.return_value = {
                 "mission_plan": {"nodes": [{"name": "research", "max_tokens": 1000}]},
@@ -49,7 +49,7 @@ class TestToolTruncation(unittest.TestCase):
         response = {"results": long_response, "status": "ok"}
 
         # Test with a small max_tokens limit
-        with patch("seek.tools.get_active_seek_config") as mock_get_cfg:
+        with patch("seek.components.tool_manager.tools.get_active_seek_config") as mock_get_cfg:
             # Mock config to return a small max_tokens
             mock_get_cfg.return_value = {
                 "mission_plan": {"nodes": [{"name": "research", "max_tokens": 10}]},

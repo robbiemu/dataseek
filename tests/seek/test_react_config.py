@@ -8,12 +8,12 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import ValidationError
 
-from seek.models import (
+from seek.common.models import (
     SeekAgentNodesConfig,
     SeekAgentResearchNodeConfig,
 )
-from seek.nodes import research_node
-from seek.state import DataSeekState
+from seek.components.mission_runner.state import DataSeekState
+from seek.components.search_graph.nodes import research_node
 
 
 def test_research_node_max_iterations_default():
@@ -41,10 +41,10 @@ def test_research_node_max_iterations_validation():
         SeekAgentResearchNodeConfig(max_iterations=51)
 
 
-@patch("seek.nodes.get_active_seek_config")
-@patch("seek.nodes.ChatLiteLLM")
-@patch("seek.nodes.get_tools_for_role")
-@patch("seek.nodes.ChatPromptTemplate")
+@patch("seek.components.search_graph.nodes.get_active_seek_config")
+@patch("seek.components.search_graph.nodes.ChatLiteLLM")
+@patch("seek.components.search_graph.nodes.get_tools_for_role")
+@patch("seek.components.search_graph.nodes.ChatPromptTemplate")
 def test_research_node_uses_config_max_iterations(
     mock_prompt, mock_get_tools, mock_chat_llm, mock_get_active_seek_config
 ):

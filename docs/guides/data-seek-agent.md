@@ -58,7 +58,7 @@ You have two options for running the agent:
 Run the interactive TUI that shows real-time progress, agent conversation, and statistics:
 
 ```bash
-python3 seek/tui/dataseek_tui.py settings/simple_mission.yaml
+dataseek-tui settings/simple_mission.yaml
 ```
 
 The TUI provides:
@@ -139,7 +139,7 @@ Run the agent with your configured mission plan to produce the Tier 2 raw text c
 
 ```bash
 # Option A: Interactive TUI (recommended for monitoring progress)
-python3 seek/tui/dataseek_tui.py settings/mission_config.yaml
+dataseek-tui settings/mission_config.yaml
 
 # Option B: Command-line batch mode
 dataseek --mission settings/mission_config.yaml

@@ -14,7 +14,7 @@ def test_arxiv_search_vs_content():
     """Test the difference between Arxiv search and content tools."""
     print("Testing Arxiv search vs content tools...")
     try:
-        from seek.tools import arxiv_get_content, arxiv_search
+        from seek.components.tool_manager.tools import arxiv_get_content, arxiv_search
 
         # Test search tool
         print("\n--- Arxiv Search Tool ---")
@@ -59,7 +59,7 @@ def test_wikipedia_search_vs_content():
     """Test the difference between Wikipedia search and content tools."""
     print("Testing Wikipedia search vs content tools...")
     try:
-        from seek.tools import wikipedia_get_content, wikipedia_search
+        from seek.components.tool_manager.tools import wikipedia_get_content, wikipedia_search
 
         # Test search tool
         print("\n--- Wikipedia Search Tool ---")

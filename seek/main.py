@@ -10,10 +10,14 @@ import typer
 import yaml
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from .config import get_active_seek_config, load_seek_config, set_active_seek_config
-from .graph import build_graph
-from .mission_runner import MissionRunner
-from .tools import _HAVE_LIBCRAWLER
+from .common.config import (
+    get_active_seek_config,
+    load_seek_config,
+    set_active_seek_config,
+)
+from .components.mission_runner.mission_runner import MissionRunner
+from .components.search_graph.graph import build_graph
+from .components.tool_manager.tools import _HAVE_LIBCRAWLER
 
 # Force unbuffered output for live progress updates when supported
 _reconf = getattr(sys.stdout, "reconfigure", None)
@@ -270,7 +274,7 @@ def run(
     use_robots = not no_robots
 
     # Set the global use_robots setting
-    from .config import set_global_use_robots
+    from .common.config import set_global_use_robots
 
     set_global_use_robots(use_robots)
 

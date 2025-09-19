@@ -20,8 +20,8 @@ import pydantic
 from bs4 import BeautifulSoup
 from langchain_core.tools import BaseTool, tool
 
-from .config import get_active_seek_config
-from .litesearch import AsyncRateLimitManager, SearchProviderProxy
+from seek.common.config import get_active_seek_config
+from seek.components.search_graph.litesearch import AsyncRateLimitManager, SearchProviderProxy
 
 TOKEN_CHARACTER_RATIO = 3.5
 

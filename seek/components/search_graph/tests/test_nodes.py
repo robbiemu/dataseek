@@ -1,6 +1,12 @@
 from unittest.mock import MagicMock, patch
 
-from seek.nodes import archive_node, fitness_node, research_node, supervisor_node, synthetic_node
+from seek.components.search_graph.nodes import (
+    archive_node,
+    fitness_node,
+    research_node,
+    supervisor_node,
+    synthetic_node,
+)
 
 
 class TestNodes:
@@ -30,9 +36,9 @@ class TestNodes:
         state.update(kwargs)
         return state
 
-    @patch("seek.nodes._get_next_task_from_progress")
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.ChatLiteLLM")
+    @patch("seek.components.search_graph.nodes._get_next_task_from_progress")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.ChatLiteLLM")
     def test_supervisor_node_research_decision(
         self,
         mock_chat_llm,
@@ -76,9 +82,9 @@ class TestNodes:
         assert result["current_task"] is not None
         assert result["current_task"]["topic"] == "AI"
 
-    @patch("seek.nodes._get_next_task_from_progress")
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.ChatLiteLLM")
+    @patch("seek.components.search_graph.nodes._get_next_task_from_progress")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.ChatLiteLLM")
     def test_supervisor_node_end_decision(
         self,
         mock_chat_llm,
@@ -111,17 +117,17 @@ class TestNodes:
         # Verify the result
         assert result["next_agent"] == "end"
 
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.ChatLiteLLM")
-    @patch("seek.nodes.get_tools_for_role")
-    @patch("seek.nodes.ChatPromptTemplate")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.ChatLiteLLM")
+    @patch("seek.components.search_graph.nodes.get_tools_for_role")
+    @patch("seek.components.search_graph.nodes.ChatPromptTemplate")
     def test_research_node_success(
         self, mock_prompt, mock_get_tools, mock_chat_llm, mock_get_active_cfg
     ):
         """Test research node successful operation."""
         from langchain_core.messages import AIMessage, HumanMessage
 
-        from seek.models import (
+        from seek.common.models import (
             SeekAgentMissionPlanNodeConfig,
             SeekAgentResearchNodeConfig,
         )
@@ -169,9 +175,9 @@ class TestNodes:
         assert result["messages"][0].content == "# Data Prospecting Report\nSuccess"
         assert "research_session_cache" in result
 
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.ChatLiteLLM")
-    @patch("seek.nodes.ChatPromptTemplate")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.ChatLiteLLM")
+    @patch("seek.components.search_graph.nodes.ChatPromptTemplate")
     def test_fitness_node_evaluation(self, mock_prompt, mock_chat_llm, mock_get_active_cfg):
         """Test fitness node evaluation."""
         from langchain_core.messages import AIMessage
@@ -217,9 +223,9 @@ class TestNodes:
         assert result["fitness_report"].passed is True
         assert "well-structured" in result["fitness_report"].reason
 
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.ChatLiteLLM")
-    @patch("seek.nodes.ChatPromptTemplate")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.ChatLiteLLM")
+    @patch("seek.components.search_graph.nodes.ChatPromptTemplate")
     def test_synthetic_node_generation(self, mock_prompt, mock_chat_llm, mock_get_active_cfg):
         """Test synthetic node generation."""
         from langchain_core.messages import AIMessage
@@ -267,10 +273,10 @@ class TestNodes:
         assert "synthetic document" in result["research_findings"][0]
         assert result["current_sample_provenance"] == "synthetic"
 
-    @patch("seek.nodes.get_active_seek_config")
-    @patch("seek.nodes.create_llm")
-    @patch("seek.nodes.write_file")
-    @patch("seek.nodes.append_to_pedigree")
+    @patch("seek.components.search_graph.nodes.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.create_llm")
+    @patch("seek.components.search_graph.nodes.write_file")
+    @patch("seek.components.search_graph.nodes.append_to_pedigree")
     @patch("time.strftime")
     def test_archive_node_filepath_generation(
         self,

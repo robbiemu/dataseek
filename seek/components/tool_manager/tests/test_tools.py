@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from seek.tools import (
+from seek.components.tool_manager.tools import (
     _safe_request_get,
     create_web_search_tool,
     get_tools_for_role,
@@ -36,8 +36,8 @@ class TestTools:
         tool_names = [tool.name for tool in archive_tools]
         assert "write_file" in tool_names
 
-    @patch("seek.tools.get_active_seek_config")
-    @patch("seek.tools._run_async_safely")
+    @patch("seek.components.tool_manager.tools.get_active_seek_config")
+    @patch("seek.components.tool_manager.tools._run_async_safely")
     def test_web_search_success(self, mock_run_async_safely, mock_get_cfg):
         """Test successful web search."""
         # Force a provider that doesn't require extra packages
@@ -62,8 +62,8 @@ class TestTools:
         # The provider should reflect our mocked provider
         assert result["provider"] == "wikipedia/search"
 
-    @patch("seek.tools.get_active_seek_config")
-    @patch("seek.tools._run_async_safely")
+    @patch("seek.components.tool_manager.tools.get_active_seek_config")
+    @patch("seek.components.tool_manager.tools._run_async_safely")
     def test_web_search_failure(self, mock_run_async_safely, mock_get_cfg):
         """Test failed web search."""
         mock_get_cfg.return_value = {
@@ -85,7 +85,7 @@ class TestTools:
         assert result["results"] is None
         assert "Search failed" in result["error"]
 
-    @patch("seek.tools._safe_request_get")
+    @patch("seek.components.tool_manager.tools._safe_request_get")
     def test_url_to_markdown_success(self, mock_safe_request):
         """Test successful URL to markdown conversion."""
         # Mock the HTTP response
@@ -105,7 +105,7 @@ class TestTools:
         assert "Test content" in result["markdown"]
         assert result["title"] == "Test Title"
 
-    @patch("seek.tools._safe_request_get")
+    @patch("seek.components.tool_manager.tools._safe_request_get")
     def test_url_to_markdown_failure(self, mock_safe_request):
         """Test failed URL to markdown conversion."""
         # Mock the HTTP request to raise an exception
@@ -121,7 +121,7 @@ class TestTools:
         assert result["title"] == ""
         assert "Network error" in result["error"]
 
-    @patch("seek.tools.SYNC_HTTP_CLIENT.get")
+    @patch("seek.components.tool_manager.tools.SYNC_HTTP_CLIENT.get")
     def test_safe_request_get_success(self, mock_sync_get):
         """Test successful safe request."""
         # Mock the sync http response
@@ -135,7 +135,7 @@ class TestTools:
         # Verify the result
         assert result == mock_response
 
-    @patch("seek.tools.SYNC_HTTP_CLIENT.get")
+    @patch("seek.components.tool_manager.tools.SYNC_HTTP_CLIENT.get")
     def test_safe_request_get_failure(self, mock_sync_get):
         """Test failed safe request."""
         # Mock the sync request to raise a specific exception

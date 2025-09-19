@@ -14,7 +14,7 @@ def test_documentation_crawler_improvements():
     """Test the improved documentation crawler tool."""
     print("Testing improved documentation crawler tool...")
     try:
-        from seek.tools import documentation_crawler
+        from seek.components.tool_manager.tools import documentation_crawler
 
         # Check if the tool exists (it's optional)
         if documentation_crawler is None:

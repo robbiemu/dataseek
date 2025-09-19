@@ -14,7 +14,7 @@ def test_arxiv_search():
     """Test the Arxiv search tool."""
     print("Testing Arxiv search tool...")
     try:
-        from seek.tools import arxiv_search
+        from seek.components.tool_manager.tools import arxiv_search
 
         result = arxiv_search("machine learning")
         print(f"Arxiv search result: {result}")
@@ -34,7 +34,7 @@ def test_wikipedia_search():
     """Test the Wikipedia search tool."""
     print("Testing Wikipedia search tool...")
     try:
-        from seek.tools import wikipedia_search
+        from seek.components.tool_manager.tools import wikipedia_search
 
         result = wikipedia_search("artificial intelligence")
         print(f"Wikipedia search result: {result}")

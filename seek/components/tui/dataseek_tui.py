@@ -22,7 +22,9 @@ from textual.binding import Binding
 from textual.containers import Container
 from textual.widgets import Footer, Header
 
-from seek.tui.agent_output_parser import (
+from seek.common.config import load_seek_config, set_active_seek_config
+from seek.common.seek_utils import get_mission_details_from_file
+from seek.components.tui.agent_output_parser import (
     AgentOutputParser,
     ErrorMessage,
     NewMessage,
@@ -30,15 +32,12 @@ from seek.tui.agent_output_parser import (
     RecursionStepUpdate,
     SyntheticSampleUpdate,
 )
-from seek.tui.agent_process_manager import AgentProcessManager
-from seek.tui.components.conversation_panel import ConversationPanel
-from seek.tui.components.mission_panel import MissionPanel
-from seek.tui.components.mission_selector import MissionSelector
-from seek.tui.components.progress_panel import ProgressPanel
-from seek.tui.components.stats_header import GenerationStats, StatsHeader
-
-from ..config import load_seek_config, set_active_seek_config
-from ..seek_utils import get_mission_details_from_file
+from seek.components.tui.agent_process_manager import AgentProcessManager
+from seek.components.tui.components.conversation_panel import ConversationPanel
+from seek.components.tui.components.mission_panel import MissionPanel
+from seek.components.tui.components.mission_selector import MissionSelector
+from seek.components.tui.components.progress_panel import ProgressPanel
+from seek.components.tui.components.stats_header import GenerationStats, StatsHeader
 
 
 class DataSeekTUI(App):
@@ -893,7 +892,7 @@ class DataSeekTUI(App):
 
     def action_show_error_modal(self) -> None:
         """Show the error display modal."""
-        from seek.tui.components.error_modal import ErrorModal
+        from seek.components.tui.components.error_modal import ErrorModal
 
         error_messages = [
             msg["content"] for msg in self.conversation.messages if msg["role"] == "error"

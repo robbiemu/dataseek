@@ -10,7 +10,7 @@ The `arxiv_search` tool allows you to search for academic papers on Arxiv.org. I
 
 ### Usage
 ```python
-from seek.tools import arxiv_search
+from seek.components.tool_manager.tools import arxiv_search
 
 result = arxiv_search("machine learning")
 ```
@@ -21,7 +21,7 @@ The `wikipedia_search` tool allows you to search for information on Wikipedia. I
 
 ### Usage
 ```python
-from seek.tools import wikipedia_search
+from seek.components.tool_manager.tools import wikipedia_search
 
 result = wikipedia_search("artificial intelligence")
 ```
@@ -40,7 +40,7 @@ The `documentation_crawler` tool performs deep crawling of documentation sites u
 
 ### Usage
 ```python
-from seek.tools import documentation_crawler
+from seek.components.tool_manager.tools import documentation_crawler
 
 result = documentation_crawler(
     base_url="https://example.com",

@@ -4,12 +4,12 @@ import pytest
 
 pytest.importorskip("langsmith")
 
-from seek.config import StructuredSeekConfig
-from seek.main import run
-from seek.models import (
+from seek.common.config import StructuredSeekConfig
+from seek.common.models import (
     SeekAgentMissionPlanConfig,
     SeekAgentWriterConfig,
 )
+from seek.main import run
 
 
 @patch("seek.main.input")

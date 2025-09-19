@@ -7,6 +7,7 @@ import io
 import os
 import tempfile
 from datetime import datetime
+from typing import Any
 
 try:
     import darkdetect
@@ -80,12 +81,13 @@ class DataSeekTUI(App):
 
         # System theme detection
         self.system_theme_sync_enabled = DARKDETECT_AVAILABLE
-        self.last_detected_theme = None
+        self.last_detected_theme: str | None = None
         # When True, a user manually toggled theme; don't auto-revert
         self.user_theme_override = False
+        self.dark: bool = False  # Initialize dark theme to False
         self.show_tree = False
 
-    def debug_log(self, message: str):
+    def debug_log(self, message: str) -> None:
         """Log debug message if debug mode is enabled."""
         if self.debug_enabled:
             try:
@@ -192,7 +194,7 @@ class DataSeekTUI(App):
         yield Header()
         yield Footer()
 
-    def on_mount(self):
+    def on_mount(self) -> None:
         """Start the mission selector when the app mounts."""
         mission_details = get_mission_details_from_file(self.mission_plan_path)
         if not mission_details or not mission_details["mission_names"]:
@@ -216,7 +218,7 @@ class DataSeekTUI(App):
     def apply_footer_styles(self) -> None:
         """Applies custom styles to the footer keys based on the current theme."""
 
-        def _apply_styles():
+        def _apply_styles() -> None:
             try:
                 footer = self.query_one(Footer)
                 key_color = "#58a6ff" if self.dark else "#0969da"
@@ -261,7 +263,7 @@ class DataSeekTUI(App):
     def apply_theme_styling(self) -> None:
         """Apply theme styling to all elements programmatically."""
 
-        def _apply_theme_styles():
+        def _apply_theme_styles() -> None:
             try:
                 # Define colors for current theme
                 if self.dark:
@@ -310,7 +312,8 @@ class DataSeekTUI(App):
 
                     # Try setting CSS variables if they exist
                     try:
-                        header_widget.styles.update(background=header_bg, color=text_color)
+                        header_widget.styles.background = header_bg
+                        header_widget.styles.color = text_color
                     except Exception as e:
                         self.debug_log(f"Failed removing stats_header class: {e}")
 
@@ -532,7 +535,7 @@ class DataSeekTUI(App):
                 self.debug_log(f"Theme styling error: {e}")
 
         # Apply built-in Footer widget styling
-        def _apply_footer_widget_styles():
+        def _apply_footer_widget_styles() -> None:
             try:
                 from textual.widgets import Footer
 
@@ -580,11 +583,11 @@ class DataSeekTUI(App):
 
         self.debug_log(f"Theme manually toggled to: {theme_name}")
 
-    def action_debug_scrollbars(self):
+    def action_debug_scrollbars(self) -> None:
         """Action to debug scrollbars."""
         self.debug_all_scrollbars()
 
-    def on_mission_selected(self, mission_name: str):
+    def on_mission_selected(self, mission_name: str | None) -> None:
         """Called when a mission is selected from the modal."""
         if not mission_name:
             self.exit(message="❌ No mission selected")
@@ -603,6 +606,8 @@ class DataSeekTUI(App):
                 self.debug_log(f"Failed flushing log header: {_e}")
 
         mission_details = get_mission_details_from_file(self.mission_plan_path)
+        if mission_details is None:
+            raise ValueError(f"Failed to load mission details from {self.mission_plan_path}")
         total_samples_target = mission_details["mission_targets"].get(mission_name, 1200)
         self.stats.target = total_samples_target
 
@@ -644,7 +649,7 @@ class DataSeekTUI(App):
             self.mission_plan_path,
             mission_name,
             total_samples_target,
-            seek_config,
+            seek_config.to_dict(),
         )
         self.conversation = ConversationPanel(debug=self.debug_enabled)
 
@@ -671,7 +676,7 @@ class DataSeekTUI(App):
         self.apply_theme_styling()
 
         # Also apply footer styling with a small delay to ensure footer keys are rendered
-        def _delayed_footer_styling():
+        def _delayed_footer_styling() -> None:
             self.debug_log("Applying delayed footer key styling after UI load")
             self.apply_footer_styles()
 
@@ -680,7 +685,7 @@ class DataSeekTUI(App):
         # Start periodic system theme checking
         if self.system_theme_sync_enabled:
 
-            def _check_system_theme():
+            def _check_system_theme() -> None:
                 self.sync_with_system_theme()
                 # Schedule next check in 3 seconds
                 self.set_timer(3.0, _check_system_theme)
@@ -698,11 +703,17 @@ class DataSeekTUI(App):
 
         self.run_worker(self._run_agent(), name="agent")
 
-    async def _run_agent(self):
+    async def _run_agent(self) -> None:
         """Run the Data Seek Agent as a subprocess and parse its output."""
         self.stats.started_at = datetime.now()
+        if self.agent_process_manager is None:
+            self.debug_log("Agent process manager not initialized")
+            return
         try:
             process = await self.agent_process_manager.start()
+            if process.stdout is None:
+                self.debug_log("Agent process has no stdout")
+                return
             while True:
                 line_bytes = await process.stdout.readline()
                 if not line_bytes:
@@ -737,7 +748,7 @@ class DataSeekTUI(App):
             # Start a 5-second timer to auto-close the TUI
             self.set_timer(5.0, self._auto_close_after_completion)
 
-    def _handle_agent_event(self, event):
+    def _handle_agent_event(self, event: Any) -> None:
         """Handle events from the agent output parser."""
         # Debug: Log all events being handled
         self.debug_log(f"HANDLING EVENT: {type(event).__name__} - {event}")
@@ -856,7 +867,7 @@ class DataSeekTUI(App):
             self.stats.errors += 1
             self.stats_header.update_stats(self.stats)
 
-    def action_quit(self):
+    def action_quit(self) -> Any:
         """Quit the application."""
         if self.agent_process_manager:
             self.agent_process_manager.terminate()
@@ -871,9 +882,9 @@ class DataSeekTUI(App):
             except Exception as e:
                 self.debug_log(f"Failed closing log handle: {e}")
 
-        self.exit()
+        return self.exit()
 
-    def action_show_dom(self):
+    def action_show_dom(self) -> None:
         """Show the DOM tree in the console."""
         if hasattr(self, "log"):
             self.log(self.tree)  # This will print the tree to the dev console
@@ -891,7 +902,7 @@ class DataSeekTUI(App):
             error_messages = ["No errors recorded yet."]
         self.push_screen(ErrorModal(error_messages=error_messages))
 
-    def debug_all_scrollbars(self):
+    def debug_all_scrollbars(self) -> None:
         """Find and inspect actual scrollbar objects."""
         print("=== SCROLLBAR DEBUG START ===")
 
@@ -925,7 +936,7 @@ class DataSeekTUI(App):
 
         print("=== SCROLLBAR DEBUG END ===")
 
-    def _auto_close_after_completion(self):
+    def _auto_close_after_completion(self) -> None:
         """Auto-close the TUI after agent process completion with a countdown."""
         self.conversation.add_message(
             "info", "TUI will close in 5 seconds... (Press 'q' to exit immediately)"
@@ -933,7 +944,7 @@ class DataSeekTUI(App):
         # Set another timer to actually close
         self.set_timer(5.0, self.action_quit)
 
-    def _extract_recent_sample_excerpt(self) -> str:
+    def _extract_recent_sample_excerpt(self) -> str | None:
         """Extract a content excerpt from the most recently archived sample.
 
         Scans the entire conversation history to find the most recent
@@ -1130,46 +1141,50 @@ cli_app = typer.Typer()
 
 @cli_app.command()
 def generate(
-    mission: str | None = typer.Option(
+    mission_name: str | None = typer.Option(
         None, "--mission", "-m", help="The name of the mission to run."
     ),
-    log: str | None = typer.Option(
-        None, "--log", help="Log file to save terminal output for debugging"
-    ),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logging to /tmp/tui_debug.log"),
-    config: str = typer.Option(
-        "config/seek_config.yaml",
-        "--config",
-        "-c",
-        help="Path to the agent configuration file.",
-    ),
-    mission_config: str = typer.Option(
+    mission_plan: str = typer.Option(
         "config/mission_config.yaml",
-        "--mission-config",
-        help="Path to the mission configuration file.",
+        "--mission-plan",
+        help="Path to the mission plan YAML file.",
     ),
-    no_robots: bool = typer.Option(False, "--no-robots", help="Ignore robots.txt rules"),
-):
+    log: str | None = typer.Option(None, "--log", "-l", help="Path to write a detailed log file."),
+    debug: bool = typer.Option(
+        False, "--debug", "-d", help="Enable debug logging to a temporary file."
+    ),
+    config: str | None = typer.Option(
+        None, "--config", "-c", help="Path to an alternative seek_config.yaml file."
+    ),
+    robots: bool = typer.Option(
+        True, "--robots/--no-robots", help="Enable or disable robots.txt compliance."
+    ),
+    tui: bool = typer.Option(False, "--tui", "-t", help="Run with Terminal User Interface"),
+    recursion_limit: int = typer.Option(
+        30, "--recursion-limit", help="Maximum recursion steps for the agent."
+    ),
+) -> None:
     """Start the Data Seek Agent TUI for sample generation."""
-    if not os.path.exists(mission_config):
-        typer.echo(f"❌ Mission file not found: {mission_config}", err=True)
+    # Validate mission plan path, not the mission name
+    if mission_plan and not os.path.exists(mission_plan):
+        typer.echo(f"❌ Mission plan file not found: {mission_plan}", err=True)
         raise typer.Exit(1)
 
     # Handle --no-robots flag
-    use_robots = not no_robots
+    use_robots = robots
 
     app = DataSeekTUI(
-        mission_plan_path=mission_config,
+        mission_plan_path=mission_plan,
         log_file=log,
         debug=debug,
         seek_config_path=config,
         use_robots=use_robots,
-        mission_name=mission,
+        mission_name=mission_name,
     )
     app.run()
 
 
-def main():
+def main() -> None:
     cli_app()
 
 

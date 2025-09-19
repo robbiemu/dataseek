@@ -36,8 +36,8 @@ def _block_network_access():
 
     original_socket = _socket.socket
 
-    class GuardedSocket(original_socket):  # type: ignore[misc]
-        def connect(self, address: Any) -> None:  # type: ignore[override]
+    class GuardedSocket(original_socket):
+        def connect(self, address: Any) -> None:
             try:
                 addr = tuple(address)
             except Exception:
@@ -52,7 +52,7 @@ def _block_network_access():
                 "ALLOW_NET_TESTS=1 to explicitly allow network in this run."
             )
 
-    _socket.socket = GuardedSocket  # type: ignore[assignment]
+    _socket.socket = GuardedSocket
 
     # Ensure common libraries don’t proxy around the socket-level guard
     os.environ.setdefault("NO_PROXY", "*")
@@ -62,4 +62,4 @@ def _block_network_access():
     try:
         yield
     finally:
-        _socket.socket = original_socket  # type: ignore[assignment]
+        _socket.socket = original_socket

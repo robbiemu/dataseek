@@ -1,3 +1,5 @@
+from typing import Any
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
@@ -13,7 +15,7 @@ class ErrorModal(ModalScreen):
         Binding("e", "close_modal", "Close", show=False),
     ]
 
-    def __init__(self, error_messages: list[str], **kwargs):
+    def __init__(self, error_messages: list[str], **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.error_messages = error_messages
 

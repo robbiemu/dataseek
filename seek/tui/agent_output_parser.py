@@ -38,8 +38,8 @@ class RecursionStepUpdate:
 class AgentOutputParser:
     """Parses agent log output and emits structured events."""
 
-    def __init__(self):
-        self.ansi_escape = re.compile(r"\x1B(?:[@-Z\-_]|\\[0-?]*[ -/]*[@-~])")
+    def __init__(self) -> None:
+        self.ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\\[0-?]*[ -/]*[@-~])")
         self.synthetic_count = 0  # Track cumulative synthetic samples
 
     def parse_line(

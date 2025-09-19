@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 
-def strip_reasoning_block(content: str, tags: list[str] = None) -> str:
+def strip_reasoning_block(content: str, tags: list[str] | None = None) -> str:
     """
     Removes a reasoning block from the beginning of a string if present.
 

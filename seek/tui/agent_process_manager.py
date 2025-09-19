@@ -52,7 +52,7 @@ class AgentProcessManager:
         )
         return self.process
 
-    def terminate(self):
+    def terminate(self) -> None:
         """Terminates the agent subprocess."""
         if self.process and self.process.returncode is None:
             self.process.terminate()

@@ -18,7 +18,7 @@ from urllib.robotparser import RobotFileParser
 import httpx
 import pydantic
 from bs4 import BeautifulSoup
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
 
 from .config import get_active_seek_config
 from .litesearch import AsyncRateLimitManager, SearchProviderProxy
@@ -60,7 +60,7 @@ HTTP_CLIENT = httpx.AsyncClient()
 SYNC_HTTP_CLIENT = httpx.Client(follow_redirects=True)
 
 
-def _ensure_event_loop():
+def _ensure_event_loop() -> asyncio.AbstractEventLoop:
     """Ensure we have a running event loop, create one if needed."""
     try:
         loop = asyncio.get_running_loop()
@@ -78,7 +78,7 @@ def _ensure_event_loop():
             raise
 
 
-def _run_async_safely(coro):
+def _run_async_safely(coro: Any) -> Any:
     """Run async code safely, handling event loop issues."""
     try:
         # First try to get current loop
@@ -112,7 +112,7 @@ class WebSearchInput(pydantic.BaseModel):
     query: str = pydantic.Field(description="The search query to execute.")
 
 
-def create_web_search_tool(use_robots: bool = True):
+def create_web_search_tool(use_robots: bool = True) -> Any:
     """
     Factory function that creates a web_search tool with the configured provider hard-coded.
     This ensures that the search provider is determined by the configuration, not by the agent.
@@ -293,6 +293,8 @@ def arxiv_get_content(query: str) -> dict[str, Any]:
             ARXIV_MAX_QUERY_LENGTH=300,
             load_max_docs=5,
             load_all_available_meta=False,
+            arxiv_search=None,
+            arxiv_exceptions=None,
         )
 
         # Get detailed documents
@@ -390,6 +392,7 @@ def wikipedia_get_content(query: str) -> dict[str, Any]:
             top_k_results=3,
             lang="en",
             load_all_available_meta=False,
+            wiki_client=None,
         )
 
         # Get detailed documents
@@ -457,7 +460,7 @@ def _truncate_response_for_role(
             if tool_name in search_like:
                 items = response.get("results")
                 if isinstance(items, list):
-                    new_items = []
+                    new_items: list[str | dict[str, Any]] = []
                     for item in items:
                         if isinstance(item, str):
                             if len(item) > summary_char_limit:
@@ -596,7 +599,7 @@ def _safe_request_get(
     """
     from httpx import HTTPStatusError
 
-    last_exc = None
+    last_exc: HTTPStatusError | Exception | None = None
     for attempt in range(max_retries + 1):
         try:
             resp = SYNC_HTTP_CLIENT.get(
@@ -659,7 +662,10 @@ def _safe_request_get(
                 )
                 raise
 
-    raise last_exc  # pragma: no cover
+    if last_exc is not None:
+        raise last_exc  # pragma: no cover
+    else:
+        raise Exception("Unknown error occurred")  # pragma: no cover
 
 
 def _extract_main_text_and_title(html: str, css_selector: str | None = None) -> dict[str, str]:
@@ -777,7 +783,7 @@ def url_to_markdown(
         # Prefer rich HTML->Markdown via attachments if available
         markdown = None
         try:
-            from attachments import attach, present  # type: ignore
+            from attachments import attach, present
 
             # Write HTML to a temporary file to preserve structure for conversion
             with tempfile.NamedTemporaryFile(
@@ -916,8 +922,8 @@ if _HAVE_LIBCRAWLER:
         # Improved path inference with more sophisticated analysis
         inferred_allowed = allowed_paths or []
         if not inferred_allowed:
-            common_prefixes = {}
-            path_frequencies = {}
+            common_prefixes: dict[str, int] = {}
+            path_frequencies: dict[int, int] = {}
 
             for href in hrefs:
                 if href.startswith(base_url_clean):
@@ -1024,7 +1030,7 @@ if _HAVE_LIBCRAWLER:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 else:
-    documentation_crawler = None
+    documentation_crawler_func: Callable[..., Any] | None = None
 
 
 class WriteFileInput(pydantic.BaseModel):
@@ -1087,13 +1093,14 @@ def get_available_tools() -> list[Callable]:
     return core_tools + optional
 
 
-def get_tools_for_role(role: str, use_robots: bool = True) -> list[Callable]:
+def get_tools_for_role(role: str, use_robots: bool = True) -> list[BaseTool]:
     """Return tools intended for a specific role."""
     role = (role or "").lower()
 
     # Create the web_search tool with the configured provider
     web_search = create_web_search_tool(use_robots=use_robots)
 
+    # Build tool registry, guarding optional crawler tool
     all_tools = {
         "web_search": web_search,
         "arxiv_search": arxiv_search,
@@ -1101,9 +1108,10 @@ def get_tools_for_role(role: str, use_robots: bool = True) -> list[Callable]:
         "wikipedia_search": wikipedia_search,
         "wikipedia_get_content": wikipedia_get_content,
         "url_to_markdown": url_to_markdown,
-        "documentation_crawler": documentation_crawler,
         "write_file": write_file,
     }
+    if _HAVE_LIBCRAWLER:
+        all_tools["documentation_crawler"] = documentation_crawler  # type: ignore[name-defined]
 
     # Define which tools are available for each role
     role_mapping = {

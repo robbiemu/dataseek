@@ -8,11 +8,11 @@ from .stats_header import GenerationStats
 class ProgressPanel(Static):
     """Left panel with progress bar and recent samples."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(id="progress-panel")
-        self.progress_display = None
-        self.recent_samples_widget = None
-        self.recent_samples = []
+        self.progress_display: Static | None = None
+        self.recent_samples_widget: Static | None = None
+        self.recent_samples: list[str] = []
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -24,7 +24,7 @@ class ProgressPanel(Static):
             )
             yield self.recent_samples_widget
 
-    def update_progress(self, stats: GenerationStats):
+    def update_progress(self, stats: GenerationStats) -> None:
         if self.progress_display:
             progress_pct = int(100 * stats.completed / max(1, stats.target))
             # Create a simple progress bar using characters
@@ -33,7 +33,7 @@ class ProgressPanel(Static):
             bar = "█" * filled_width + "░" * (bar_width - filled_width)
             self.progress_display.update(f"{progress_pct}% [{bar}]")
 
-    def add_sample(self, sample_number: int, description: str):
+    def add_sample(self, sample_number: int, description: str) -> None:
         """Add a recent sample to the display."""
         # Format the sample entry with proper wrapping for long descriptions
         if len(description) > 80:

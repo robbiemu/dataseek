@@ -3,6 +3,8 @@
 Builds the LangGraph application graph for the Data Seek agent.
 """
 
+from typing import Any
+
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -18,7 +20,7 @@ from .state import DataSeekState
 from .tools import get_tools_for_role
 
 
-def build_graph(checkpointer: SqliteSaver, seek_config: dict):
+def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
     """
     Builds and compiles the multi-agent graph with a supervisor.
 
@@ -51,7 +53,7 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict):
     workflow.set_entry_point("supervisor")
 
     # The supervisor decides which agent to run next.
-    def supervisor_router(state):
+    def supervisor_router(state: DataSeekState) -> str:
         """Route based on supervisor decision with debugging."""
         # Track recursion step (for TUI display only)
         step_count = state.get("step_count", 0)

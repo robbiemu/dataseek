@@ -7,11 +7,13 @@ import json
 import secrets
 import time
 from datetime import datetime
+from typing import Any
 
 import json_repair
 import yaml
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import Runnable
 from langchain_litellm import ChatLiteLLM
 from pydantic import BaseModel, Field
 
@@ -86,7 +88,7 @@ def create_llm(role: str) -> ChatLiteLLM:
     return ChatLiteLLM(model=model, temperature=temperature, max_tokens=max_tokens)
 
 
-def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str):
+def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str) -> Runnable:
     """Factory to create a new agent node's runnable."""
     # Load the seek config to get the use_robots setting
     seek_config = get_active_seek_config()
@@ -571,16 +573,13 @@ def supervisor_node(state: DataSeekState) -> dict:
             state_dict["fitness_report"] = None
 
             # --- NEW: Log the failure ---
-            task_history = state.get("task_history", [])
+            task_history: list[tuple[str, str, str]] = state.get("task_history", [])
             current_task = state.get("current_task")
             if current_task:
-                task_history.append(
-                    (
-                        current_task.get("characteristic"),
-                        current_task.get("topic"),
-                        fitness_report.reason,
-                    )
-                )
+                char = str(current_task.get("characteristic", ""))
+                topic = str(current_task.get("topic", ""))
+                reason = str(fitness_report.reason)
+                task_history.append((char, topic, reason))
 
             # --- NEW: Give the supervisor the option to change tasks ---
             excluded_tasks = [(t[0], t[1]) for t in task_history]
@@ -728,7 +727,7 @@ def supervisor_node(state: DataSeekState) -> dict:
         # Default values
         source_url = None
         provenance = "synthetic"
-        research_findings = []
+        findings_for_next_node: list[str] = []
 
         # Safely extract the report content
         report_content = strip_reasoning_block(last_message_content)
@@ -752,15 +751,15 @@ def supervisor_node(state: DataSeekState) -> dict:
                 print("⚠️ Supervisor: Malformed cache reference found.")
                 pass
 
-        research_findings.append(report_content)
+        findings_for_next_node.append(report_content)
 
         # Try to parse the URL from the report
         for line in report_content.split("\n"):
             if "**Source URL**:" in line:
                 try:
-                    source_url = line.split("`")
-                    if len(source_url) > 1:
-                        source_url = source_url[1]
+                    source_url_parts = line.split("`")
+                    if len(source_url_parts) > 1:
+                        source_url = source_url_parts[1]
                     else:
                         source_url = None
                 except IndexError:
@@ -815,7 +814,7 @@ def supervisor_node(state: DataSeekState) -> dict:
             "research_samples_generated": research_samples_generated,
             "synthetic_budget": synthetic_budget,
             # Pass the extracted content to the next node
-            "research_findings": research_findings,
+            "research_findings": findings_for_next_node,
             # Clear any old fitness report when routing to fitness for a new report
             "fitness_report": None,
             "step_count": next_step_count,  # Increment step count for next iteration
@@ -958,10 +957,13 @@ Your response MUST be a JSON object matching the required schema, with a single 
     raw_result = agent.invoke({"messages": messages})
 
     try:
-        dethought = strip_reasoning_block(raw_result.content)
+        content_value = raw_result.content
+        dethought = strip_reasoning_block(
+            content_value if isinstance(content_value, str) else str(content_value)
+        )
         repaired_data = json_repair.loads(dethought)
-        decision = SupervisorDecision.model_validate(repaired_data)
-        next_agent = decision.next_agent.lower()
+        decision_obj = SupervisorDecision.model_validate(repaired_data)
+        next_agent = decision_obj.next_agent.lower()
 
         # Override research choice if it's off-limits due to insufficient steps
         if research_is_off_limits and next_agent == "research":
@@ -970,9 +972,9 @@ Your response MUST be a JSON object matching the required schema, with a single 
             next_agent = "end"
 
         # --- NEW: Handle task switching ---
-        if decision.new_task:
-            print(f"✅ Supervisor: Switching to new task: {decision.new_task}")
-            next_task = decision.new_task
+        if decision_obj.new_task:
+            print(f"✅ Supervisor: Switching to new task: {decision_obj.new_task}")
+            next_task = decision_obj.new_task
             # Recalculate strategy block for the new task
             characteristic = next_task.get("characteristic", "Verifiability")
             try:
@@ -1423,12 +1425,12 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                 for idx, tool_call in enumerate(tool_calls):
                     try:
                         # Normalize tool call access (dict or object)
-                        tool_name = (
+                        tool_call_name: str | None = (
                             tool_call.get("name")
                             if isinstance(tool_call, dict)
                             else getattr(tool_call, "name", None)
                         )
-                        tool_args = (
+                        tool_call_args = (
                             tool_call.get("args", {})
                             if isinstance(tool_call, dict)
                             else getattr(tool_call, "args", {}) or {}
@@ -1440,19 +1442,19 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                         )
 
                         matching_tool = next(
-                            (t for t in current_tools if t.name == tool_name), None
+                            (t for t in current_tools if t.name == tool_call_name), None
                         )
                         if not matching_tool:
                             print(
-                                f"         ⚠️ Tool '{tool_name}' not found in current scope; skipping."
+                                f"         ⚠️ Tool '{tool_call_name}' not found in current scope; skipping."
                             )
                             continue
 
                         print(
-                            f"         ▶ Executing {tool_name} with args: {str(tool_args)[:200]} ..."
+                            f"         ▶ Executing {tool_call_name} with args: {str(tool_call_args)[:200]} ..."
                         )
 
-                        tool_result = matching_tool.invoke(tool_args)
+                        tool_result = matching_tool.invoke(tool_call_args)
 
                         # Debug: Print tool result details
                         if isinstance(tool_result, dict):
@@ -1505,7 +1507,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                     validation_result = _validate_search_results(
                                         tool_result["results"],
                                         tool_name,
-                                        tool_args,
+                                        tool_call_args,
                                         matching_tool,
                                         session_tool_domain_blocklist,  # Pass the blocklist
                                     )
@@ -1551,7 +1553,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                     validation_result = _validate_search_results(
                                         tool_result["results"],
                                         tool_name,
-                                        tool_args,
+                                        tool_call_args,
                                         matching_tool,
                                         session_tool_domain_blocklist,  # Pass the blocklist
                                     )
@@ -1592,7 +1594,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                                 "iteration": iteration,
                                 "call_id": tool_id,
                                 "tool": tool_name,
-                                "args": tool_args,  # original arguments
+                                "args": tool_call_args,  # original arguments
                                 "output": tool_result,  # full raw output (JSON/dict/string)
                                 "user_question": user_question,
                             }
@@ -1613,11 +1615,11 @@ When you have successfully found and extracted a suitable source, you MUST outpu
 
                         # === UPDATE BLOCKLIST FOR TOOL/DOMAIN FAILURES ===
                         # Extract domain from URL args and add to blocklist
-                        if tool_name and tool_args and isinstance(tool_args, dict):
+                        if tool_name and tool_call_args and isinstance(tool_call_args, dict):
                             url = (
-                                tool_args.get("url")
-                                or tool_args.get("base_url")
-                                or tool_args.get("start_url")
+                                tool_call_args.get("url")
+                                or tool_call_args.get("base_url")
+                                or tool_call_args.get("start_url")
                             )
                             if url:
                                 try:
@@ -1689,8 +1691,8 @@ When you have successfully found and extracted a suitable source, you MUST outpu
 `No extracted content. See research_session_cache for all gathered evidence.`
 """
         final_report_msg = AIMessage(content=fallback_report)
-    elif not final_report_msg.content.startswith("# Data Prospecting Report"):
-        final_report_msg.content = "# Data Prospecting Report\n\n" + final_report_msg.content
+    elif not (str(final_report_msg.content).startswith("# Data Prospecting Report")):
+        final_report_msg.content = "# Data Prospecting Report\n\n" + str(final_report_msg.content)
 
     # --- Return only the final submission + full evidence cache ---
     print(f"   🧾 Returning final submission + evidence (cache size: {len(session_cache)})")
@@ -1714,13 +1716,18 @@ def archive_node(state: "DataSeekState") -> dict:
     provenance = state.get("current_sample_provenance", "synthetic")
     print(f"   🏷️  Archive: Received provenance '{provenance}' from state")
     messages = state.get("messages", [])
-    research_findings = state.get("research_findings", [])
+    research_findings_any = state.get("research_findings", [])
 
     # Robustly find the document content
     document_content = None
-    if research_findings:
+    if research_findings_any:
         # Content is now a list of strings, so we join them.
-        document_content = "\n\n---\n\n".join(research_findings)
+        rf_list: list[str] = (
+            [str(x) for x in research_findings_any]
+            if isinstance(research_findings_any, list)
+            else []
+        )
+        document_content = "\n\n---\n\n".join(rf_list)
         print("   ✅ Archive: Found content in 'research_findings'.")
     else:
         # Fallback for older states or different paths
@@ -2105,7 +2112,7 @@ def needs_more_for_current_pair(
 
 def extract_used_urls_from_findings(research_findings: list) -> list[str]:
     """Parse Source URLs from Data Prospecting Reports in research findings."""
-    urls = []
+    urls: list[str] = []
 
     if not research_findings:
         return urls
@@ -2306,8 +2313,12 @@ Respond ONLY with the JSON object, no other text."""
 
     try:
         result = agent.invoke({})
-        dethought = strip_reasoning_block(result.content)
-        repaired_data = json_repair.loads(dethought)
+        content_val = result.content
+        dethought = strip_reasoning_block(
+            content_val if isinstance(content_val, str) else str(content_val)
+        )
+        data_any = json_repair.loads(dethought)
+        repaired_data: dict[str, Any] = data_any if isinstance(data_any, dict) else {}
 
         decision = repaired_data.get("decision", "stop")
         selected_urls = repaired_data.get("selected_urls", [])

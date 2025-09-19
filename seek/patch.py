@@ -12,22 +12,26 @@ variables and do not use LiteLLM's custom logger, to avoid event-loop issues.
 # Import the modules we need to patch
 import json
 import os
+from typing import Any
 
 import litellm
 import litellm.litellm_core_utils.prompt_templates.factory
 import litellm.llms.ollama.completion.transformation
+from langchain_core.messages import AIMessage
 
 # Check if verbose patching logs are enabled
 VERBOSE_PATCHING = os.getenv("VERBOSE_PATCHING", "false").lower() == "true"
 
 
-def _patch_log(message):
+def _patch_log(message: str) -> None:
     """Log patching messages only if verbose mode is enabled."""
     if VERBOSE_PATCHING:
         print(message)
 
 
-def _patched_ollama_pt(model, messages, roles=None, model_kwargs=None):
+def _patched_ollama_pt(
+    model: str, messages: list, roles: Any | None = None, model_kwargs: Any | None = None
+) -> dict:
     """
     Fully patched version of litellm's ollama_pt function.
 
@@ -100,7 +104,7 @@ def _patched_ollama_pt(model, messages, roles=None, model_kwargs=None):
     return response_dict
 
 
-def _fix_malformed_json_arguments(args_str):
+def _fix_malformed_json_arguments(args_str: str) -> str:
     """
     Attempt to fix malformed JSON using the json-repair library.
     """
@@ -123,8 +127,13 @@ def _fix_malformed_json_arguments(args_str):
 
 
 def _direct_ollama_call_with_tools(
-    messages, model, tools=None, temperature=0.1, timeout=None, **kwargs
-):
+    messages: list,
+    model: str,
+    tools: Any | None = None,
+    temperature: float = 0.1,
+    timeout: Any | None = None,
+    **kwargs: Any,
+) -> "AIMessage":
     """
     Direct call to Ollama API that properly handles tools.
 
@@ -187,7 +196,7 @@ def _direct_ollama_call_with_tools(
             except (TypeError, ValueError) as e:
                 print(f"🔧 Invalid payload JSON, attempting to clean: {e}")
                 # Try to clean up any malformed JSON in tool definitions
-                if "tools" in payload:
+                if "tools" in payload and isinstance(payload["tools"], (list, tuple)):
                     cleaned_tools = []
                     for tool in payload["tools"]:
                         try:
@@ -409,10 +418,10 @@ try:
     class OllamaPtImportHook:
         """Import hook that patches ollama_pt in modules as they're loaded."""
 
-        def find_spec(self, fullname, path, target=None):
+        def find_spec(self, fullname: str, path: Any, target: Any | None = None) -> Any:
             return None  # We don't want to handle loading
 
-        def find_module(self, fullname, path=None):
+        def find_module(self, fullname: str, path: Any | None = None) -> Any:
             return None  # We don't want to handle loading
 
     # Install our hook
@@ -421,9 +430,15 @@ try:
         sys.meta_path.insert(0, ollama_hook)
 
     # Monkey patch the import mechanism to catch ollama_pt imports
-    original_import = __builtins__["__import__"]
+    original_import = __builtins__.__import__
 
-    def patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+    def patched_import(
+        name: str,
+        globals: Any | None = None,
+        locals: Any | None = None,
+        fromlist: tuple = (),
+        level: int = 0,
+    ) -> Any:
         module = original_import(name, globals, locals, fromlist, level)
 
         # If this module has ollama_pt, patch it
@@ -456,7 +471,7 @@ try:
     # First, let's patch the main LiteLLM completion function to preserve tool calls
     original_litellm_completion = litellm.completion
 
-    def patched_litellm_completion(*args, **kwargs):
+    def patched_litellm_completion(*args: Any, **kwargs: Any) -> Any:
         """Patched LiteLLM completion that properly handles Ollama tool calls."""
 
         # Store original kwargs for debugging
@@ -540,7 +555,7 @@ try:
                                 )
 
                             # Create proper LiteLLM tool calls format, but validate them first
-                            litellm_tool_calls = []
+                            litellm_tool_calls: list[dict[str, Any]] = []
                             valid_tool_calls = []
                             invalid_content_parts = []
 

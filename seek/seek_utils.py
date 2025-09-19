@@ -46,12 +46,12 @@ def find_url_field(results: list[dict[str, Any]]) -> str | None:
 class SearchResultsValidator:
     """Handles validation and filtering of search results."""
 
-    def __init__(self, tool_name: str, config=None):
+    def __init__(self, tool_name: str, config: Any | None = None) -> None:
         self.tool_name = tool_name
         self.config = config or get_active_seek_config()
         self._load_tool_config()
 
-    def _load_tool_config(self):
+    def _load_tool_config(self) -> None:
         """Load configuration settings for the tool."""
         # Set defaults
         self.prefetch_enabled = False
@@ -74,7 +74,7 @@ class SearchResultsValidator:
         self,
         results: list[dict[str, Any]],
         tool_args: dict[str, Any] | None = None,
-        matching_tool=None,
+        matching_tool: Any = None,
         session_tool_domain_blocklist: list[tuple[str, str]] | None = None,
     ) -> dict[str, Any]:
         """
@@ -186,14 +186,14 @@ class SearchResultsValidator:
         self,
         filtered_results: list[dict[str, Any]],
         tool_args: dict[str, Any],
-        matching_tool,
+        matching_tool: Any,
         blocklist: list[tuple[str, str]] | None,
     ) -> list[dict[str, Any]]:
         """Expand search results when insufficient results remain after filtering."""
         logger.info(f"Expanding search: only {len(filtered_results)} results after filtering")
 
         expanded_queries = self._generate_expanded_queries(tool_args.get("query", ""))
-        expanded_results = []
+        expanded_results: list[dict[str, Any]] = []
 
         for i, expanded_query in enumerate(expanded_queries):
             if len(expanded_results) >= DEFAULT_MIN_RESULTS:
@@ -318,7 +318,7 @@ class SearchResultsValidator:
         for attempt in range(self.max_retries + 1):
             try:
 
-                async def do_request():
+                async def do_request() -> httpx.Response:
                     async with RATE_MANAGER.acquire(
                         f"domain:{domain}", requests_per_second=RATE_LIMIT_RPS
                     ):
@@ -344,19 +344,22 @@ class SearchResultsValidator:
                     continue
                 raise
 
+        # This should never be reached, but mypy requires it
+        raise RuntimeError("Failed to perform HEAD request after all retries")
+
     def _perform_retry(
         self,
         failed_results: list[dict[str, Any]],
         tool_args: dict[str, Any],
-        matching_tool,
+        matching_tool: Any,
     ) -> dict[str, Any] | None:
         """Perform retry with expanded parameters when all initial results fail."""
         logger.info("All initial results inaccessible, attempting retry with expanded results")
 
-        bad_urls = {
-            r.get("url")
+        bad_urls: set[str] = {
+            r.get("url")  # type: ignore[misc]
             for r in failed_results
-            if r.get("status") == "inaccessible" and r.get("url")
+            if r.get("status") == "inaccessible" and r.get("url") is not None
         }
 
         for attempt in range(self.max_retries):
@@ -394,9 +397,9 @@ class SearchResultsValidator:
 
                         # Add newly discovered bad URLs
                         bad_urls.update(
-                            r.get("url")
+                            r.get("url")  # type: ignore[misc]
                             for r in validated_fresh
-                            if r.get("status") == "inaccessible" and r.get("url")
+                            if r.get("status") == "inaccessible" and r.get("url") is not None
                         )
 
             except Exception as e:
@@ -477,9 +480,9 @@ class SearchResultsValidator:
 def _validate_search_results(
     results: list[dict[str, Any]],
     tool_name: str,
-    tool_args: dict[str, Any] = None,
-    matching_tool=None,
-    session_tool_domain_blocklist: list[tuple[str, str]] = None,
+    tool_args: dict[str, Any] | None = None,
+    matching_tool: Any = None,
+    session_tool_domain_blocklist: list[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """
     Legacy function wrapper for backward compatibility.

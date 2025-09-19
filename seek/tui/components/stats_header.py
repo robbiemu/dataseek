@@ -83,11 +83,11 @@ class GenerationStats:
 class StatsHeader(Static):
     """Header showing generation statistics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(id="stats-header", markup=True)  # Enable Rich markup
         self.stats = GenerationStats()
 
-    def update_stats(self, stats: GenerationStats):
+    def update_stats(self, stats: GenerationStats) -> None:
         self.stats = stats
         int(100 * stats.completed / max(1, stats.target))
         synthetic_pct = stats.synthetic_percentage

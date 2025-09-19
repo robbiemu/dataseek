@@ -51,11 +51,13 @@ class MissionSelector(ModalScreen[str]):
             button.add_class(theme_class)
             button.remove_class(opposite_class)
 
-    def action_quit(self) -> None:
-        self.app.action_quit()
+    async def action_quit(self) -> None:
+        await self.app.action_quit()
 
-    def action_show_dom(self) -> None:
-        self.app.action_show_dom()
+    async def action_show_dom(self) -> None:
+        # Check if the method exists before calling it
+        if hasattr(self.app, "action_show_dom"):
+            await self.app.action_show_dom()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id)

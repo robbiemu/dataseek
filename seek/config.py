@@ -4,6 +4,7 @@ Handles loading mission-specific configuration from separate config files.
 """
 
 import logging
+from collections.abc import Iterator
 from typing import Any, Optional
 
 import yaml
@@ -30,7 +31,7 @@ _global_use_robots = True
 _active_seek_config: Optional["StructuredSeekConfig"] = None
 
 
-def set_global_use_robots(use_robots: bool):
+def set_global_use_robots(use_robots: bool) -> None:
     """Set the global use_robots setting."""
     global _global_use_robots
     _global_use_robots = use_robots
@@ -101,7 +102,7 @@ class StructuredSeekConfig:
         """Return the items of the config dictionary."""
         return self._raw_config.items()
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         """Make the config iterable like a dictionary."""
         return iter(self._raw_config)
 

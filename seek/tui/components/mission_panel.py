@@ -21,7 +21,7 @@ class MissionPanel(Static):
         self.total_samples_target = total_samples_target
         self.config = config
         self.current_status = "Initializing..."
-        self.mission_info_widget = None
+        self.mission_info_widget: Static | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -42,9 +42,10 @@ class MissionPanel(Static):
                 f"Status: {self.current_status}"
             )
             self.mission_info_widget = Static(mission_info, id="mission-info")
-            yield self.mission_info_widget
+            if self.mission_info_widget is not None:
+                yield self.mission_info_widget
 
-    def update_status(self, new_status: str):
+    def update_status(self, new_status: str) -> None:
         """Update the mission status displayed in the panel."""
         self.current_status = new_status
         if self.mission_info_widget:

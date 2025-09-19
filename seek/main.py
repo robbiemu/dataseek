@@ -10,18 +10,15 @@ import typer
 import yaml
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-# Force unbuffered output for live progress updates
-# Only reconfigure if stdout supports it (not redirected to StringIO in TUI)
-try:
-    sys.stdout.reconfigure(line_buffering=True)
-except AttributeError:
-    # stdout doesn't support reconfigure (e.g., redirected to StringIO)
-    pass
-
 from .config import get_active_seek_config, load_seek_config, set_active_seek_config
 from .graph import build_graph
 from .mission_runner import MissionRunner
 from .tools import _HAVE_LIBCRAWLER
+
+# Force unbuffered output for live progress updates when supported
+_reconf = getattr(sys.stdout, "reconfigure", None)
+if callable(_reconf):
+    _reconf(line_buffering=True)
 
 
 def get_mission_names(mission_plan_path: str) -> list[str]:
@@ -97,7 +94,7 @@ def load_mission_plan(
         }
 
 
-def setup_observability(seek_config: dict[str, Any]):
+def setup_observability(seek_config: dict[str, Any]) -> None:
     """Configure LangSmith tracing via LangChain/LangGraph environment variables.
 
     Avoids LiteLLM's custom logger (which requires a running event loop in-thread)
@@ -157,12 +154,14 @@ def run_agent_process(
     seek_config_path: str | None = None,
     mission_plan_path: str = "settings/mission_config.yaml",
     use_robots: bool = True,
-):
+) -> None:
     """Main function to set up and run the seek agent mission."""
     with SqliteSaver.from_conn_string("checkpoints/mission_checkpoints.db") as checkpointer:
         if resume_from:
             # If resuming, mission_name is not required from the command line
-            mission_config = {}  # The runner will load the config from the saved state
+            mission_config: dict[str, Any] = (
+                {}
+            )  # The runner will load the config from the saved state
         else:
             # If starting a new mission, mission_name is required
             available_missions = get_mission_names(mission_plan_path)
@@ -180,7 +179,7 @@ def run_agent_process(
             mission_plan = load_mission_plan(mission_plan_path, mission_name)
             mission_config = next(
                 (m for m in mission_plan.get("missions", []) if m.get("name") == mission_name),
-                None,
+                {},
             )
 
             if not mission_config:
@@ -192,7 +191,8 @@ def run_agent_process(
         set_active_seek_config(seek_config)
 
         # Set up observability with the seek configuration
-        setup_observability(seek_config)
+        # Use dict form for observability
+        setup_observability(seek_config.to_dict())
         sys.stdout.flush()
 
         if not _HAVE_LIBCRAWLER:
@@ -221,12 +221,12 @@ def run_agent_process(
         sys.stdout.flush()
 
         try:
-            app = build_graph(checkpointer=checkpointer, seek_config=seek_config)
+            app = build_graph(checkpointer=checkpointer, seek_config=seek_config.to_dict())
             mission_runner = MissionRunner(
                 checkpointer=checkpointer,
                 app=app,
                 mission_config=mission_config,
-                seek_config=seek_config,
+                seek_config=seek_config.to_dict(),
                 resume_from_mission_id=resume_from,
             )
             mission_runner.run_mission(recursion_limit=recursion_limit, max_samples=max_samples)
@@ -265,7 +265,7 @@ def run(
         help="Path to the mission configuration file.",
     ),
     no_robots: bool = typer.Option(False, "--no-robots", help="Ignore robots.txt rules"),
-):
+) -> None:
     # Handle --no-robots flag
     use_robots = not no_robots
 
@@ -283,7 +283,7 @@ def run(
     print(f"[DEBUG] Loaded seek config with use_robots={seek_config.get('use_robots')}")
 
     # Set up observability with the seek configuration
-    setup_observability(seek_config)
+    setup_observability(seek_config.to_dict())
 
     run_agent_process(
         mission_name=mission_name,
@@ -301,7 +301,7 @@ cli_app = typer.Typer()
 cli_app.command()(run)
 
 
-def main():
+def main() -> None:
     """Entry point for the dataseek console script."""
     cli_app()
 

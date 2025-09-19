@@ -2,6 +2,7 @@ import asyncio
 import os
 import time
 from collections import deque
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -31,7 +32,7 @@ class AsyncRateLimitManager:
     API response is received.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._providers: dict[str, dict[str, Any]] = {}
 
     def _get_provider_state(self, provider: str) -> dict[str, Any]:
@@ -51,7 +52,7 @@ class AsyncRateLimitManager:
         self,
         provider: str,
         requests_per_second: float | None = None,
-    ):
+    ) -> AsyncGenerator[None]:
         """
         An async context manager to acquire a slot for an API call.
         Waits if the rate limit has been reached.
@@ -97,7 +98,7 @@ class AsyncRateLimitManager:
         finally:
             pass
 
-    def update_from_headers(self, provider: str, headers: dict[str, Any]):
+    def update_from_headers(self, provider: str, headers: dict[str, Any]) -> None:
         """Updates the rate limit state from API response headers."""
         state = self._get_provider_state(provider)
         headers = {k.lower(): v for k, v in headers.items()}
@@ -211,7 +212,7 @@ class SearchProviderProxy:
             headers=headers,
         )
         response.raise_for_status()
-        self.rate_limit_manager.update_from_headers(self.provider, response.headers)
+        self.rate_limit_manager.update_from_headers(self.provider, dict(response.headers))
 
         # Process and return the result similarly to the LC wrapper
         data = response.json()
@@ -293,7 +294,7 @@ class SearchProviderProxy:
 # --- Example Usage ---
 
 
-async def main():
+async def main() -> None:
     """
     Demonstrates how to use the async, rate-limited SearchProviderProxy.
     """

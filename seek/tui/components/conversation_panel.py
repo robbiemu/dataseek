@@ -1,6 +1,7 @@
 import os
 import tempfile
 from datetime import datetime
+from typing import Any
 
 from textual.widgets import Log
 
@@ -8,16 +9,16 @@ from textual.widgets import Log
 class ConversationPanel(Log):
     """Bottom panel showing agent conversation with auto-scroll."""
 
-    def __init__(self, debug: bool = False):
+    def __init__(self, debug: bool = False) -> None:
         super().__init__(auto_scroll=True, id="conversation")
         self.debug = debug
-        self.messages = []  # Store messages for excerpt extraction
+        self.messages: list[dict[str, Any]] = []  # Store messages for excerpt extraction
         # Add initial placeholder
         self.write("🤖 Data Seek Agent TUI")
         self.write("Waiting for agent to start...")
         self._initialized = False
 
-    def add_message(self, role: str, content: str):
+    def add_message(self, role: str, content: str) -> None:
         """Add a message to the conversation log with role-based coloring."""
         # Store the message for later extraction
         self.messages.append({"role": role, "content": content, "timestamp": datetime.now()})
@@ -73,7 +74,7 @@ class ConversationPanel(Log):
             if self.debug:
                 self._write_debug_log(e, role, content)
 
-    def _write_debug_log(self, e, role, content):
+    def _write_debug_log(self, e: Exception, role: str, content: str) -> None:
         """A best-effort, non-critical debug logger."""
         try:
             debug_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")

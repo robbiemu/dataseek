@@ -25,7 +25,7 @@ class MissionStateManager:
         self.db_path = db_path
         self._create_table()
 
-    def _create_table(self):
+    def _create_table(self) -> None:
         """Create the mission_state table if it doesn't exist."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -39,7 +39,7 @@ class MissionStateManager:
             )
             conn.commit()
 
-    def create_mission(self, mission_id: str, initial_state: dict[str, Any]):
+    def create_mission(self, mission_id: str, initial_state: dict[str, Any]) -> None:
         """Create a new mission entry in the database."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -60,7 +60,7 @@ class MissionStateManager:
                 return json.loads(row[0])
         return None
 
-    def update_mission_state(self, mission_id: str, new_state: dict[str, Any]):
+    def update_mission_state(self, mission_id: str, new_state: dict[str, Any]) -> None:
         """Update the state of an existing mission."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -78,11 +78,11 @@ class MissionRunner:
     def __init__(
         self,
         checkpointer: SqliteSaver,
-        app,
+        app: Any,
         mission_config: dict[str, Any],
         seek_config: dict[str, Any],
         resume_from_mission_id: str | None = None,
-    ):
+    ) -> None:
         """Initialize the MissionRunner with a mission configuration."""
         self.mission_config = mission_config
         self.seek_config = seek_config
@@ -136,7 +136,7 @@ class MissionRunner:
             "max_recursion_steps": max_recursion_steps,
         }
 
-    def run_mission(self, recursion_limit: int = 1000, max_samples: int | None = None):
+    def run_mission(self, recursion_limit: int = 1000, max_samples: int | None = None) -> None:
         """
         Runs a full mission from start to finish, managing state across multiple sample generation cycles.
         """
@@ -247,7 +247,7 @@ class MissionRunner:
 
         return base_state
 
-    def run_full_cycle(self, thread_id: str, recursion_limit: int):
+    def run_full_cycle(self, thread_id: str, recursion_limit: int) -> None:
         """Runs the agent for a single cycle with a given thread_id."""
         # LangGraph expects recursion_limit at the top level of the config,
         # while dynamic values like thread_id belong under "configurable".

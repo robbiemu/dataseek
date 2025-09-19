@@ -4,6 +4,7 @@ import pytest
 
 pytest.importorskip("langsmith")
 
+from seek.config import StructuredSeekConfig
 from seek.main import run
 from seek.models import (
     SeekAgentMissionPlanConfig,
@@ -30,14 +31,20 @@ def test_seek_agent_runnable_new_mission(mock_load_config, mock_mission_runner, 
     mock_mission_plan = SeekAgentMissionPlanConfig(goal="Test Goal", nodes=[], tools={})
     mock_writer_config = SeekAgentWriterConfig()
     # Minimal dict-like seek config for the current code
-    mock_load_config.return_value = {
-        "model_defaults": {"model": "openai/gpt-5-mini", "temperature": 0.1, "max_tokens": 2000},
-        "mission_plan": {"nodes": []},
-        "writer": mock_writer_config.model_dump(),
-        "nodes": {"research": {"max_iterations": 7}},
-        "use_robots": True,
-        "observability": {},
-    }
+    mock_load_config.return_value = StructuredSeekConfig(
+        {
+            "model_defaults": {
+                "model": "openai/gpt-5-mini",
+                "temperature": 0.1,
+                "max_tokens": 2000,
+            },
+            "mission_plan": {"nodes": []},
+            "writer": mock_writer_config.model_dump(),
+            "nodes": {"research": {"max_iterations": 7}},
+            "use_robots": True,
+            "observability": {},
+        }
+    )
 
     # Ensure the mission exists in the mission plan and name list
     with (
@@ -74,13 +81,19 @@ def test_seek_agent_runnable_resume_mission(mock_load_config, mock_mission_runne
     mock_mission_runner.return_value = mock_runner_instance
 
     # Mock the seek config to a minimal dict-like
-    mock_load_config.return_value = {
-        "model_defaults": {"model": "openai/gpt-5-mini", "temperature": 0.1, "max_tokens": 2000},
-        "mission_plan": {"nodes": []},
-        "nodes": {},
-        "use_robots": True,
-        "observability": {},
-    }
+    mock_load_config.return_value = StructuredSeekConfig(
+        {
+            "model_defaults": {
+                "model": "openai/gpt-5-mini",
+                "temperature": 0.1,
+                "max_tokens": 2000,
+            },
+            "mission_plan": {"nodes": []},
+            "nodes": {},
+            "use_robots": True,
+            "observability": {},
+        }
+    )
 
     # We expect this to run without errors
     run(mission_name="test_mission", resume_from="existing-thread-id")

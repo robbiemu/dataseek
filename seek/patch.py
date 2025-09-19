@@ -31,7 +31,7 @@ def _patch_log(message: str) -> None:
 
 def _patched_ollama_pt(
     model: str, messages: list, roles: Any | None = None, model_kwargs: Any | None = None
-) -> dict:
+) -> Any:
     """
     Fully patched version of litellm's ollama_pt function.
 
@@ -366,11 +366,11 @@ def _direct_ollama_call_with_tools(
 # Patch all known locations where ollama_pt might be called
 
 # 1. Main factory location (where the error occurs)
-litellm.litellm_core_utils.prompt_templates.factory.ollama_pt = _patched_ollama_pt
+litellm.litellm_core_utils.prompt_templates.factory.ollama_pt = _patched_ollama_pt  # type: ignore
 _patch_log("✅ Patched litellm.litellm_core_utils.prompt_templates.factory.ollama_pt")
 
 # 2. Transformation module location
-litellm.llms.ollama.completion.transformation.ollama_pt = _patched_ollama_pt
+litellm.llms.ollama.completion.transformation.ollama_pt = _patched_ollama_pt  # type: ignore
 _patch_log("✅ Patched litellm.llms.ollama.completion.transformation.ollama_pt")
 
 # 3. Main litellm module
@@ -378,7 +378,7 @@ try:
     import litellm.main
 
     if hasattr(litellm.main, "ollama_pt"):
-        litellm.main.ollama_pt = _patched_ollama_pt
+        litellm.main.ollama_pt = _patched_ollama_pt  # type: ignore
         _patch_log("✅ Patched litellm.main.ollama_pt")
 except Exception as e:
     _patch_log(f"⚠️  Could not patch litellm.main.ollama_pt: {e}")
@@ -386,7 +386,7 @@ except Exception as e:
 # 4. Root litellm module
 try:
     if hasattr(litellm, "ollama_pt"):
-        litellm.ollama_pt = _patched_ollama_pt
+        litellm.ollama_pt = _patched_ollama_pt  # type: ignore
         _patch_log("✅ Patched litellm.ollama_pt")
 except Exception as e:
     _patch_log(f"⚠️  Could not patch litellm.ollama_pt: {e}")
@@ -398,14 +398,14 @@ try:
     # Patch all modules that might have imported ollama_pt
     for module_name, module in sys.modules.items():
         if module and hasattr(module, "ollama_pt"):
-            module.ollama_pt = _patched_ollama_pt
+            module.ollama_pt = _patched_ollama_pt  # type: ignore
             _patch_log(f"✅ Patched {module_name}.ollama_pt")
 
     # Special handling for direct function references that might have been imported
     # Force reload of critical modules with our patch in place
     if "litellm.litellm_core_utils.prompt_templates.factory" in sys.modules:
         factory_module = sys.modules["litellm.litellm_core_utils.prompt_templates.factory"]
-        factory_module.ollama_pt = _patched_ollama_pt
+        factory_module.ollama_pt = _patched_ollama_pt  # type: ignore
         _patch_log("✅ Force-patched factory module")
 
 except Exception as e:
@@ -443,7 +443,7 @@ try:
 
         # If this module has ollama_pt, patch it
         if hasattr(module, "ollama_pt"):
-            module.ollama_pt = _patched_ollama_pt
+            module.ollama_pt = _patched_ollama_pt  # type: ignore
             _patch_log(f"✅ Late-patched {name}.ollama_pt during import")
 
         # Also check submodules if fromlist is specified

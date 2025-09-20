@@ -158,9 +158,10 @@ def run_agent_process(
     seek_config_path: str | None = None,
     mission_plan_path: str = "settings/mission_config.yaml",
     use_robots: bool = True,
+    db_path: str = "checkpoints/mission_checkpoints.db",
 ) -> None:
     """Main function to set up and run the seek agent mission."""
-    with SqliteSaver.from_conn_string("checkpoints/mission_checkpoints.db") as checkpointer:
+    with SqliteSaver.from_conn_string(db_path) as checkpointer:
         if resume_from:
             # If resuming, mission_name is not required from the command line
             mission_config: dict[str, Any] = (
@@ -269,6 +270,9 @@ def run(
         help="Path to the mission configuration file.",
     ),
     no_robots: bool = typer.Option(False, "--no-robots", help="Ignore robots.txt rules"),
+    db_path: str | None = typer.Option(
+        None, "--db-path", help="Path to the mission checkpoints database."
+    ),
 ) -> None:
     # Handle --no-robots flag
     use_robots = not no_robots
@@ -289,6 +293,11 @@ def run(
     # Set up observability with the seek configuration
     setup_observability(seek_config.to_dict())
 
+    if not db_path:
+        db_path = (
+            "checkpoints/mission_checkpoints.db" if mission_name or resume_from else ":memory:"
+        )
+
     run_agent_process(
         mission_name=mission_name,
         recursion_limit=recursion_limit,
@@ -297,6 +306,7 @@ def run(
         seek_config_path=config,
         mission_plan_path=mission_config,
         use_robots=use_robots,  # Pass the use_robots parameter
+        db_path=db_path,
     )
 
 

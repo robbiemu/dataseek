@@ -13,8 +13,14 @@ from urllib.parse import urlparse
 import httpx
 import yaml
 
+from seek.components.tool_manager.tools import (
+    HTTP_CLIENT,
+    RATE_MANAGER,
+    _run_async_safely,
+    _safe_request_get,
+)
+
 from .config import get_active_seek_config
-from .tools import HTTP_CLIENT, RATE_MANAGER, _run_async_safely, _safe_request_get
 
 logger = logging.getLogger(__name__)
 

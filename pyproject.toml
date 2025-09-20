@@ -92,7 +92,6 @@ exclude = [".venv", "build", "dist"]
 python_version = "3.13"
 warn_unused_configs = true
 disallow_untyped_defs = true
-ignore_missing_imports = true
 no_site_packages = false
 files = ["seek"]
 
@@ -102,6 +101,20 @@ module = [
   "seek.*.tests.*",
 ]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "darkdetect"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "langchain_google_community"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "libcrawler.libcrawler"
+ignore_missing_imports = true
+
+
 
 [tool.bandit]
 skips = ["B101", "B608"]

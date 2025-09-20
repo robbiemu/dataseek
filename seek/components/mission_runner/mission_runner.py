@@ -82,13 +82,14 @@ class MissionRunner:
         mission_config: dict[str, Any],
         seek_config: dict[str, Any],
         resume_from_mission_id: str | None = None,
+        db_path: str = ":memory:",
     ) -> None:
         """Initialize the MissionRunner with a mission configuration."""
         self.mission_config = mission_config
         self.seek_config = seek_config
         self.checkpointer = checkpointer
         self.app = app
-        self.state_manager = MissionStateManager("checkpoints/mission_checkpoints.db")
+        self.state_manager = MissionStateManager(db_path)
         self.resume_from_mission_id = resume_from_mission_id
 
     def _initialize_mission_state(self) -> dict[str, Any]:

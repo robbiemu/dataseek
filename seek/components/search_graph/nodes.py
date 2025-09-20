@@ -1389,80 +1389,74 @@ def research_node(state: "DataSeekState") -> dict:
                             "arxiv_search",
                             "wikipedia_search",
                         ] and isinstance(tool_result, dict):
-                            if tool_name == "web_search":
-                                # Only proceed with validation if there are results left
-                                if tool_result.get("status") == "ok" and tool_result.get("results"):
-                                    from common.seek_utils import _validate_search_results
+                            from seek.common.seek_utils import _validate_search_results
 
-                                    print(f"         🔍 Validating {tool_name} results...")
-                                    validation_result = _validate_search_results(
-                                        tool_result["results"],
-                                        tool_name,
-                                        tool_call_args,
-                                        matching_tool,
-                                        session_tool_domain_blocklist,  # Pass the blocklist
-                                    )
+                            print(f"         🔍 Validating {tool_name} results...")
+                            validation_result = _validate_search_results(
+                                tool_result["results"],
+                                tool_name,
+                                tool_call_args,
+                                matching_tool,
+                                session_tool_domain_blocklist,  # Pass the blocklist
+                            )
 
-                                    tool_result["results"] = validation_result["results"]
-                                    tool_result["validation_info"] = validation_result
-                                    print(
-                                        f"         ✅ {tool_name} results validated ({len(validation_result['results'])} results)"
-                                    )
+                            tool_result["results"] = validation_result["results"]
+                            tool_result["validation_info"] = validation_result
+                            print(
+                                f"         ✅ {tool_name} results validated ({len(validation_result['results'])} results)"
+                            )
 
-                                    # Log retry information if performed
-                                    if validation_result.get("retry_performed"):
-                                        if validation_result.get("retry_successful"):
-                                            print(f"         🔄 {tool_name}: Auto-retry successful")
-                                        else:
-                                            print(
-                                                f"         🔄 {tool_name}: Auto-retry attempted but unsuccessful"
-                                            )
+                            # Log retry information if performed
+                            if validation_result.get("retry_performed"):
+                                if validation_result.get("retry_successful"):
+                                    print(f"         🔄 {tool_name}: Auto-retry successful")
                                 else:
-                                    # Handle error or genuinely empty results
-                                    if tool_result.get("status") == "error":
-                                        error_msg = tool_result.get("error", "Unknown error")
-                                        print(f"         ❌ {tool_name} tool failed: {error_msg}")
+                                    print(
+                                        f"         🔄 {tool_name}: Auto-retry attempted but unsuccessful"
+                                    )
+                            else:
+                                # Handle error or genuinely empty results
+                                if tool_result.get("status") == "error":
+                                    error_msg = tool_result.get("error", "Unknown error")
+                                    print(f"         ❌ {tool_name} tool failed: {error_msg}")
+                                else:
+                                    print(f"         ⚠️  No results returned by {tool_name} tool")
+
+                                # Create a validation result indicating no results to maintain structure
+                                tool_result["validation_info"] = {
+                                    "results": [],
+                                    "validation_performed": True,
+                                    "needs_retry": False,
+                                    "filtered_count": 0,
+                                    "retry_performed": False,
+                                }
+                        else:
+                            # For non-web_search tools, proceed with normal validation
+                            if tool_result.get("status") == "ok" and tool_result.get("results"):
+
+                                print(f"         🔍 Validating {tool_name} results...")
+                                validation_result = _validate_search_results(
+                                    tool_result["results"],
+                                    tool_name,
+                                    tool_call_args,
+                                    matching_tool,
+                                    session_tool_domain_blocklist,  # Pass the blocklist
+                                )
+
+                                tool_result["results"] = validation_result["results"]
+                                tool_result["validation_info"] = validation_result
+                                print(
+                                    f"         ✅ {tool_name} results validated ({len(validation_result['results'])} results)"
+                                )
+
+                                # Log retry information if performed
+                                if validation_result.get("retry_performed"):
+                                    if validation_result.get("retry_successful"):
+                                        print(f"         🔄 {tool_name}: Auto-retry successful")
                                     else:
                                         print(
-                                            f"         ⚠️  No results returned by {tool_name} tool"
+                                            f"         🔄 {tool_name}: Auto-retry attempted but unsuccessful"
                                         )
-
-                                    # Create a validation result indicating no results to maintain structure
-                                    tool_result["validation_info"] = {
-                                        "results": [],
-                                        "validation_performed": True,
-                                        "needs_retry": False,
-                                        "filtered_count": 0,
-                                        "retry_performed": False,
-                                    }
-                            else:
-                                # For non-web_search tools, proceed with normal validation
-                                if tool_result.get("status") == "ok" and tool_result.get("results"):
-                                    from common.seek_utils import _validate_search_results
-
-                                    print(f"         🔍 Validating {tool_name} results...")
-                                    validation_result = _validate_search_results(
-                                        tool_result["results"],
-                                        tool_name,
-                                        tool_call_args,
-                                        matching_tool,
-                                        session_tool_domain_blocklist,  # Pass the blocklist
-                                    )
-
-                                    tool_result["results"] = validation_result["results"]
-                                    tool_result["validation_info"] = validation_result
-                                    print(
-                                        f"         ✅ {tool_name} results validated ({len(validation_result['results'])} results)"
-                                    )
-
-                                    # Log retry information if performed
-                                    if validation_result.get("retry_performed"):
-                                        if validation_result.get("retry_successful"):
-                                            print(f"         🔄 {tool_name}: Auto-retry successful")
-                                        else:
-                                            print(
-                                                f"         🔄 {tool_name}: Auto-retry attempted but unsuccessful"
-                                            )
 
                         # Post-process results based on tool + role limits
                         if isinstance(tool_result, dict):

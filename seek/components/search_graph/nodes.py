@@ -850,9 +850,7 @@ def supervisor_node(state: DataSeekState) -> dict:
     research_success_rate = (
         "high"
         if consecutive_failures < 2 and research_attempts < 3
-        else "moderate"
-        if consecutive_failures < 4
-        else "low"
+        else "moderate" if consecutive_failures < 4 else "low"
     )
 
     # More integrated status summary

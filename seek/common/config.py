@@ -31,7 +31,7 @@ _global_use_robots = True
 _active_seek_config: Optional["StructuredSeekConfig"] = None
 
 # Prompts configuration
-_prompts_config: Optional[dict] = None
+_prompts_config: dict | None = None
 
 
 def set_global_use_robots(use_robots: bool) -> None:

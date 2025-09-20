@@ -1,4 +1,4 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from rich.text import Text
@@ -20,15 +20,6 @@ class GenerationStats:
     total_recursion_steps: int = 30  # Total recursion steps
     synthetic_budget: float = 1.0  # Synthetic budget ratio (from mission config)
     target_size: int = 1  # Target size per goal (from mission config)
-
-    def copy(self) -> "GenerationStats":
-        """Return a shallow copy of this GenerationStats dataclass.
-
-        This provides a convenient `.copy()` method to match existing callers
-        in the TUI code which expect a `copy()` method on the stats object.
-        """
-        # Use dataclasses.replace to produce a new instance with the same field values
-        return replace(self)
 
     @property
     def elapsed_seconds(self) -> float:
@@ -101,6 +92,7 @@ class StatsHeader(Static):
 
     def on_stats_change(self, stats: GenerationStats) -> None:
         """Update the header when the stats object changes."""
+        stats = new_stats
         int(100 * stats.completed / max(1, stats.target))
         synthetic_pct = stats.synthetic_percentage
 

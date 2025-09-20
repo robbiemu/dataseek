@@ -5,10 +5,14 @@ from langchain_core.messages import AIMessage
 
 from seek.common.config import get_prompt
 from seek.common.models import FitnessReport
-from seek.common.utils import strip_reasoning_block
 from seek.components.mission_runner.state import DataSeekState
 
-from .utils import create_agent_runnable, create_llm, get_claimify_strategy_block
+from .utils import (
+    create_agent_runnable,
+    create_llm,
+    get_claimify_strategy_block,
+    strip_reasoning_block,
+)
 
 
 def fitness_node(state: "DataSeekState") -> dict:

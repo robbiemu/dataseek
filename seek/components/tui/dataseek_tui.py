@@ -14,17 +14,19 @@ import typer
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
-from textual.reactive import reactive
 from textual.widgets import Footer, Header
 
 from seek.common.config import load_seek_config, set_active_seek_config
 from seek.components.tui.agent_handler import _run_agent
+from seek.components.tui.utils import get_mission_details_from_file
 from seek.components.tui.agent_output_parser import AgentOutputParser
 from seek.components.tui.agent_process_manager import AgentProcessManager
 from seek.components.tui.components.conversation_panel import ConversationPanel
 from seek.components.tui.components.mission_panel import MissionPanel
 from seek.components.tui.components.mission_selector import MissionSelector
 from seek.components.tui.components.progress_panel import ProgressPanel
+from textual.reactive import reactive
+
 from seek.components.tui.components.stats_header import GenerationStats, StatsHeader
 from seek.components.tui.theme_manager import (
     DARKDETECT_AVAILABLE,
@@ -34,7 +36,6 @@ from seek.components.tui.theme_manager import (
     detect_system_theme,
     sync_with_system_theme,
 )
-from seek.components.tui.utils import get_mission_details_from_file
 
 
 class DataSeekTUI(App):

@@ -15,7 +15,10 @@ from seek.main import run
 @patch("seek.main.input")
 @patch("seek.main.MissionRunner")
 @patch("seek.main.load_seek_config")
-def test_seek_agent_runnable_new_mission(mock_load_config, mock_mission_runner, mock_input):
+@patch("seek.main.SqliteSaver")
+def test_seek_agent_runnable_new_mission(
+    mock_sqlite_saver, mock_load_config, mock_mission_runner, mock_input
+):
     """
     Tests that the seek agent can start a new mission.
     """
@@ -69,7 +72,10 @@ def test_seek_agent_runnable_new_mission(mock_load_config, mock_mission_runner, 
 @patch("seek.main.input")
 @patch("seek.main.MissionRunner")
 @patch("seek.main.load_seek_config")
-def test_seek_agent_runnable_resume_mission(mock_load_config, mock_mission_runner, mock_input):
+@patch("seek.main.SqliteSaver")
+def test_seek_agent_runnable_resume_mission(
+    mock_sqlite_saver, mock_load_config, mock_mission_runner, mock_input
+):
     """
     Tests that the seek agent can resume a mission.
     """

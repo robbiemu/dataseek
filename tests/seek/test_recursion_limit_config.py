@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from seek.components.mission_runner.mission_runner import MissionRunner
 
@@ -17,7 +17,8 @@ class DummyApp:
         yield {}
 
 
-def test_recursion_limit_is_top_level_in_config():
+@patch("seek.components.mission_runner.mission_runner.MissionStateManager")
+def test_recursion_limit_is_top_level_in_config(mock_state_manager):
     # Arrange: mission runner with a dummy app and mock checkpointer
     dummy_app = DummyApp()
     mock_checkpointer = MagicMock()

@@ -4,8 +4,6 @@ from datetime import datetime, timedelta
 from rich.text import Text
 from textual.widgets import Static
 
-from ..state import TUIState
-
 
 @dataclass
 class GenerationStats:
@@ -85,15 +83,14 @@ class GenerationStats:
 class StatsHeader(Static):
     """Header showing generation statistics."""
 
-    def __init__(self, tui_state: TUIState) -> None:
+    def __init__(self) -> None:
         super().__init__(id="stats-header", markup=True)  # Enable Rich markup
-        self.tui_state = tui_state
 
     def on_mount(self) -> None:
         """Start watching for stats changes when the component is mounted."""
-        self.watch(self.app, "tui_state", self.on_stats_change)
+        self.watch(self.app, "stats", self.on_stats_change)
 
-    def on_stats_change(self, new_stats: GenerationStats) -> None:
+    def on_stats_change(self, stats: GenerationStats) -> None:
         """Update the header when the stats object changes."""
         stats = new_stats
         int(100 * stats.completed / max(1, stats.target))

@@ -4,22 +4,18 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
 
-from ..state import TUIState
-
 
 class MissionPanel(Static):
     """Right panel with mission status and details."""
 
     def __init__(
         self,
-        tui_state: TUIState,
         mission_path: str,
         mission_name: str,
         total_samples_target: int,
         config: dict[str, Any],
     ):
         super().__init__(id="mission-panel")
-        self.tui_state = tui_state
         self.mission_path = mission_path
         self.mission_name = mission_name
         self.total_samples_target = total_samples_target
@@ -28,7 +24,7 @@ class MissionPanel(Static):
 
     def on_mount(self) -> None:
         """Start watching for mission status changes when the component is mounted."""
-        self.watch(self.app, "tui_state.mission_status", self.on_status_change)
+        self.watch(self.app, "mission_status", self.on_status_change)
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -50,7 +46,7 @@ class MissionPanel(Static):
             f"Target: {self.total_samples_target} samples\n"
             f"Model: {model}\n"
             f"Provider: {provider}\n"
-            f"Status: {self.app.tui_state.mission_status}"
+            f"Status: {self.app.mission_status}"
         )
 
     def on_status_change(self, new_status: str) -> None:

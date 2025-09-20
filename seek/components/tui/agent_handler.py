@@ -1,3 +1,5 @@
+import re
+from datetime import datetime
 from __future__ import annotations
 
 import re
@@ -12,13 +14,14 @@ from .agent_output_parser import (
     SyntheticSampleUpdate,
 )
 
+
 if TYPE_CHECKING:
     from .dataseek_tui import DataSeekTUI
 
 
-async def _run_agent(app: DataSeekTUI) -> None:
+async def _run_agent(app: "DataSeekTUI") -> None:
     """Run the Data Seek Agent as a subprocess and parse its output."""
-    app.tui_state.stats.started_at = datetime.now()
+    app.stats.started_at = datetime.now()
     if app.agent_process_manager is None:
         app.debug_log("Agent process manager not initialized")
         return
@@ -60,34 +63,34 @@ async def _run_agent(app: DataSeekTUI) -> None:
         app.set_timer(5.0, app.action_quit)
 
 
-def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
+def _handle_agent_event(app: "DataSeekTUI", event: Any) -> None:
     """Handle events from the agent output parser."""
     # Debug: Log all events being handled
     app.debug_log(f"HANDLING EVENT: {type(event).__name__} - {event}")
 
     if isinstance(event, ProgressUpdate):
-        new_stats = app.tui_state.stats.copy()
+        new_stats = app.stats.copy()
         new_stats.completed = event.completed
         new_stats.target = event.target
-        app.tui_state.stats = new_stats
+        app.stats = new_stats
 
         # Update mission status when progress is made
         if event.completed > 0:
-            app.tui_state.mission_status = f"Generating... ({event.completed}/{event.target})"
+            app.mission_status = f"Generating... ({event.completed}/{event.target})"
 
         app.debug_log(f"PROGRESS UPDATE: {event.completed}/{event.target}")
     elif isinstance(event, SyntheticSampleUpdate):
         # Update synthetic sample count
-        new_stats = app.tui_state.stats.copy()
+        new_stats = app.stats.copy()
         new_stats.synthetic_completed = event.count
-        app.tui_state.stats = new_stats
+        app.stats = new_stats
         app.debug_log(f"SYNTHETIC SAMPLE UPDATE: {event.count}")
     elif isinstance(event, RecursionStepUpdate):
         # Update recursion step information
-        new_stats = app.tui_state.stats.copy()
+        new_stats = app.stats.copy()
         new_stats.current_recursion_step = event.current_step
         new_stats.total_recursion_steps = event.total_steps
-        app.tui_state.stats = new_stats
+        app.stats = new_stats
         app.debug_log(f"RECURSION STEP UPDATE: {event.current_step}/{event.total_steps}")
     elif isinstance(event, NewMessage):
         app.debug_log(f"NEW MESSAGE EVENT: {event.role} -> {event.content[:100]}...")
@@ -100,48 +103,48 @@ def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
             if route_match:
                 route_name = route_match.group(1)
                 if route_name.lower() == "end":
-                    app.tui_state.mission_status = "Sample Completed"
+                    app.mission_status = "Sample Completed"
                 elif route_name.lower() == "archive":
-                    app.tui_state.mission_status = "Archiving Sample..."
+                    app.mission_status = "Archiving Sample..."
                 elif route_name.lower() == "fitness":
-                    app.tui_state.mission_status = "Checking Fitness..."
+                    app.mission_status = "Checking Fitness..."
                 elif route_name.lower() == "synthetic":
-                    app.tui_state.mission_status = "Generating Synthetic..."
+                    app.mission_status = "Generating Synthetic..."
                 else:
-                    app.tui_state.mission_status = f"Routing to {route_name}..."
+                    app.mission_status = f"Routing to {route_name}..."
 
         # Check for node execution patterns like "🔍 RESEARCH NODE" or "🎨 SYNTHETIC NODE"
         elif ("NODE" in event.content and "🔍" in event.content) or (
             "SYNTHETIC NODE" in event.content and "🎨" in event.content
         ):
             if "🎨 SYNTHETIC NODE" in event.content:
-                app.tui_state.mission_status = "Generating Synthetic Content..."
+                app.mission_status = "Generating Synthetic Content..."
             else:
                 node_match = re.search(r"🔍\s+(\w+)\s+NODE", event.content)
                 if node_match:
                     node_name = node_match.group(1)
-                    app.tui_state.mission_status = f"Working on {node_name}..."
+                    app.mission_status = f"Working on {node_name}..."
 
         # Check for agent starting work (move from Initializing)
         elif (
             "▶ Iteration" in event.content
             or "🔧 Tool calls:" in event.content
             or "📊 CONTEXT:" in event.content
-        ) and app.tui_state.mission_status == "Initializing...":
-            app.tui_state.mission_status = "Working..."
+        ) and app.mission_status == "Initializing...":
+            app.mission_status = "Working..."
             # Extract current recursion step if available
             iteration_match = re.search(r"▶ Iteration (\d+)/(\d+)", event.content)
             if iteration_match:
                 current_step = int(iteration_match.group(1))
                 total_steps = int(iteration_match.group(2))
-                new_stats = app.tui_state.stats.copy()
+                new_stats = app.stats.copy()
                 new_stats.current_recursion_step = current_step
                 new_stats.total_recursion_steps = total_steps
-                app.tui_state.stats = new_stats
+                app.stats = new_stats
 
         # Check for routing to END (fallback pattern)
         elif "Routing to END" in event.content or "Decided on 'end'" in event.content:
-            app.tui_state.mission_status = "Sample Completed"
+            app.mission_status = "Sample Completed"
 
         # Check for sample archival and add to recent samples
         elif "sample #" in event.content.lower() and "archived" in event.content.lower():
@@ -171,6 +174,6 @@ def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
     elif isinstance(event, ErrorMessage):
         app.debug_log(f"ERROR MESSAGE EVENT: {event.message[:100]}...")
         app.conversation.add_message("error", event.message)
-        new_stats = app.tui_state.stats.copy()
+        new_stats = app.stats.copy()
         new_stats.errors += 1
-        app.tui_state.stats = new_stats
+        app.stats = new_stats

@@ -18,14 +18,16 @@ from textual.widgets import Footer, Header
 
 from seek.common.config import load_seek_config, set_active_seek_config
 from seek.components.tui.agent_handler import _run_agent
+from seek.components.tui.utils import get_mission_details_from_file
 from seek.components.tui.agent_output_parser import AgentOutputParser
 from seek.components.tui.agent_process_manager import AgentProcessManager
 from seek.components.tui.components.conversation_panel import ConversationPanel
 from seek.components.tui.components.mission_panel import MissionPanel
 from seek.components.tui.components.mission_selector import MissionSelector
 from seek.components.tui.components.progress_panel import ProgressPanel
-from seek.components.tui.components.stats_header import StatsHeader
-from seek.components.tui.state import TUIState
+from textual.reactive import reactive
+
+from seek.components.tui.components.stats_header import GenerationStats, StatsHeader
 from seek.components.tui.theme_manager import (
     DARKDETECT_AVAILABLE,
     action_toggle_theme,
@@ -34,7 +36,6 @@ from seek.components.tui.theme_manager import (
     detect_system_theme,
     sync_with_system_theme,
 )
-from seek.components.tui.utils import get_mission_details_from_file
 
 
 class DataSeekTUI(App):
@@ -50,6 +51,9 @@ class DataSeekTUI(App):
         Binding("f10", "debug_scrollbars", "Debug Scrollbars"),
         Binding("f12", "show_dom", "DOM"),
     ]
+
+    stats = reactive(GenerationStats())
+    mission_status = reactive("Initializing...")
 
     def __init__(
         self,
@@ -71,7 +75,6 @@ class DataSeekTUI(App):
         if debug:
             print(f"Writing debug log to {self._debug_log_path}")
 
-        self.tui_state = TUIState()
         self.agent_process_manager: AgentProcessManager | None = None
         self.agent_output_parser = AgentOutputParser()
         self.log_handle: io.TextIOWrapper | None = None
@@ -183,9 +186,7 @@ class DataSeekTUI(App):
         if mission_details is None:
             raise ValueError(f"Failed to load mission details from {self.mission_plan_path}")
         total_samples_target = mission_details["mission_targets"].get(mission_name, 1200)
-        new_stats = self.tui_state.stats
-        new_stats.target = total_samples_target
-        self.tui_state.stats = new_stats
+        self.stats.target = total_samples_target
 
         seek_config = load_seek_config(self.seek_config_path, use_robots=self.use_robots)
         # Set active config for TUI context as well (non-subprocess usage)
@@ -214,17 +215,14 @@ class DataSeekTUI(App):
             mission_plan_path=self.mission_plan_path,
         )
 
-        self.stats_header = StatsHeader(self.tui_state)
+        self.stats_header = StatsHeader()
         # Initialize stats with synthetic budget and target size
-        new_stats = self.tui_state.stats
-        new_stats.synthetic_budget = synthetic_budget
-        new_stats.target_size = target_size
-        new_stats.total_recursion_steps = recursion_limit
-        self.tui_state.stats = new_stats
+        self.stats.synthetic_budget = synthetic_budget
+        self.stats.target_size = target_size
+        self.stats.total_recursion_steps = recursion_limit
 
-        self.progress_panel = ProgressPanel(self.tui_state)
+        self.progress_panel = ProgressPanel()
         self.mission_panel = MissionPanel(
-            self.tui_state,
             self.mission_plan_path,
             mission_name,
             total_samples_target,

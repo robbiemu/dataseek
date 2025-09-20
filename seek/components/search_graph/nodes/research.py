@@ -1,15 +1,18 @@
-import logging
-import time
 from datetime import datetime
-from typing import Any
-from urllib.parse import urlparse
 
-import httpx
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from seek.common.config import get_active_seek_config, get_prompt
+import logging
+import time
+from urllib.parse import urlparse
+
+import httpx
+
 from seek.components.mission_runner.state import DataSeekState
+
+from .utils import get_claimify_strategy_block
 from seek.components.tool_manager.clients import HTTP_CLIENT, RATE_MANAGER
 from seek.components.tool_manager.tools import get_tools_for_role
 from seek.components.tool_manager.utils import (
@@ -19,17 +22,7 @@ from seek.components.tool_manager.utils import (
 )
 
 from .supervisor import index_research_cache
-from .utils import create_llm, get_claimify_strategy_block, normalize_url
-
-logger = logging.getLogger(__name__)
-
-# Constants
-DEFAULT_PREFETCH_LIMIT = 3
-DEFAULT_MIN_RESULTS = 3
-DEFAULT_MAX_RETRIES = 2
-DEFAULT_RESULT_MULTIPLIER = 3
-URL_VALIDATION_TIMEOUT = 10
-RATE_LIMIT_RPS = 2.0
+from .utils import create_llm, normalize_url
 
 
 def research_node(state: "DataSeekState") -> dict:
@@ -446,6 +439,7 @@ def research_node(state: "DataSeekState") -> dict:
                         else:
                             # For non-web_search tools, proceed with normal validation
                             if tool_result.get("status") == "ok" and tool_result.get("results"):
+
                                 print(f"         🔍 Validating {tool_name} results...")
                                 validation_result = _validate_search_results(
                                     tool_result["results"],
@@ -598,6 +592,20 @@ def research_node(state: "DataSeekState") -> dict:
         "research_session_cache": session_cache,  # Full, updated evidence cache (no clearing)
         "session_tool_domain_blocklist": session_tool_domain_blocklist,  # Updated blocklist
     }
+
+
+logger = logging.getLogger(__name__)
+
+# Constants
+DEFAULT_PREFETCH_LIMIT = 3
+DEFAULT_MIN_RESULTS = 3
+DEFAULT_MAX_RETRIES = 2
+DEFAULT_RESULT_MULTIPLIER = 3
+URL_VALIDATION_TIMEOUT = 10
+RATE_LIMIT_RPS = 2.0
+
+
+from typing import Any
 
 
 def find_url_field(results: list[dict[str, Any]]) -> str | None:

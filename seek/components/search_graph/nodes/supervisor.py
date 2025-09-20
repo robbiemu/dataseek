@@ -1,4 +1,3 @@
-import json
 import secrets
 from typing import Any
 
@@ -9,15 +8,15 @@ from langchain_litellm import ChatLiteLLM
 from pydantic import BaseModel, Field
 
 from seek.common.config import get_active_seek_config, get_prompt
+from seek.components.mission_runner.state import DataSeekState
+
 from .utils import (
+    create_llm,
     get_characteristic_context,
     get_claimify_strategy_block,
     normalize_url,
     strip_reasoning_block,
 )
-from seek.components.mission_runner.state import DataSeekState
-
-from .utils import create_llm
 
 # Define the minimum step cost for a successful research cycle
 MIN_STEPS_FOR_SUCCESSFUL_RESEARCH = (
@@ -48,11 +47,13 @@ def _get_next_task_from_progress(
     mission_name = list(progress.keys())[0]
     eligible_tasks = []
     for char, char_data in progress[mission_name].items():
-        if char_data["collected"] < char_data["target"]:
-            for topic, topic_data in char_data["topics"].items():
-                if topic_data["collected"] < topic_data["target"]:
-                    if not exclude or (char, topic) not in exclude:
-                        eligible_tasks.append({"characteristic": char, "topic": topic})
+        for topic, topic_data in char_data.get("topics", {}).items():
+            if (
+                char_data["collected"] < char_data["target"]
+                and topic_data["collected"] < topic_data["target"]
+                and (not exclude or (char, topic) not in exclude)
+            ):
+                eligible_tasks.append({"characteristic": char, "topic": topic})
 
     if not eligible_tasks:
         return None
@@ -183,10 +184,7 @@ def supervisor_node(state: DataSeekState) -> dict:
 
     # --- 3. Select Next Task (if necessary) ---
     # We only select a new task if there's no current task.
-    if not current_task:
-        next_task = _get_next_task_from_progress(progress)
-    else:
-        next_task = current_task
+    next_task = current_task if current_task else _get_next_task_from_progress(progress)
 
     # --- 4. Decide What to Do ---
     if not next_task:
@@ -243,7 +241,7 @@ def supervisor_node(state: DataSeekState) -> dict:
         used_urls = extract_used_urls_from_findings(research_findings)
         current_excluded = state.get("excluded_urls", [])
         # Normalize and deduplicate URLs
-        all_excluded = list(set([normalize_url(url) for url in current_excluded + used_urls]))
+        all_excluded = list({normalize_url(url) for url in current_excluded + used_urls})
 
         print(
             f"   📝 Supervisor: Adding {len(used_urls)} URLs to exclusion list. Total excluded: {len(all_excluded)}"
@@ -690,10 +688,7 @@ def supervisor_node(state: DataSeekState) -> dict:
             if "**Source URL**:" in line:
                 try:
                     source_url_parts = line.split("`")
-                    if len(source_url_parts) > 1:
-                        source_url = source_url_parts[1]
-                    else:
-                        source_url = None
+                    source_url = source_url_parts[1] if len(source_url_parts) > 1 else None
                 except IndexError:
                     pass
                 break
@@ -1033,9 +1028,6 @@ def extract_used_urls_from_findings(research_findings: list) -> list[str]:
                     continue
 
     return urls
-
-
-from .utils import normalize_url
 
 
 def index_research_cache(cache: list[dict]) -> list[dict]:

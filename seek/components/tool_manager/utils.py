@@ -1,6 +1,5 @@
 import asyncio
 import hashlib
-import os
 import re
 import time
 from typing import Any
@@ -124,18 +123,25 @@ def _truncate_response_for_role(
                     response["results"] = new_items
 
             if tool_name in fetch_like:
-                if "markdown" in response and isinstance(response["markdown"], str):
-                    if len(response["markdown"]) > result_char_limit:
-                        response["markdown"] = (
-                            response["markdown"][:result_char_limit]
-                            + "\n\n[Markdown truncated due to size]"
-                        )
-                if "full_markdown" in response and isinstance(response["full_markdown"], str):
-                    if len(response["full_markdown"]) > result_char_limit:
-                        response["full_markdown"] = (
-                            response["full_markdown"][:result_char_limit]
-                            + "\n\n[Content truncated due to size]"
-                        )
+                if (
+                    "markdown" in response
+                    and isinstance(response["markdown"], str)
+                    and len(response["markdown"]) > result_char_limit
+                ):
+                    response["markdown"] = (
+                        response["markdown"][:result_char_limit]
+                        + "\n\n[Markdown truncated due to size]"
+                    )
+                if (
+                    tool_name in fetch_like
+                    and "full_markdown" in response
+                    and isinstance(response["full_markdown"], str)
+                    and len(response["full_markdown"]) > result_char_limit
+                ):
+                    response["full_markdown"] = (
+                        response["full_markdown"][:result_char_limit]
+                        + "\n\n[Content truncated due to size]"
+                    )
         except Exception:
             # Fail open; don't break tool chain on truncation errors
             return response

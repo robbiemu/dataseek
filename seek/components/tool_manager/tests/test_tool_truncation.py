@@ -35,12 +35,12 @@ class TestToolTruncation(unittest.TestCase):
             truncated_response = _truncate_response_for_role(response, "research")
 
             # Should be unchanged
-            self.assertEqual(
-                truncated_response["results"],
-                "This is a short response that should not be modified.",
+            assert (
+                truncated_response["results"]
+                == "This is a short response that should not be modified."
             )
             # Should not contain truncation message
-            self.assertNotIn("Response truncated", truncated_response["results"])
+            assert "Response truncated" not in truncated_response["results"]
 
     def test_truncate_response_for_role_with_truncation(self):
         """Test that responses exceeding limits are truncated."""
@@ -60,19 +60,19 @@ class TestToolTruncation(unittest.TestCase):
             truncated_response = _truncate_response_for_role(response, "research")
 
             # Should be truncated
-            self.assertIn("Response truncated", truncated_response["results"])
-            self.assertLess(len(truncated_response["results"]), len(long_response))
+            assert "Response truncated" in truncated_response["results"]
+            assert len(truncated_response["results"]) < len(long_response)
 
     def test_get_tools_for_role_research(self):
         """Test that research role tools are properly wrapped."""
         tools = get_tools_for_role("research")
 
         # Should have at least the basic tools
-        self.assertGreater(len(tools), 0)
+        assert len(tools) > 0
 
         # Check that tools have names
         for tool in tools:
-            self.assertTrue(hasattr(tool, "name") or hasattr(tool, "__name__"))
+            assert hasattr(tool, "name") or hasattr(tool, "__name__")
 
 
 if __name__ == "__main__":

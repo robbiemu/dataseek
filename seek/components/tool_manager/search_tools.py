@@ -85,37 +85,34 @@ def create_web_search_tool(use_robots: bool = True) -> Any:
                 normalized_results = [results]
 
             # Post-processing: check robots.txt if enabled
-            if respect_robots and normalized_results:
-                # Only attempt robots checks for structured results with URLs
-                if isinstance(normalized_results[0], dict):
-                    filtered_results = []
-                    key = _find_url_field(normalized_results)
-                    for result in normalized_results:
-                        url = result.get(key) if isinstance(result, dict) else None
-                        if not url:
+            # Only attempt robots checks for structured results with URLs
+            if respect_robots and normalized_results and isinstance(normalized_results[0], dict):
+                filtered_results = []
+                key = _find_url_field(normalized_results)
+                for result in normalized_results:
+                    url = result.get(key) if isinstance(result, dict) else None
+                    if not url:
+                        filtered_results.append(result)
+                        continue
+
+                    try:
+                        parsed_url = urlparse(url)
+                        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                        robots_url = urljoin(base_url, "/robots.txt")
+
+                        rp = RobotFileParser()
+                        rp.set_url(robots_url)
+                        rp.read()
+
+                        if rp.can_fetch("DataSeek/1.0", url):
                             filtered_results.append(result)
-                            continue
-
-                        try:
-                            parsed_url = urlparse(url)
-                            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                            robots_url = urljoin(base_url, "/robots.txt")
-
-                            rp = RobotFileParser()
-                            rp.set_url(robots_url)
-                            rp.read()
-
-                            if rp.can_fetch("DataSeek/1.0", url):
-                                filtered_results.append(result)
-                            else:
-                                print(f"      ⚠️ Filtering out {url} due to robots.txt")
-                        except Exception as e:
-                            # If we can't check robots.txt, assume it's okay to proceed
-                            print(
-                                f"      ⚠️ Could not check robots.txt for {url}: {e}, keeping result"
-                            )
-                            filtered_results.append(result)
-                    normalized_results = filtered_results
+                        else:
+                            print(f"      ⚠️ Filtering out {url} due to robots.txt")
+                    except Exception as e:
+                        # If we can't check robots.txt, assume it's okay to proceed
+                        print(f"      ⚠️ Could not check robots.txt for {url}: {e}, keeping result")
+                        filtered_results.append(result)
+                normalized_results = filtered_results
 
             return {
                 "query": query,

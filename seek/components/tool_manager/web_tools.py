@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import os
 import shutil
@@ -123,11 +124,8 @@ def url_to_markdown(
                     parts_md.append(md)
                     markdown = "\n".join(parts_md).strip()
             finally:
-                try:
+                with contextlib.suppress(Exception):
                     os.remove(temp_path)
-                except Exception:
-                    # Best-effort cleanup; ignore failure
-                    pass  # nosec B110 # - best-effort temp cleanup only
         except Exception:
             markdown = None
 
@@ -151,9 +149,8 @@ def url_to_markdown(
         import httpx
 
         error_message = f"{type(e).__name__}: {str(e)}"
-        if isinstance(e, httpx.HTTPStatusError):
-            if 400 <= e.response.status_code < 500:
-                error_message = f"{e.response.status_code} - for {url}, not retrying"
+        if isinstance(e, httpx.HTTPStatusError) and 400 <= e.response.status_code < 500:
+            error_message = f"{e.response.status_code} - for {url}, not retrying"
         return {
             "url": url,
             "markdown": "",

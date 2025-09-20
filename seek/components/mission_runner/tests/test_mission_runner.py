@@ -32,9 +32,9 @@ class TestMissionRunner(unittest.TestCase):
             progress = mission_runner.get_progress("some_thread_id")
 
             # 5. Assert the results
-            self.assertEqual(progress["samples_generated"], 10)
-            self.assertEqual(progress["total_target"], 100)
-            self.assertEqual(progress["progress_pct"], 10.0)
+            assert progress["samples_generated"] == 10
+            assert progress["total_target"] == 100
+            assert progress["progress_pct"] == 10.0
 
             # 6. Verify that the correct method was called on the mock
             mock_app.get_state.assert_called_once_with(

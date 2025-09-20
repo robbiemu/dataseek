@@ -1,5 +1,3 @@
-import re
-from datetime import datetime
 from __future__ import annotations
 
 import re
@@ -14,12 +12,11 @@ from .agent_output_parser import (
     SyntheticSampleUpdate,
 )
 
-
 if TYPE_CHECKING:
     from .dataseek_tui import DataSeekTUI
 
 
-async def _run_agent(app: "DataSeekTUI") -> None:
+async def _run_agent(app: DataSeekTUI) -> None:
     """Run the Data Seek Agent as a subprocess and parse its output."""
     app.stats.started_at = datetime.now()
     if app.agent_process_manager is None:
@@ -63,7 +60,7 @@ async def _run_agent(app: "DataSeekTUI") -> None:
         app.set_timer(5.0, app.action_quit)
 
 
-def _handle_agent_event(app: "DataSeekTUI", event: Any) -> None:
+def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
     """Handle events from the agent output parser."""
     # Debug: Log all events being handled
     app.debug_log(f"HANDLING EVENT: {type(event).__name__} - {event}")

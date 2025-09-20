@@ -70,10 +70,9 @@ class ErrorModal(ModalScreen):
                 self.remove_class(opposite_class)
 
                 # Also try direct styling as backup
-                if is_dark:
-                    screen_bg = "rgba(0, 0, 0, 0.5)"  # Dark semi-transparent
-                else:
-                    screen_bg = "rgba(200, 200, 200, 0.5)"  # Light semi-transparent
+                screen_bg = (
+                    "rgba(0, 0, 0, 0.5)" if is_dark else "rgba(200, 200, 200, 0.5)"
+                )  # Dark/Light semi-transparent
 
                 self.styles.background = screen_bg
             except Exception:

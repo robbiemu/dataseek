@@ -1,3 +1,5 @@
+import re
+
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
 from langchain_litellm import ChatLiteLLM
@@ -72,9 +74,6 @@ def normalize_url(url: str) -> str:
         return normalized
     except Exception:
         return url
-
-
-import re
 
 
 def get_characteristic_context(task: dict, mission_config: dict) -> str | None:

@@ -3,7 +3,7 @@ import os
 import time
 from collections import deque
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 import httpx
@@ -119,11 +119,8 @@ class AsyncRateLimitManager:
         if reset is not None:
             # Handle comma-separated values (Brave API returns "1, 2369545" format)
             reset_str = str(reset).split(",")[0].strip()
-            try:
+            with suppress(ValueError):
                 state["reset_time"] = int(reset_str)
-            except ValueError:
-                # If parsing fails, keep using default conservative approach
-                pass
 
 
 class SearchProviderProxy:

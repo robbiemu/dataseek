@@ -297,21 +297,23 @@ class MissionRunner:
             generated_characteristic = None
             generated_topic = None
 
-        # Update the detailed breakdown
-        if generated_characteristic and generated_topic:
-            if generated_characteristic in mission_state["progress"][mission_state["mission_name"]]:
+        if (
+            generated_characteristic
+            and generated_topic
+            and generated_characteristic in mission_state["progress"][mission_state["mission_name"]]
+        ):
+            mission_state["progress"][mission_state["mission_name"]][generated_characteristic][
+                "collected"
+            ] += 1
+            if (
+                generated_topic
+                in mission_state["progress"][mission_state["mission_name"]][
+                    generated_characteristic
+                ]["topics"]
+            ):
                 mission_state["progress"][mission_state["mission_name"]][generated_characteristic][
-                    "collected"
-                ] += 1
-                if (
-                    generated_topic
-                    in mission_state["progress"][mission_state["mission_name"]][
-                        generated_characteristic
-                    ]["topics"]
-                ):
-                    mission_state["progress"][mission_state["mission_name"]][
-                        generated_characteristic
-                    ]["topics"][generated_topic]["collected"] += 1
+                    "topics"
+                ][generated_topic]["collected"] += 1
 
         # Update total counts
         mission_state["samples_generated"] = final_cycle_state.get(

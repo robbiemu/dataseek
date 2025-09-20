@@ -41,12 +41,13 @@ class MissionPanel(Static):
         provider = (self.config.get("web_search") or {}).get("provider") or self.config.get(
             "search_provider", "unknown"
         )
+        mission_status = getattr(self.app, "mission_status", "unknown")
         return (
             f"Mission: {self.mission_name}\n"
             f"Target: {self.total_samples_target} samples\n"
             f"Model: {model}\n"
             f"Provider: {provider}\n"
-            f"Status: {self.app.mission_status}"
+            f"Status: {mission_status}"
         )
 
     def on_status_change(self, new_status: str) -> None:

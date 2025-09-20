@@ -92,7 +92,7 @@ class StatsHeader(Static):
 
     def on_mount(self) -> None:
         """Start watching for stats changes when the component is mounted."""
-        self.watch(self.tui_state, "stats", self.on_stats_change)
+        self.watch(self.app, "tui_state", self.on_stats_change)
 
     def on_stats_change(self, new_stats: GenerationStats) -> None:
         """Update the header when the stats object changes."""

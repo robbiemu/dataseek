@@ -397,8 +397,6 @@ def research_node(state: "DataSeekState") -> dict:
                             "arxiv_search",
                             "wikipedia_search",
                         ] and isinstance(tool_result, dict):
-                            from seek.common.seek_utils import _validate_search_results
-
                             print(f"         🔍 Validating {tool_name} results...")
                             validation_result = _validate_search_results(
                                 tool_result["results"],

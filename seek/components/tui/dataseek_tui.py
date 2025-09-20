@@ -2,6 +2,7 @@
 """
 Data Seek Agent TUI - A modern terminal interface for sample generation.
 """
+from __future__ import annotations
 
 import io
 import os
@@ -182,7 +183,9 @@ class DataSeekTUI(App):
         if mission_details is None:
             raise ValueError(f"Failed to load mission details from {self.mission_plan_path}")
         total_samples_target = mission_details["mission_targets"].get(mission_name, 1200)
-        self.tui_state.stats.target = total_samples_target
+        new_stats = self.tui_state.stats
+        new_stats.target = total_samples_target
+        self.tui_state.stats = new_stats
 
         seek_config = load_seek_config(self.seek_config_path, use_robots=self.use_robots)
         # Set active config for TUI context as well (non-subprocess usage)
@@ -213,9 +216,11 @@ class DataSeekTUI(App):
 
         self.stats_header = StatsHeader(self.tui_state)
         # Initialize stats with synthetic budget and target size
-        self.tui_state.stats.synthetic_budget = synthetic_budget
-        self.tui_state.stats.target_size = target_size
-        self.tui_state.stats.total_recursion_steps = recursion_limit
+        new_stats = self.tui_state.stats
+        new_stats.synthetic_budget = synthetic_budget
+        new_stats.target_size = target_size
+        new_stats.total_recursion_steps = recursion_limit
+        self.tui_state.stats = new_stats
 
         self.progress_panel = ProgressPanel(self.tui_state)
         self.mission_panel = MissionPanel(

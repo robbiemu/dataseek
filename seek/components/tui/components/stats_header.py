@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from rich.text import Text
 from textual.widgets import Static
 
+from ..state import TUIState
+
 
 @dataclass
 class GenerationStats:
@@ -78,9 +80,6 @@ class GenerationStats:
     def max_synthetic_allowed(self) -> int:
         """Calculate the maximum synthetic samples allowed based on target size and synthetic budget."""
         return int(self.target * self.synthetic_budget)
-
-
-from ..state import TUIState
 
 
 class StatsHeader(Static):

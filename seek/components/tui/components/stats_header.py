@@ -80,15 +80,23 @@ class GenerationStats:
         return int(self.target * self.synthetic_budget)
 
 
+from ..state import TUIState
+
+
 class StatsHeader(Static):
     """Header showing generation statistics."""
 
-    def __init__(self) -> None:
+    def __init__(self, tui_state: TUIState) -> None:
         super().__init__(id="stats-header", markup=True)  # Enable Rich markup
-        self.stats = GenerationStats()
+        self.tui_state = tui_state
 
-    def update_stats(self, stats: GenerationStats) -> None:
-        self.stats = stats
+    def on_mount(self) -> None:
+        """Start watching for stats changes when the component is mounted."""
+        self.watch(self.tui_state, "stats", self.on_stats_change)
+
+    def on_stats_change(self, new_stats: GenerationStats) -> None:
+        """Update the header when the stats object changes."""
+        stats = new_stats
         int(100 * stats.completed / max(1, stats.target))
         synthetic_pct = stats.synthetic_percentage
 

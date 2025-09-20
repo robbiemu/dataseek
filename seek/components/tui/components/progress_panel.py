@@ -2,17 +2,23 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Static
 
+from ..state import TUIState
 from .stats_header import GenerationStats
 
 
 class ProgressPanel(Static):
     """Left panel with progress bar and recent samples."""
 
-    def __init__(self) -> None:
+    def __init__(self, tui_state: TUIState) -> None:
         super().__init__(id="progress-panel")
+        self.tui_state = tui_state
         self.progress_display: Static | None = None
         self.recent_samples_widget: Static | None = None
         self.recent_samples: list[str] = []
+
+    def on_mount(self) -> None:
+        """Start watching for stats changes when the component is mounted."""
+        self.watch(self.tui_state, "stats", self.on_stats_change)
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -24,9 +30,10 @@ class ProgressPanel(Static):
             )
             yield self.recent_samples_widget
 
-    def update_progress(self, stats: GenerationStats) -> None:
+    def on_stats_change(self, new_stats: GenerationStats) -> None:
+        """Update the progress bar when the stats object changes."""
         if self.progress_display:
-            progress_pct = int(100 * stats.completed / max(1, stats.target))
+            progress_pct = int(100 * new_stats.completed / max(1, new_stats.target))
             # Create a simple progress bar using characters
             bar_width = 40
             filled_width = int(bar_width * progress_pct / 100)

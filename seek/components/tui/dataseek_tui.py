@@ -9,13 +9,6 @@ import tempfile
 from datetime import datetime
 from typing import Any
 
-try:
-    import darkdetect
-
-    DARKDETECT_AVAILABLE = True
-except ImportError:
-    DARKDETECT_AVAILABLE = False
-
 import typer
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -23,21 +16,24 @@ from textual.containers import Container
 from textual.widgets import Footer, Header
 
 from seek.common.config import load_seek_config, set_active_seek_config
-from seek.common.seek_utils import get_mission_details_from_file
-from seek.components.tui.agent_output_parser import (
-    AgentOutputParser,
-    ErrorMessage,
-    NewMessage,
-    ProgressUpdate,
-    RecursionStepUpdate,
-    SyntheticSampleUpdate,
-)
+from seek.components.tui.agent_handler import _run_agent
+from seek.components.tui.utils import get_mission_details_from_file
+from seek.components.tui.agent_output_parser import AgentOutputParser
 from seek.components.tui.agent_process_manager import AgentProcessManager
 from seek.components.tui.components.conversation_panel import ConversationPanel
 from seek.components.tui.components.mission_panel import MissionPanel
 from seek.components.tui.components.mission_selector import MissionSelector
 from seek.components.tui.components.progress_panel import ProgressPanel
-from seek.components.tui.components.stats_header import GenerationStats, StatsHeader
+from seek.components.tui.components.stats_header import StatsHeader
+from seek.components.tui.state import TUIState
+from seek.components.tui.theme_manager import (
+    DARKDETECT_AVAILABLE,
+    action_toggle_theme,
+    apply_footer_styles,
+    apply_theme_styling,
+    detect_system_theme,
+    sync_with_system_theme,
+)
 
 
 class DataSeekTUI(App):
@@ -73,7 +69,8 @@ class DataSeekTUI(App):
         self._debug_log_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")
         if debug:
             print(f"Writing debug log to {self._debug_log_path}")
-        self.stats = GenerationStats()
+
+        self.tui_state = TUIState()
         self.agent_process_manager: AgentProcessManager | None = None
         self.agent_output_parser = AgentOutputParser()
         self.log_handle: io.TextIOWrapper | None = None
@@ -95,57 +92,6 @@ class DataSeekTUI(App):
             except Exception as _e:
                 # Ignore debug logging errors
                 pass  # nosec B110 # - debug logging failure is non-fatal
-
-    def detect_system_theme(self) -> str | None:
-        """Detect the current system theme (dark/light)."""
-        if not DARKDETECT_AVAILABLE:
-            return None
-
-        try:
-            # darkdetect.isDark() returns True for dark mode, False for light mode, None if unknown
-            is_dark = darkdetect.isDark()
-            if is_dark is None:
-                return None
-            return "dark" if is_dark else "light"
-        except Exception as e:
-            self.debug_log(f"Failed to detect system theme: {e}")
-            return None
-
-    def sync_with_system_theme(self) -> None:
-        """Sync the app theme with the system theme if it has changed."""
-        if not self.system_theme_sync_enabled:
-            return
-
-        current_system_theme = self.detect_system_theme()
-        if current_system_theme is None:
-            return
-
-        # Only change if system theme is different from what we detected last time
-        if current_system_theme != self.last_detected_theme:
-            # If the user manually toggled, clear the override only when the
-            # system theme actually changes. This avoids immediate auto-revert.
-            if self.user_theme_override:
-                self.user_theme_override = False
-            self.last_detected_theme = current_system_theme
-
-            # Convert system theme to our dark boolean
-            system_wants_dark = current_system_theme == "dark"
-
-            # Only apply if different from current app theme
-            if system_wants_dark != self.dark:
-                self.dark = system_wants_dark
-                theme_name = "dark" if self.dark else "light"
-
-                # Apply theme styling
-                self.apply_theme_styling()
-
-                # Show user feedback
-                if hasattr(self, "conversation"):
-                    self.conversation.add_message(
-                        "info", f"🌓 Auto-synced to system {theme_name} theme"
-                    )
-
-                self.debug_log(f"Auto-synced theme to system: {theme_name}")
 
     def _load_mission_config(self, mission_name: str) -> dict:
         """Load mission-specific configuration from the mission config file."""
@@ -177,7 +123,7 @@ class DataSeekTUI(App):
     def compose(self) -> ComposeResult:
         # Initialize with system theme if available, otherwise default to dark
         if self.system_theme_sync_enabled:
-            system_theme = self.detect_system_theme()
+            system_theme = detect_system_theme(self)
             if system_theme is not None:
                 self.dark = system_theme == "dark"
                 self.last_detected_theme = system_theme
@@ -189,7 +135,7 @@ class DataSeekTUI(App):
             self.dark = True  # Default to dark if darkdetect not available
             self.debug_log("darkdetect not available, defaulting to dark theme")
 
-        self.apply_footer_styles()
+        apply_footer_styles(self)
         yield Header()
         yield Footer()
 
@@ -212,379 +158,7 @@ class DataSeekTUI(App):
                 MissionSelector(mission_details["mission_names"], self.dark),
                 self.on_mission_selected,
             )
-        self.apply_footer_styles()
-
-    def apply_footer_styles(self) -> None:
-        """Applies custom styles to the footer keys based on the current theme."""
-
-        def _apply_styles() -> None:
-            try:
-                footer = self.query_one(Footer)
-                key_color = "#58a6ff" if self.dark else "#0969da"
-
-                # Try multiple selectors for footer keys
-                selectors_tried = []
-                keys_found = 0
-
-                for selector in [".footer-key", "FooterKey", "Key", ".key"]:
-                    try:
-                        keys = footer.query(selector)
-                        selectors_tried.append(f"{selector}:{len(keys)}")
-                        if keys:
-                            keys_found += len(keys)
-                            for key in keys:
-                                key.styles.color = key_color
-                    except Exception as e:
-                        selectors_tried.append(f"{selector}:error({e})")
-
-                # Also try CSS class approach for footer keys
-                theme_class = "dark-theme" if self.dark else "light-theme"
-                opposite_class = "light-theme" if self.dark else "dark-theme"
-
-                try:
-                    for selector in ["FooterKey", ".footer-key"]:
-                        for key in footer.query(selector):
-                            key.add_class(theme_class)
-                            key.remove_class(opposite_class)
-                except Exception:
-                    pass  # nosec B110 # - non-critical visual update failure
-
-                self.debug_log(
-                    f"Footer key styling - selectors tried: {selectors_tried}, keys found: {keys_found}, color: {key_color}"
-                )
-
-            except Exception as e:
-                self.debug_log(f"Footer styling failed: {e}")
-
-        # Schedule the styling to happen after the footer is fully rendered
-        self.call_after_refresh(_apply_styles)
-
-    def apply_theme_styling(self) -> None:
-        """Apply theme styling to all elements programmatically."""
-
-        def _apply_theme_styles() -> None:
-            try:
-                # Define colors for current theme
-                if self.dark:
-                    bg_color = "#0d1117"
-                    text_color = "#c9d1d9"
-                    header_bg = "#21262d"
-                    container_bg = "#161b22"
-                    conversation_bg = "#1b1f27"
-                    progress_bg = "#1b1f27"
-                    mission_bg = "#1f2230"
-                    title_color = "#58a6ff"
-                    progress_text_color = "#58a6ff"
-                else:
-                    bg_color = "#f6f8fa"
-                    text_color = "#24292f"
-                    header_bg = "#eaeef2"
-                    container_bg = "#ffffff"
-                    conversation_bg = "#f0f2f6"
-                    progress_bg = "#f0f2f6"
-                    mission_bg = "#f6f8fa"
-                    title_color = "#0969da"
-                    progress_text_color = "#0969da"
-
-                theme_name = "dark" if self.dark else "light"
-                self.debug_log(f"Applying {theme_name} theme styling...")
-
-                # Apply screen/app background if possible
-                try:
-                    self.screen.styles.background = bg_color
-                    self.screen.styles.color = text_color
-                except Exception:
-                    pass  # nosec B110 # - non-critical visual update failure
-
-                # Apply built-in Header widget styling with multiple approaches
-                try:
-                    from textual.widgets import Header
-
-                    header_widget = self.query_one(Header)
-
-                    # Try direct styling
-                    header_widget.styles.background = header_bg
-                    header_widget.styles.color = text_color
-
-                    # Try forcing a refresh
-                    header_widget.refresh()
-
-                    # Try setting CSS variables if they exist
-                    try:
-                        header_widget.styles.background = header_bg
-                        header_widget.styles.color = text_color
-                    except Exception as e:
-                        self.debug_log(f"Failed removing stats_header class: {e}")
-
-                    # Try accessing sub-components of the header
-                    try:
-                        for child in header_widget.children:
-                            child.styles.background = header_bg
-                            child.styles.color = text_color
-                    except Exception:
-                        pass  # nosec B110 # - non-critical visual update failure
-
-                    # Try adding/removing CSS classes for theme control
-                    try:
-                        if self.dark:
-                            header_widget.add_class("dark-theme")
-                            header_widget.remove_class("light-theme")
-                        else:
-                            header_widget.add_class("light-theme")
-                            header_widget.remove_class("dark-theme")
-                    except Exception:
-                        pass  # nosec B110 # - non-critical visual update failure
-
-                    self.debug_log(
-                        f"Applied Header widget styling: bg={header_bg}, color={text_color}"
-                    )
-                except Exception as e:
-                    self.debug_log(f"Header widget styling failed: {e}")
-
-                # Apply stats header styling (custom widget)
-                try:
-                    # Try both the widget reference and ID selector
-                    if hasattr(self, "stats_header"):
-                        # Apply background and text color
-                        self.stats_header.styles.background = header_bg
-                        self.stats_header.styles.color = text_color
-                        # Force refresh to pick up the new colors
-                        self.stats_header.refresh()
-                        self.debug_log("Applied stats_header reference styling")
-
-                    # Also try targeting by ID
-                    try:
-                        stats_header = self.query_one("#stats-header")
-                        stats_header.styles.background = header_bg
-                        stats_header.styles.color = text_color
-                        stats_header.refresh()
-                        self.debug_log("Applied stats_header ID styling")
-                    except Exception:
-                        pass  # nosec B110 # - non-critical visual update failure
-
-                    # Try adding CSS classes for theme control
-                    try:
-                        if hasattr(self, "stats_header"):
-                            if self.dark:
-                                self.stats_header.add_class("dark-theme")
-                                self.stats_header.remove_class("light-theme")
-                            else:
-                                self.stats_header.add_class("light-theme")
-                                self.stats_header.remove_class("dark-theme")
-                    except Exception:
-                        pass  # nosec B110 # - non-critical visual update failure
-
-                except Exception as e:
-                    self.debug_log(f"Stats header styling failed: {e}")
-
-                # Apply main container styling
-                try:
-                    container = self.query_one("#main-container")
-                    container.styles.background = container_bg
-                    container.styles.color = text_color
-                except Exception as e:
-                    self.debug_log(f"Failed styling main container: {e}")
-
-                # Apply progress panel styling
-                if hasattr(self, "progress_panel"):
-                    try:
-                        self.progress_panel.styles.background = progress_bg
-                        self.progress_panel.styles.color = text_color
-                    except Exception as e:
-                        self.debug_log(f"Failed styling progress_panel: {e}")
-
-                # Apply mission panel styling
-                if hasattr(self, "mission_panel"):
-                    try:
-                        self.mission_panel.styles.background = mission_bg
-                        self.mission_panel.styles.color = text_color
-                    except Exception as e:
-                        self.debug_log(f"Failed styling mission_panel: {e}")
-
-                # Apply conversation styling
-                if hasattr(self, "conversation"):
-                    try:
-                        self.conversation.styles.background = conversation_bg
-                        self.conversation.styles.color = text_color
-                    except Exception as e:
-                        self.debug_log(f"Failed styling conversation panel: {e}")
-
-                # Apply title styling
-                for title in self.query(".panel-title"):
-                    try:
-                        title.styles.color = title_color
-                    except Exception as e:
-                        self.debug_log(f"Failed styling header title: {e}")
-
-                # Apply progress text styling
-                try:
-                    progress = self.query_one("#main-progress")
-                    progress.styles.color = progress_text_color
-                except Exception as e:
-                    self.debug_log(f"Failed styling footer progress: {e}")
-
-                # Apply CSS classes to all elements for theme control
-                try:
-                    # Apply theme class to all major elements
-                    theme_class = "dark-theme" if self.dark else "light-theme"
-                    opposite_class = "light-theme" if self.dark else "dark-theme"
-
-                    # List of all elements to apply theme classes to
-                    element_selectors = [
-                        "#progress-panel",
-                        "#main-progress",
-                        "#recent-samples",
-                        "#mission-panel",
-                        "#mission-info",
-                        "#conversation",
-                        "#main-container",
-                    ]
-
-                    for selector in element_selectors:
-                        try:
-                            element = self.query_one(selector)
-                            element.add_class(theme_class)
-                            element.remove_class(opposite_class)
-                        except Exception as e:
-                            self.debug_log(f"Failed updating title classes: {e}")
-
-                    # Apply theme class to all panel titles
-                    for title in self.query(".panel-title"):
-                        try:
-                            title.add_class(theme_class)
-                            title.remove_class(opposite_class)
-                        except Exception as e:
-                            self.debug_log(f"Failed updating scrollbar class via {selector}: {e}")
-
-                    self.debug_log(f"Applied CSS theme classes: {theme_class}")
-
-                except Exception as e:
-                    self.debug_log(f"CSS class application failed: {e}")
-
-                # Apply scrollbar styling with multiple approaches
-                try:
-                    theme_class = "dark-theme" if self.dark else "light-theme"
-                    opposite_class = "light-theme" if self.dark else "dark-theme"
-
-                    # Try multiple scrollbar element selectors
-                    scrollbar_selectors = [
-                        ".scrollbar",
-                        "Scrollbar",
-                        ".vertical-scrollbar",
-                        ".horizontal-scrollbar",
-                    ]
-
-                    thumb_selectors = [".scrollbar-thumb", "ScrollbarThumb", ".thumb"]
-
-                    # Apply to all scrollbar elements in the app
-                    for selector in scrollbar_selectors:
-                        try:
-                            for scrollbar in self.query(selector):
-                                scrollbar.add_class(theme_class)
-                                scrollbar.remove_class(opposite_class)
-                        except Exception as e:
-                            self.debug_log(f"Failed updating thumb class via {selector}: {e}")
-
-                    # Apply to all scrollbar thumb elements
-                    for selector in thumb_selectors:
-                        try:
-                            for thumb in self.query(selector):
-                                thumb.add_class(theme_class)
-                                thumb.remove_class(opposite_class)
-                        except Exception as e:
-                            self.debug_log(f"Failed querying elements for selector {selector}: {e}")
-
-                    # Debug: Log what scrollbar elements we can find
-                    found_elements = []
-                    for selector in scrollbar_selectors + thumb_selectors:
-                        try:
-                            elements = self.query(selector)
-                            if elements:
-                                found_elements.append(f"{selector}: {len(elements)} elements")
-                        except Exception as e:
-                            self.debug_log(f"Failed enumerating all elements: {e}")
-
-                    if found_elements:
-                        self.debug_log(f"Found scrollbar elements: {', '.join(found_elements)}")
-                    else:
-                        self.debug_log("No scrollbar elements found with any selector")
-
-                        # Try to find ALL elements and log them
-                        all_elements = []
-                        try:
-                            for element in self.query("*"):
-                                if hasattr(element, "id") and element.id:
-                                    all_elements.append(element.id)
-                                elif hasattr(element, "__class__"):
-                                    class_name = element.__class__.__name__
-                                    if "scroll" in class_name.lower():
-                                        all_elements.append(class_name)
-
-                            if all_elements:
-                                self.debug_log(
-                                    f"All elements with IDs or scroll-related: {', '.join(set(all_elements))}"
-                                )
-                        except Exception as e:
-                            self.debug_log(f"Failed to log found elements: {e}")
-
-                except Exception as e:
-                    self.debug_log(f"Scrollbar styling failed: {e}")
-
-            except Exception as e:
-                self.debug_log(f"Theme styling error: {e}")
-
-        # Apply built-in Footer widget styling
-        def _apply_footer_widget_styles() -> None:
-            try:
-                from textual.widgets import Footer
-
-                footer_widget = self.query_one(Footer)
-                # Use the same color variables from the parent scope
-                current_footer_bg = "#21262d" if self.dark else "#eaeef2"
-                current_footer_text = "#c9d1d9" if self.dark else "#24292f"
-                footer_widget.styles.background = current_footer_bg
-                footer_widget.styles.color = current_footer_text
-                self.debug_log(
-                    f"Applied Footer widget styling: bg={current_footer_bg}, color={current_footer_text}"
-                )
-            except Exception as e:
-                self.debug_log(f"Footer widget styling failed: {e}")
-
-        self.call_after_refresh(_apply_footer_widget_styles)
-
-        # Apply footer key styles
-        self.apply_footer_styles()
-
-        # Apply main theme styles
-        self.call_after_refresh(_apply_theme_styles)
-
-    def action_toggle_theme(self) -> None:
-        """An action to toggle between dark and light themes (manual override)."""
-        # Toggle theme manually
-        self.dark = not self.dark
-        theme_name = "dark" if self.dark else "light"
-
-        # Mark a manual override and align last_detected_theme to current
-        # system theme so periodic checks don't immediately revert it.
-        if self.system_theme_sync_enabled:
-            self.user_theme_override = True
-            current_system = self.detect_system_theme()
-            if current_system is not None:
-                self.last_detected_theme = current_system
-
-        # Apply all theme styling programmatically
-        self.apply_theme_styling()
-
-        # Show user feedback
-        if hasattr(self, "conversation"):
-            sync_status = " (manual override)" if self.system_theme_sync_enabled else ""
-            self.conversation.add_message("info", f"🎨 Switched to {theme_name} theme{sync_status}")
-
-        self.debug_log(f"Theme manually toggled to: {theme_name}")
-
-    def action_debug_scrollbars(self) -> None:
-        """Action to debug scrollbars."""
-        self.debug_all_scrollbars()
+        apply_footer_styles(self)
 
     def on_mission_selected(self, mission_name: str | None) -> None:
         """Called when a mission is selected from the modal."""
@@ -608,7 +182,7 @@ class DataSeekTUI(App):
         if mission_details is None:
             raise ValueError(f"Failed to load mission details from {self.mission_plan_path}")
         total_samples_target = mission_details["mission_targets"].get(mission_name, 1200)
-        self.stats.target = total_samples_target
+        self.tui_state.stats.target = total_samples_target
 
         seek_config = load_seek_config(self.seek_config_path, use_robots=self.use_robots)
         # Set active config for TUI context as well (non-subprocess usage)
@@ -637,14 +211,15 @@ class DataSeekTUI(App):
             mission_plan_path=self.mission_plan_path,
         )
 
-        self.stats_header = StatsHeader()
+        self.stats_header = StatsHeader(self.tui_state)
         # Initialize stats with synthetic budget and target size
-        self.stats.synthetic_budget = synthetic_budget
-        self.stats.target_size = target_size
-        self.stats.total_recursion_steps = recursion_limit
+        self.tui_state.stats.synthetic_budget = synthetic_budget
+        self.tui_state.stats.target_size = target_size
+        self.tui_state.stats.total_recursion_steps = recursion_limit
 
-        self.progress_panel = ProgressPanel()
+        self.progress_panel = ProgressPanel(self.tui_state)
         self.mission_panel = MissionPanel(
+            self.tui_state,
             self.mission_plan_path,
             mission_name,
             total_samples_target,
@@ -672,12 +247,12 @@ class DataSeekTUI(App):
         )
 
         # Apply initial theme styling to all components
-        self.apply_theme_styling()
+        apply_theme_styling(self)
 
         # Also apply footer styling with a small delay to ensure footer keys are rendered
         def _delayed_footer_styling() -> None:
             self.debug_log("Applying delayed footer key styling after UI load")
-            self.apply_footer_styles()
+            apply_footer_styles(self)
 
         self.set_timer(0.5, _delayed_footer_styling)
 
@@ -685,7 +260,7 @@ class DataSeekTUI(App):
         if self.system_theme_sync_enabled:
 
             def _check_system_theme() -> None:
-                self.sync_with_system_theme()
+                sync_with_system_theme(self)
                 # Schedule next check in 3 seconds
                 self.set_timer(3.0, _check_system_theme)
 
@@ -700,171 +275,11 @@ class DataSeekTUI(App):
         self.conversation.add_message("info", f"Mission: {mission_name}")
         self.conversation.add_message("info", f"Target: {total_samples_target} samples")
 
-        self.run_worker(self._run_agent(), name="agent")
+        self.run_worker(_run_agent(self), name="agent")
 
-    async def _run_agent(self) -> None:
-        """Run the Data Seek Agent as a subprocess and parse its output."""
-        self.stats.started_at = datetime.now()
-        if self.agent_process_manager is None:
-            self.debug_log("Agent process manager not initialized")
-            return
-        try:
-            process = await self.agent_process_manager.start()
-            if process.stdout is None:
-                self.debug_log("Agent process has no stdout")
-                return
-            while True:
-                line_bytes = await process.stdout.readline()
-                if not line_bytes:
-                    break
-                line = line_bytes.decode("utf-8").strip()
-                if line:
-                    # Log to file if log file is specified
-                    if self.log_handle:
-                        try:
-                            timestamp = datetime.now().strftime("%H:%M:%S")
-                            self.log_handle.write(f"[{timestamp}] {line}\n")
-                            self.log_handle.flush()
-                        except Exception as e:
-                            self.debug_log(f"Failed writing log line: {e}")
-
-                    # Parse the line and handle events
-                    events = list(self.agent_output_parser.parse_line(line))
-                    if events:
-                        try:
-                            with open(self._debug_log_path, "a") as f:
-                                f.write(
-                                    f"GENERATED {len(events)} EVENTS for line: {line[:100]}...\n"
-                                )
-                        except Exception as e:
-                            self.debug_log(f"Failed writing debug events: {e}")
-                    for event in events:
-                        self._handle_agent_event(event)
-        except Exception as e:
-            self.conversation.add_message("error", f"Agent error: {str(e)}")
-        finally:
-            self.conversation.add_message("info", "Agent process completed")
-            # Start a 5-second timer to auto-close the TUI
-            self.set_timer(5.0, self._auto_close_after_completion)
-
-    def _handle_agent_event(self, event: Any) -> None:
-        """Handle events from the agent output parser."""
-        # Debug: Log all events being handled
-        self.debug_log(f"HANDLING EVENT: {type(event).__name__} - {event}")
-
-        if isinstance(event, ProgressUpdate):
-            self.stats.completed = event.completed
-            self.stats.target = event.target
-            self.stats_header.update_stats(self.stats)
-            self.progress_panel.update_progress(self.stats)
-
-            # Update mission status when progress is made
-            if event.completed > 0:
-                self.mission_panel.update_status(
-                    f"Generating... ({event.completed}/{event.target})"
-                )
-
-            self.debug_log(f"PROGRESS UPDATE: {event.completed}/{event.target}")
-        elif isinstance(event, SyntheticSampleUpdate):
-            # Update synthetic sample count
-            self.stats.synthetic_completed = event.count
-            self.stats_header.update_stats(self.stats)
-            self.debug_log(f"SYNTHETIC SAMPLE UPDATE: {event.count}")
-        elif isinstance(event, RecursionStepUpdate):
-            # Update recursion step information
-            self.stats.current_recursion_step = event.current_step
-            self.stats.total_recursion_steps = event.total_steps
-            self.stats_header.update_stats(self.stats)
-            self.debug_log(f"RECURSION STEP UPDATE: {event.current_step}/{event.total_steps}")
-        elif isinstance(event, NewMessage):
-            self.debug_log(f"NEW MESSAGE EVENT: {event.role} -> {event.content[:100]}...")
-            self.conversation.add_message(event.role, event.content)
-
-            # Update mission status based on message content
-            import re
-
-            # Check for Graph Router patterns
-            if "Graph Router: Routing to" in event.content:
-                route_match = re.search(r"Graph Router: Routing to (\w+)", event.content)
-                if route_match:
-                    route_name = route_match.group(1)
-                    if route_name.lower() == "end":
-                        self.mission_panel.update_status("Sample Completed")
-                    elif route_name.lower() == "archive":
-                        self.mission_panel.update_status("Archiving Sample...")
-                    elif route_name.lower() == "fitness":
-                        self.mission_panel.update_status("Checking Fitness...")
-                    elif route_name.lower() == "synthetic":
-                        self.mission_panel.update_status("Generating Synthetic...")
-                    else:
-                        self.mission_panel.update_status(f"Routing to {route_name}...")
-
-            # Check for node execution patterns like "🔍 RESEARCH NODE" or "🎨 SYNTHETIC NODE"
-            elif ("NODE" in event.content and "🔍" in event.content) or (
-                "SYNTHETIC NODE" in event.content and "🎨" in event.content
-            ):
-                if "🎨 SYNTHETIC NODE" in event.content:
-                    self.mission_panel.update_status("Generating Synthetic Content...")
-                else:
-                    node_match = re.search(r"🔍\s+(\w+)\s+NODE", event.content)
-                    if node_match:
-                        node_name = node_match.group(1)
-                        self.mission_panel.update_status(f"Working on {node_name}...")
-
-            # Check for agent starting work (move from Initializing)
-            elif (
-                "▶ Iteration" in event.content
-                or "🔧 Tool calls:" in event.content
-                or "📊 CONTEXT:" in event.content
-            ) and self.mission_panel.current_status == "Initializing...":
-                self.mission_panel.update_status("Working...")
-                # Extract current recursion step if available
-                import re
-
-                iteration_match = re.search(r"▶ Iteration (\d+)/(\d+)", event.content)
-                if iteration_match:
-                    current_step = int(iteration_match.group(1))
-                    total_steps = int(iteration_match.group(2))
-                    self.stats.current_recursion_step = current_step
-                    self.stats.total_recursion_steps = total_steps
-                    self.stats_header.update_stats(self.stats)
-
-            # Check for routing to END (fallback pattern)
-            elif "Routing to END" in event.content or "Decided on 'end'" in event.content:
-                self.mission_panel.update_status("Sample Completed")
-
-            # Check for sample archival and add to recent samples
-            elif "sample #" in event.content.lower() and "archived" in event.content.lower():
-                sample_match = re.search(r"#(\d+)", event.content)
-                if sample_match:
-                    sample_num = int(sample_match.group(1))
-
-                    # Extract completion percentage if available
-                    pct_match = re.search(r"\((\d+\.?\d*)% complete\)", event.content)
-                    completion_pct = pct_match.group(1) if pct_match else "?"
-
-                    # Extract source type (provenance) if available
-                    source_match = re.search(r"Source: (\w+)", event.content)
-                    source_type = source_match.group(1) if source_match else "unknown"
-
-                    # Try to extract sample excerpt from the most recent content
-                    sample_excerpt = self._extract_recent_sample_excerpt()
-
-                    if sample_excerpt:
-                        description = (
-                            f"{sample_excerpt} ({completion_pct}% complete) - Source: {source_type}"
-                        )
-                    else:
-                        description = (
-                            f"Archived ({completion_pct}% complete) - Source: {source_type}"
-                        )
-
-                    self.progress_panel.add_sample(sample_num, description)
-        elif isinstance(event, ErrorMessage):
-            self.debug_log(f"ERROR MESSAGE EVENT: {event.message[:100]}...")
-            self.conversation.add_message("error", event.message)
-            self.stats.errors += 1
-            self.stats_header.update_stats(self.stats)
+    def action_toggle_theme(self) -> None:
+        """An action to toggle between dark and light themes (manual override)."""
+        action_toggle_theme(self)
 
     def action_quit(self) -> Any:
         """Quit the application."""

@@ -41,12 +41,12 @@ def test_research_node_max_iterations_validation():
         SeekAgentResearchNodeConfig(max_iterations=51)
 
 
-@patch("seek.components.search_graph.nodes.get_active_seek_config")
-@patch("seek.components.search_graph.nodes.ChatLiteLLM")
-@patch("seek.components.search_graph.nodes.get_tools_for_role")
-@patch("seek.components.search_graph.nodes.ChatPromptTemplate")
+@patch("seek.components.search_graph.nodes.research.get_active_seek_config")
+@patch("seek.components.search_graph.nodes.research.create_llm")
+@patch("seek.components.search_graph.nodes.research.get_tools_for_role")
+@patch("seek.components.search_graph.nodes.research.ChatPromptTemplate")
 def test_research_node_uses_config_max_iterations(
-    mock_prompt, mock_get_tools, mock_chat_llm, mock_get_active_seek_config
+    mock_prompt, mock_get_tools, mock_create_llm, mock_get_active_seek_config
 ):
     """Test that research_node uses configured max_iterations."""
     # --- Arrange ---
@@ -62,7 +62,7 @@ def test_research_node_uses_config_max_iterations(
 
     # Mock LLM and tools
     mock_llm_instance = Mock()
-    mock_chat_llm.return_value = mock_llm_instance
+    mock_create_llm.return_value = mock_llm_instance
     mock_get_tools.return_value = []
 
     # Mock LLM to return a final report on the last iteration

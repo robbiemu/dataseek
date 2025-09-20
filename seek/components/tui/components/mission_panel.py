@@ -5,63 +5,56 @@ from textual.containers import Vertical
 from textual.widgets import Static
 
 
+from ..state import TUIState
+
+
 class MissionPanel(Static):
     """Right panel with mission status and details."""
 
     def __init__(
         self,
+        tui_state: TUIState,
         mission_path: str,
         mission_name: str,
         total_samples_target: int,
         config: dict[str, Any],
     ):
         super().__init__(id="mission-panel")
+        self.tui_state = tui_state
         self.mission_path = mission_path
         self.mission_name = mission_name
         self.total_samples_target = total_samples_target
         self.config = config
-        self.current_status = "Initializing..."
         self.mission_info_widget: Static | None = None
+
+    def on_mount(self) -> None:
+        """Start watching for mission status changes when the component is mounted."""
+        self.watch(self.tui_state, "mission_status", self.on_status_change)
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Static("🎯 Mission Status", classes="panel-title")
-            # Extract values from config dict
-            mission_plan = self.config.get("mission_plan", {})
-            nodes = mission_plan.get("nodes", [])
-            model = nodes[0].get("model", "unknown") if nodes else "unknown"
-            provider = (self.config.get("web_search") or {}).get("provider") or self.config.get(
-                "search_provider", "unknown"
-            )
-
-            mission_info = (
-                f"Mission: {self.mission_name}\n"
-                f"Target: {self.total_samples_target} samples\n"
-                f"Model: {model}\n"
-                f"Provider: {provider}\n"
-                f"Status: {self.current_status}"
-            )
-            self.mission_info_widget = Static(mission_info, id="mission-info")
+            self.mission_info_widget = Static(self._get_mission_info(), id="mission-info")
             if self.mission_info_widget is not None:
                 yield self.mission_info_widget
 
-    def update_status(self, new_status: str) -> None:
-        """Update the mission status displayed in the panel."""
-        self.current_status = new_status
-        if self.mission_info_widget:
-            # Extract values from config dict
-            mission_plan = self.config.get("mission_plan", {})
-            nodes = mission_plan.get("nodes", [])
-            model = nodes[0].get("model", "unknown") if nodes else "unknown"
-            provider = (self.config.get("web_search") or {}).get("provider") or self.config.get(
-                "search_provider", "unknown"
-            )
+    def _get_mission_info(self) -> str:
+        """Get the mission info text."""
+        mission_plan = self.config.get("mission_plan", {})
+        nodes = mission_plan.get("nodes", [])
+        model = nodes[0].get("model", "unknown") if nodes else "unknown"
+        provider = (self.config.get("web_search") or {}).get("provider") or self.config.get(
+            "search_provider", "unknown"
+        )
+        return (
+            f"Mission: {self.mission_name}\n"
+            f"Target: {self.total_samples_target} samples\n"
+            f"Model: {model}\n"
+            f"Provider: {provider}\n"
+            f"Status: {self.tui_state.mission_status}"
+        )
 
-            mission_info = (
-                f"Mission: {self.mission_name}\n"
-                f"Target: {self.total_samples_target} samples\n"
-                f"Model: {model}\n"
-                f"Provider: {provider}\n"
-                f"Status: {self.current_status}"
-            )
-            self.mission_info_widget.update(mission_info)
+    def on_status_change(self, new_status: str) -> None:
+        """Update the mission status displayed in the panel."""
+        if self.mission_info_widget:
+            self.mission_info_widget.update(self._get_mission_info())

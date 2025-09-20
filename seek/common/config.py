@@ -30,6 +30,9 @@ _global_use_robots = True
 # Active configuration instance set at application startup
 _active_seek_config: Optional["StructuredSeekConfig"] = None
 
+# Prompts configuration
+_prompts_config: Optional[dict] = None
+
 
 def set_global_use_robots(use_robots: bool) -> None:
     """Set the global use_robots setting."""
@@ -56,6 +59,26 @@ def get_active_seek_config() -> "StructuredSeekConfig":
         # Fall back to loading with current global use_robots
         _active_seek_config = load_seek_config(use_robots=get_global_use_robots())
     return _active_seek_config
+
+
+def load_prompts_config(config_path: str = "config/prompts.yaml") -> dict:
+    """Load prompts configuration from a YAML file."""
+    global _prompts_config
+    if _prompts_config is None:
+        try:
+            with open(config_path) as f:
+                _prompts_config = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            logger.error(f"Prompts configuration file not found: {config_path}")
+            _prompts_config = {}
+    return _prompts_config
+
+
+def get_prompt(agent_name: str, prompt_type: str = "base_prompt") -> str:
+    """Get a prompt template for a specific agent."""
+    prompts_config = load_prompts_config()
+    agent_config = prompts_config.get(agent_name, {})
+    return agent_config.get(prompt_type, "")
 
 
 class StructuredSeekConfig:

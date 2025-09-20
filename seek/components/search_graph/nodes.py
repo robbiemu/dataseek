@@ -17,7 +17,7 @@ from langchain_core.runnables import Runnable
 from langchain_litellm import ChatLiteLLM
 from pydantic import BaseModel, Field
 
-from seek.common.config import get_active_seek_config
+from seek.common.config import get_active_seek_config, get_prompt
 from seek.common.models import FitnessReport
 from seek.common.utils import (
     append_to_pedigree,
@@ -824,13 +824,8 @@ def supervisor_node(state: DataSeekState) -> dict:
         "\n- `research`: Finds source documents from the web." if not research_is_off_limits else ""
     )
 
-    base_prompt = f"""You are the supervisor of a team of Data Prospecting agents. Your role is to analyze the current mission status and decide which agent should act next.
-    
-    Available Agents:
-    - `fitness`: Evaluates the quality of a source document.
-    - `archive`: Saves an approved document.
-    - `synthetic`: Generates a document from scratch.
-    - `end`: Finishes the mission.{research_detail}"""
+    base_prompt_template = get_prompt("supervisor", "base_prompt")
+    base_prompt = base_prompt_template.format(research_detail=research_detail)
 
     characteristic = next_task.get("characteristic", "N/A")
     topic = next_task.get("topic", "N/A")
@@ -855,7 +850,9 @@ def supervisor_node(state: DataSeekState) -> dict:
     research_success_rate = (
         "high"
         if consecutive_failures < 2 and research_attempts < 3
-        else "moderate" if consecutive_failures < 4 else "low"
+        else "moderate"
+        if consecutive_failures < 4
+        else "low"
     )
 
     # More integrated status summary
@@ -927,23 +924,15 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
    - **Agent:** {success_agent}
    - **Guidance:** The previous task was completed. It is time to start the next task. Analyze the full mission context and decide on the next agent."""
 
-    mission_context = f"""
----
-**MISSION CONTEXT**
-
-**1. Current Task:**
-{current_task_str}
-
-**2. Mission Status:**
-   - **Progress**: {mission_status}
-   - **Decision History (Last 5):** {decision_history[-5:]}
-   - **Recent Failures:** {consecutive_failures} consecutive
-
-{last_action_analysis}
-
-{strategic_guidance}
----
-Your response MUST be a JSON object matching the required schema, with a single key "next_agent" and the name of the agent as the value."""
+    mission_context_template = get_prompt("supervisor", "mission_context")
+    mission_context = mission_context_template.format(
+        current_task_str=current_task_str,
+        mission_status=mission_status,
+        decision_history=str(decision_history[-5:]),
+        consecutive_failures=consecutive_failures,
+        last_action_analysis=last_action_analysis,
+        strategic_guidance=strategic_guidance,
+    )
 
     agent_prompt = ChatPromptTemplate.from_messages(
         [
@@ -1149,120 +1138,24 @@ def research_node(state: "DataSeekState") -> dict:
 
     # --- System prompt (mission-specific) ---
     if cached_only:
-        # Cached-only mode prompt
-        system_prompt = f"""You are a Data Prospector operating in CACHED-ONLY MODE. You have already gathered cached data and must now select from pre-retrieved sources.
-
-Your Mission: Select and process one source from the previously cached data for the characteristic **"{characteristic}"** in the topic **"{topic}"**.
-
----
-{strategy_block}
----
-
-### CACHED-ONLY CONSTRAINTS
-
-**CRITICAL RESTRICTIONS:**
-- You may NOT use search tools (`web_search`, `arxiv_search`, `wikipedia_search`)
-- You may ONLY select from the allowed URLs listed below
-- You may reference cached data using `[CACHE_REFERENCE: call_id]` tokens
-- You may use `url_to_markdown` tool ONLY for URLs in the allowed list
-
-### ALLOWED URLs:
-{chr(10).join(f"- {url}" for url in allowed_urls)}
-
-### CACHED DATA AVAILABLE:
-{cache_context}
-
-### REQUIRED OUTPUT:
-
-You must produce either:
-
-1. **A complete Data Prospecting Report** (if you find a suitable cached source):
-
-# Data Prospecting Report
-
-**Target Characteristic**: `{characteristic}`
-**Search Domain**: `{topic}`
-
-**Source URL**: `[Must be one of the allowed URLs above]`
-**Source Title**: `"[Title from cached data or URL]"`
-
----
-
-## Justification for Selection
-
-* **Alignment with `{characteristic}`**: [Explain why this cached source aligns with the characteristic]
-* **Potential for High Yield**: [Explain why this will yield good training examples]
-
----
-
-## Retrieved Content (Markdown)
-
-`[Use [CACHE_REFERENCE: call_id] or paste curated content from allowed URL]`
-
-2. **OR, if no cached sources are suitable:**
-
-# No More Cached Data
-
-If none of the cached sources are appropriate for this characteristic/topic combination.
-
-**Remember:** Only select URLs from the allowed list. Any other URL will be rejected.
-"""
+        # Cached-only mode prompt template
+        tpl = get_prompt("research", "cached_only_prompt")
+        allowed_urls_list = "\n".join(f"- {url}" for url in allowed_urls)
+        system_prompt = tpl.format(
+            characteristic=characteristic,
+            topic=topic,
+            strategy_block=strategy_block,
+            allowed_urls_list=allowed_urls_list,
+            cache_context=cache_context,
+        )
     else:
-        # Normal mode prompt
-        system_prompt = f"""You are a Data Prospector, a specialist in identifying high-quality raw text for data extraction pipelines. You operate using a ReAct (Reasoning and Acting) methodology.
-
-Your Mission: Your goal is to find and retrieve a source document from the **{topic}** domain whose writing style and structure make it an exceptionally good source for extracting factual claims that exemplify the principle of **"{characteristic}"**.
-
-You are not extracting the final claims. You are finding the *ore*. You must find a document that is naturally rich in sentences that a downstream agent could easily turn into high-quality claims with the desired characteristic.
-
----
-{strategy_block}
----
-
-### ReAct Process & Tool Usage
-
-Your workflow is a two-step process: **Discover, then Extract.**
-
-1.  **REASON:** Based on your strategic focus, formulate a search plan.
-2.  **ACT (Discover):** Use the search tools (`web_search`, `arxiv_search`, `wikipedia_search`) to find promising URLs. The output of these tools is just a list of links and snippets; it is **not** the final document.
-3.  **OBSERVE:** Analyze the search results. Identify the single most promising URL that is likely to contain the full source document.
-4.  **ACT (Extract):** Use the `url_to_markdown` or `documentation_crawler` tool on that single URL to retrieve the **full text** of the candidate document.
-5.  **REPEAT:** If the extracted document is low-quality or irrelevant, discard it and refine your search. Continue until you find one high-quality source document that is a strong match.
-
-### Content Curation (Expert Refinement)
-
-Your goal is to maximize the signal-to-noise ratio for the next agent.
-
-- **To submit a specific, high-value excerpt:** If a specific section of a document is highly relevant, you should extract and submit ONLY that section in the `Retrieved Content (Markdown)` block. You may use ellipses `(...)` on their own line to indicate where you have removed irrelevant surrounding text.
-- **To submit the entire document:** If the whole document is a good fit, you do NOT need to copy its contents. Instead, use a special token to reference the cached tool output. Find the `call_id` from the successful tool call in your history and place it in the report like this:
-
-`[CACHE_REFERENCE: call_...]`
-
-This tells the supervisor to fetch the full content from the cache, saving context space.
-
-When you have successfully found and extracted a suitable source, you MUST output a single, structured 'Data Prospecting Report' exactly in the format below--no extra commentary. Your response must start with `# Data Prospecting Report`.
-
-# Data Prospecting Report
-
-**Target Characteristic**: `{characteristic}`
-**Search Domain**: `{topic}`
-
-**Source URL**: `[The specific URL of the retrieved content]`
-**Source Title**: `"[The title of the web page or document]"`
-
----
-
-## Justification for Selection
-
-* **Alignment with `{characteristic}`**: [Explain in detail *why* the writing style, sentence structure, and overall format of this document make it an excellent source for extracting claims that will have the property of `{characteristic}`. Refer back to your strategic focus in your reasoning.]
-* **Potential for High Yield**: [Briefly explain why you believe this document will provide a large number of usable examples for the downstream agents.]
-
----
-
-## Retrieved Content (Markdown)
-
-`[Either paste the curated excerpt OR provide the [CACHE_REFERENCE: ...] token here.]`
-"""
+        # Normal mode prompt template
+        tpl = get_prompt("research", "normal_prompt")
+        system_prompt = tpl.format(
+            characteristic=characteristic,
+            topic=topic,
+            strategy_block=strategy_block,
+        )
 
     # --- Base prompt template (system is dynamic per-iteration) ---
     prompt_template = ChatPromptTemplate.from_messages(
@@ -1501,7 +1394,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                             if tool_name == "web_search":
                                 # Only proceed with validation if there are results left
                                 if tool_result.get("status") == "ok" and tool_result.get("results"):
-                                    from .seek_utils import _validate_search_results
+                                    from common.seek_utils import _validate_search_results
 
                                     print(f"         🔍 Validating {tool_name} results...")
                                     validation_result = _validate_search_results(
@@ -1547,7 +1440,7 @@ When you have successfully found and extracted a suitable source, you MUST outpu
                             else:
                                 # For non-web_search tools, proceed with normal validation
                                 if tool_result.get("status") == "ok" and tool_result.get("results"):
-                                    from .seek_utils import _validate_search_results
+                                    from common.seek_utils import _validate_search_results
 
                                     print(f"         🔍 Validating {tool_name} results...")
                                     validation_result = _validate_search_results(
@@ -1752,23 +1645,8 @@ def archive_node(state: "DataSeekState") -> dict:
         topic = current_task.get("topic", "unknown").lower().replace(" ", "_")
 
     # --- FIX: Remove JSON and ask for the raw markdown string directly ---
-    system_prompt = f"""You are the Library Cataloger in the Claimify data pipeline.
-
-Your task is to generate a concise pedigree catalog entry in Markdown format based on the provided document.
-
-The entry MUST include:
-- The sample's provenance: **'{provenance}'**
-- The source URL from the document.
-- The target characteristic from the document.
-
-Respond ONLY with the Markdown content for the pedigree entry. Do NOT include any other text, greetings, or JSON formatting.
-
-**Example Response:**
-### YYYY-MM-DD -- Sample Archived
-- **Source Type:** {provenance}
-- **Source URL:** [source url]
-- **Target Characteristic:** {characteristic}
-"""
+    tpl = get_prompt("archive", "base_prompt")
+    system_prompt = tpl.format(provenance=provenance, characteristic=characteristic)
     agent_runnable = create_agent_runnable(llm, system_prompt, "archive")
     llm_result = agent_runnable.invoke({"messages": messages})
 
@@ -1885,39 +1763,16 @@ def fitness_node(state: "DataSeekState") -> dict:
 
     # --- START: REVISED PROMPT AND RUNNABLE CONSTRUCTION ---
 
-    # 3. Define the system prompt with all dynamic content properly escaped
-    system_prompt = f"""You are a Quality Inspector in the Claimify data pipeline. Your role is to evaluate whether a 'book' (a source document) found by the Research Agent is a high-quality source for our mission.
-
-Your job is to inspect the **entire book** and decide if it's worth keeping. A downstream process, the 'Copy Editor', will later extract the specific 'quotes' (claims). You are NOT extracting quotes, only approving the source.
-
----
-**Current Mission Context**
-- **Target Characteristic:** {characteristic}
-- **Search Domain:** {topic}
----
-**Quality Standards for this Mission**
-
-To be approved, the document's writing style and structure must align with the strategic focus for '{characteristic}'. Here is your rubric:
-
----
-{strategy_block}
----
-
-**Your Task**
-
-{provenance_guidance}
-
-The Research Agent has returned the following document(s):
-{escaped_research_findings}
-
-Evaluate the retrieved content against the mission. Is this document a goldmine for the Copy Editor, or a waste of time?
-
-**CRITICAL: Your response must be ONLY a valid JSON object with no additional text, explanations, or formatting. Do not include any text before or after the JSON. Start your response directly with the opening brace {{ and end with the closing brace }}.
-
-**JSON Schema to follow:**
-```json
-{escaped_fitness_schema}
-```"""
+    # 3. Define the system prompt via prompts configuration
+    tpl = get_prompt("fitness", "base_prompt")
+    system_prompt = tpl.format(
+        characteristic=characteristic,
+        topic=topic,
+        strategy_block=strategy_block,
+        provenance_guidance=provenance_guidance,
+        research_findings=escaped_research_findings,
+        fitness_schema=escaped_fitness_schema,
+    )
 
     agent_runnable = create_agent_runnable(llm, system_prompt, "fitness")
     raw_result = agent_runnable.invoke({"messages": state["messages"]})
@@ -1984,43 +1839,10 @@ def synthetic_node(state: DataSeekState) -> dict:
         )
         strategy_block = get_claimify_strategy_block(characteristic)
 
-    system_prompt = f"""You are a Synthetic Book Author in the Claimify data pipeline. Your role is to create high-quality synthetic books (source documents) when the Librarian has failed to find suitable real books from the internet.
-
-When the Librarian has been unable to find good books for a specific characteristic and domain, you step in to author a synthetic book that would be perfect for the Copy Editor to extract quotes from.
-
-Analyze the conversation history to understand:
-1. What Claimify characteristic was being targeted ({characteristic})
-2. What topic domain was being searched ({topic})
-3. Why the real book search failed
-
-**Your synthetic book should be crafted to maximize signal-to-noise ratio for quote extraction:**
-
-{strategy_block}
-
-**Output Format (mimic the Librarian's Data Prospecting Report):**
-
-# Data Prospecting Report
-
-**Target Characteristic**: `{characteristic}`
-**Search Domain**: `{topic}`
-
-**Source URL**: `https://synthetic-library.generated/[relevant-path]`
-**Source Title**: `"[Title of your synthetic book]"`
-
----
-
-## Justification for Selection
-
-* **Alignment with `{characteristic}`**: [Why this synthetic book is perfect for the characteristic]
-* **Potential for High Yield**: [Why the Copy Editor will find many excellent quotes here]
-
----
-
-## Retrieved Content (Markdown)
-
-`[Your substantial, realistic synthetic book content - rich with extractable quotes]`
-
-Focus on creating a book that will be a goldmine for the Copy Editor to extract high-quality sentences from."""
+    tpl = get_prompt("synthetic", "base_prompt")
+    system_prompt = tpl.format(
+        characteristic=characteristic, topic=topic, strategy_block=strategy_block
+    )
 
     agent_runnable = create_agent_runnable(llm, system_prompt, "synthetic")
     result = agent_runnable.invoke({"messages": state["messages"]})
@@ -2263,45 +2085,23 @@ def llm_select_cached_sources(
     remaining_synthetic_budget = max_synthetic_samples - synthetic_samples_generated
     remaining_total_needed = total_samples_target - total_samples_generated
 
-    system_prompt = f"""You are the supervisor selecting whether any unused cached sources can produce another high-quality sample for characteristic '{characteristic}' in topic '{topic}'.
-
-Your task: Evaluate the available cached sources and decide if any could yield additional samples.
-
----
-{strategy_block}
----
-
-**Mission Context & Synthetic Budget:**
-- **Current Status**: Generated {total_samples_generated} samples so far (Research: {total_samples_generated - synthetic_samples_generated}, Synthetic: {synthetic_samples_generated})
-- **Mission Target**: {total_samples_target} total samples
-- **Synthetic Budget**: {synthetic_budget:.0%} ({max_synthetic_samples} samples max)
-- **Current Synthetic Rate**: {current_synthetic_pct:.1%}
-- **Remaining Synthetic Budget**: {remaining_synthetic_budget} synthetic samples available
-- **Remaining Work**: {remaining_total_needed} more samples needed to complete mission
-
-**Available Cached Sources:**
-{candidates_text}
-
-**Decision Guidance:**
-Consider both cached source quality AND synthetic budget balance (target: {synthetic_budget:.0%}, current: {current_synthetic_pct:.1%}):
-- **Under target** ({current_synthetic_pct:.1%} < {synthetic_budget:.0%}): Prefer "stop" (synthetic) unless cached sources are excellent
-- **Near target** ({current_synthetic_pct:.1%} ~= {synthetic_budget:.0%}): Choose based on cached source quality
-- **Over target** ({current_synthetic_pct:.1%} > {synthetic_budget:.0%}): Prefer "reuse_cached" unless cached sources are very poor
-- **Quality priority**: Don't sacrifice quality for budget--a good sample is better than hitting exact ratios
-
-**Constraints:**
-- Only select from the sources listed above
-- Do NOT select any URL that was already used: {excluded_urls}
-- Consider synthetic budget in your decision rationale
-
-**Response Format (JSON only):**
-{{
-    "decision": "reuse_cached" or "stop",
-    "selected_urls": ["list", "of", "selected", "urls"],
-    "rationale": "Brief explanation considering both source quality and synthetic budget"
-}}
-
-Respond ONLY with the JSON object, no other text."""
+    tpl = get_prompt("supervisor_cache_selection", "base_prompt")
+    system_prompt = tpl.format(
+        characteristic=characteristic,
+        topic=topic,
+        strategy_block=strategy_block,
+        total_samples_generated=total_samples_generated,
+        research_samples_generated=total_samples_generated - synthetic_samples_generated,
+        synthetic_samples_generated=synthetic_samples_generated,
+        total_samples_target=total_samples_target,
+        synthetic_budget=f"{synthetic_budget:.0%}",
+        max_synthetic_samples=max_synthetic_samples,
+        current_synthetic_pct=f"{current_synthetic_pct:.1%}",
+        remaining_synthetic_budget=remaining_synthetic_budget,
+        remaining_total_needed=remaining_total_needed,
+        candidates_text=candidates_text,
+        excluded_urls=list(excluded_urls),
+    )
 
     prompt = ChatPromptTemplate.from_messages(
         [

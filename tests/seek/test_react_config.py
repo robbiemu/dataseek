@@ -76,7 +76,7 @@ def test_research_node_uses_config_max_iterations(
     # Bypass prompt formatting to call LLM directly
     class DummyPrompt:
         @classmethod
-        def from_messages(cls, *_args, **_kwargs):
+        def from_messages(cls, *args, **kwargs):
             return cls()
 
         def partial(self, **_kwargs):

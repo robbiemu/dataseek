@@ -153,10 +153,10 @@ class TestNodes:
         # Bypass prompt formatting and have pipeline call LLM directly
         class DummyPrompt:
             @classmethod
-            def from_messages(cls, *_args, **_kwargs):
+            def from_messages(cls, *args, **kwargs):
                 return cls()
 
-            def partial(self, **_kwargs):
+            def partial(self, **kwargs):
                 return self
 
             def __or__(self, other):
@@ -207,10 +207,10 @@ class TestNodes:
         # Bypass prompt formatting
         class DummyPrompt:
             @classmethod
-            def from_messages(cls, *_args, **_kwargs):
+            def from_messages(cls, *args, **kwargs):
                 return cls()
 
-            def partial(self, **_kwargs):
+            def partial(self, **kwargs):
                 return self
 
             def __or__(self, other):
@@ -256,10 +256,10 @@ class TestNodes:
         # Bypass prompt formatting
         class DummyPrompt:
             @classmethod
-            def from_messages(cls, *_args, **_kwargs):
+            def from_messages(cls, *args, **kwargs):
                 return cls()
 
-            def partial(self, **_kwargs):
+            def partial(self, **kwargs):
                 return self
 
             def __or__(self, other):

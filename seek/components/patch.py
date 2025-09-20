@@ -39,7 +39,10 @@ def _patch_log(message: str) -> None:
 
 
 def _patched_ollama_pt(
-    model: str, messages: list, roles: Any | None = None, model_kwargs: Any | None = None
+    model: str,
+    messages: list,
+    roles: Any | None = None,
+    model_kwargs: Any | None = None,  # noqa: ARG001
 ) -> Any:
     """
     Fully patched version of litellm's ollama_pt function.
@@ -243,7 +246,7 @@ def _direct_ollama_call_with_tools(
                 )
                 break  # Success, exit retry loop
 
-            except requests.exceptions.Timeout as _e:
+            except requests.exceptions.Timeout:
                 print(
                     f"⏰ Ollama call timed out after {timeout}s (attempt {attempt + 1}/{max_retries + 1})"
                 )
@@ -463,7 +466,7 @@ try:
                     if submodule and hasattr(submodule, "ollama_pt"):
                         submodule.ollama_pt = _patched_ollama_pt
                         _patch_log(f"✅ Late-patched {name}.{attr}.ollama_pt during import")
-                except Exception as _e:
+                except Exception:
                     # Ignore attribute access errors during late patching
                     pass  # nosec B110 # - late import patch is best-effort only
 

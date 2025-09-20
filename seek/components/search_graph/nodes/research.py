@@ -914,7 +914,7 @@ class SearchResultsValidator:
                     continue
                 raise
 
-            except Exception as _e:
+            except Exception:
                 if attempt < self.max_retries:
                     time.sleep(1.0 * (2**attempt))
                     continue

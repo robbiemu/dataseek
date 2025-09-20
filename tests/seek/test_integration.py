@@ -41,7 +41,7 @@ class TestIntegration:
         # Patch ChatPromptTemplate to bypass formatting and return the LLM directly in pipeline
         class DummyPrompt:
             @classmethod
-            def from_messages(cls, *_args, **_kwargs):
+            def from_messages(cls, *args, **kwargs):
                 return cls()
 
             def partial(self, **_kwargs):
@@ -155,7 +155,7 @@ class TestIntegration:
         # Bypass ChatPromptTemplate formatting
         class DummyPrompt:
             @classmethod
-            def from_messages(cls, *_args, **_kwargs):
+            def from_messages(cls, *args, **kwargs):
                 return cls()
 
             def partial(self, **_kwargs):

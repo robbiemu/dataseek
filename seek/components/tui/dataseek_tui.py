@@ -93,7 +93,7 @@ class DataSeekTUI(App):
             try:
                 with open(self._debug_log_path, "a") as f:
                     f.write(f"{message}\n")
-            except Exception as _e:
+            except Exception:
                 # Ignore debug logging errors
                 pass  # nosec B110 # - debug logging failure is non-fatal
 

@@ -905,7 +905,7 @@ if _HAVE_LIBCRAWLER:
             config = get_active_seek_config()
             resp = _safe_request_get(start_url, timeout_s=timeout_s, max_retries=1)
             soup = BeautifulSoup(resp.text, "html5lib")
-            hrefs = {urljoin(start_url, a["href"]) for a in soup.find_all("a", href=True)}
+            hrefs = {urljoin(start_url, a.get("href", "")) for a in soup.find_all("a", href=True)}
 
             # Extract page title for better context
             title_tag = soup.find("title")

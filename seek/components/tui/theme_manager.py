@@ -57,9 +57,7 @@ def sync_with_system_theme(app: App) -> None:
 
             # Show user feedback
             if hasattr(app, "conversation"):
-                app.conversation.add_message(
-                    "info", f"🌓 Auto-synced to system {theme_name} theme"
-                )
+                app.conversation.add_message("info", f"🌓 Auto-synced to system {theme_name} theme")
 
             app.debug_log(f"Auto-synced theme to system: {theme_name}")
 
@@ -186,9 +184,7 @@ def apply_theme_styling(app: App) -> None:
                 except Exception:
                     pass  # nosec B110 # - non-critical visual update failure
 
-                app.debug_log(
-                    f"Applied Header widget styling: bg={header_bg}, color={text_color}"
-                )
+                app.debug_log(f"Applied Header widget styling: bg={header_bg}, color={text_color}")
             except Exception as e:
                 app.debug_log(f"Header widget styling failed: {e}")
 

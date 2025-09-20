@@ -42,9 +42,7 @@ async def _run_agent(app) -> None:
                 if events:
                     try:
                         with open(app._debug_log_path, "a") as f:
-                            f.write(
-                                f"GENERATED {len(events)} EVENTS for line: {line[:100]}...\n"
-                            )
+                            f.write(f"GENERATED {len(events)} EVENTS for line: {line[:100]}...\n")
                     except Exception as e:
                         app.debug_log(f"Failed writing debug events: {e}")
                 for event in events:
@@ -162,9 +160,7 @@ def _handle_agent_event(app, event: Any) -> None:
                         f"{sample_excerpt} ({completion_pct}% complete) - Source: {source_type}"
                     )
                 else:
-                    description = (
-                        f"Archived ({completion_pct}% complete) - Source: {source_type}"
-                    )
+                    description = f"Archived ({completion_pct}% complete) - Source: {source_type}"
 
                 app.progress_panel.add_sample(sample_num, description)
     elif isinstance(event, ErrorMessage):

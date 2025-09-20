@@ -42,7 +42,7 @@ jobs:
     - name: Type checking with MyPy
       run: |
         source .venv/bin/activate
-        mypy seek
+        mypy seek --exclude tests
         
     - name: Security scan with Bandit
       run: |

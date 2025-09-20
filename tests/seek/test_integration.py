@@ -34,8 +34,8 @@ class TestIntegration:
         mock_llm_instance.model = "ollama/gpt-oss:20b"
         mock_chat_llm.return_value = mock_llm_instance
 
-        # Use a real sqlite checkpointer in a temp file
-        cm = SqliteSaver.from_conn_string("checkpoints/test_integration.sqlite")
+        # Use an in-memory sqlite checkpointer
+        cm = SqliteSaver.from_conn_string(":memory:")
         checkpointer = cm.__enter__()
 
         # Patch ChatPromptTemplate to bypass formatting and return the LLM directly in pipeline
@@ -128,7 +128,7 @@ class TestIntegration:
         mock_llm_instance.model = "ollama/gpt-oss:20b"
         mock_chat_llm.return_value = mock_llm_instance
 
-        cm = SqliteSaver.from_conn_string("checkpoints/test_integration_fallback.sqlite")
+        cm = SqliteSaver.from_conn_string(":memory:")
         checkpointer = cm.__enter__()
 
         # Stub supervisor to include 'synthetic' in decision history and end

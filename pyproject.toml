@@ -49,6 +49,7 @@ dev = [
     "pre-commit>=3.7.0",
     "types-PyYAML",
     "types-requests",
+    "types-beautifulsoup4",
 ]
 # Optional dependency for the crawler tool, requires playwright is installed on the system
 crawler = ["libcrawler"]

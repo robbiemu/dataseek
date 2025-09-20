@@ -1,4 +1,3 @@
-import json
 import secrets
 from typing import Any
 
@@ -10,15 +9,14 @@ from pydantic import BaseModel, Field
 
 from seek.common.config import get_active_seek_config, get_prompt
 from seek.common.utils import strip_reasoning_block
+from seek.components.mission_runner.state import DataSeekState
 
 from .utils import (
+    create_llm,
     get_characteristic_context,
     get_claimify_strategy_block,
     normalize_url,
 )
-from seek.components.mission_runner.state import DataSeekState
-
-from .utils import create_llm
 
 # Define the minimum step cost for a successful research cycle
 MIN_STEPS_FOR_SUCCESSFUL_RESEARCH = (
@@ -1034,9 +1032,6 @@ def extract_used_urls_from_findings(research_findings: list) -> list[str]:
                     continue
 
     return urls
-
-
-from .utils import normalize_url
 
 
 def index_research_cache(cache: list[dict]) -> list[dict]:

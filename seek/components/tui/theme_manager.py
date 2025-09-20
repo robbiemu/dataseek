@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 try:
     import darkdetect
@@ -9,14 +9,13 @@ try:
 except ImportError:
     DARKDETECT_AVAILABLE = False
 
-from textual.app import App
 from textual.widgets import Footer
 
 if TYPE_CHECKING:
     from .dataseek_tui import DataSeekTUI
 
 
-def detect_system_theme(app: "DataSeekTUI") -> str | None:
+def detect_system_theme(app: DataSeekTUI) -> str | None:
     """Detect the current system theme (dark/light)."""
     if not DARKDETECT_AVAILABLE:
         return None
@@ -32,7 +31,7 @@ def detect_system_theme(app: "DataSeekTUI") -> str | None:
         return None
 
 
-def sync_with_system_theme(app: "DataSeekTUI") -> None:
+def sync_with_system_theme(app: DataSeekTUI) -> None:
     """Sync the app theme with the system theme if it has changed."""
     if not app.system_theme_sync_enabled:
         return
@@ -67,7 +66,7 @@ def sync_with_system_theme(app: "DataSeekTUI") -> None:
             app.debug_log(f"Auto-synced theme to system: {theme_name}")
 
 
-def apply_footer_styles(app: "DataSeekTUI") -> None:
+def apply_footer_styles(app: DataSeekTUI) -> None:
     """Applies custom styles to the footer keys based on the current theme."""
 
     def _apply_styles() -> None:
@@ -113,7 +112,7 @@ def apply_footer_styles(app: "DataSeekTUI") -> None:
     app.call_after_refresh(_apply_styles)
 
 
-def apply_theme_styling(app: "DataSeekTUI") -> None:
+def apply_theme_styling(app: DataSeekTUI) -> None:
     """Apply theme styling to all elements programmatically."""
 
     def _apply_theme_styles() -> None:
@@ -411,7 +410,7 @@ def apply_theme_styling(app: "DataSeekTUI") -> None:
     app.call_after_refresh(_apply_theme_styles)
 
 
-def action_toggle_theme(app: "DataSeekTUI") -> None:
+def action_toggle_theme(app: DataSeekTUI) -> None:
     """An action to toggle between dark and light themes (manual override)."""
     # Toggle theme manually
     app.dark = not app.dark

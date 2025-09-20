@@ -23,6 +23,16 @@ from langchain_core.tools import BaseTool, tool
 from seek.common.config import get_active_seek_config
 from seek.components.search_graph.litesearch import AsyncRateLimitManager, SearchProviderProxy
 
+
+# Optional import for deep crawling
+try:
+    from libcrawler.libcrawler import crawl_and_convert
+
+    _HAVE_LIBCRAWLER = True
+except ImportError:
+    crawl_and_convert = None
+    _HAVE_LIBCRAWLER = False
+
 TOKEN_CHARACTER_RATIO = 3.5
 
 
@@ -38,15 +48,6 @@ def _find_url_field(results: list[dict[str, Any]]) -> str | None:
             return key
     return None
 
-
-# Optional import for deep crawling
-try:
-    from libcrawler.libcrawler import crawl_and_convert
-
-    _HAVE_LIBCRAWLER = True
-except ImportError:
-    crawl_and_convert = None
-    _HAVE_LIBCRAWLER = False
 
 # -------------------------
 # Globals for tool clients
@@ -905,7 +906,11 @@ if _HAVE_LIBCRAWLER:
             config = get_active_seek_config()
             resp = _safe_request_get(start_url, timeout_s=timeout_s, max_retries=1)
             soup = BeautifulSoup(resp.text, "html5lib")
-            hrefs = {urljoin(start_url, a.get("href", "")) for a in soup.find_all("a", href=True)}
+            # Use type narrowing to ensure we only process Tag elements
+            from bs4 import Tag
+
+            links = [a for a in soup.find_all("a", href=True) if isinstance(a, Tag)]
+            hrefs = {urljoin(start_url, a.get("href", "")) for a in links}
 
             # Extract page title for better context
             title_tag = soup.find("title")

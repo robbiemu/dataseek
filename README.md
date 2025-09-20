@@ -159,6 +159,18 @@ uv pip install -e .[dev]
   pytest -q --cov=seek
   ```
 
+### Local CI Execution
+
+To run the same checks that CI runs locally:
+
+```bash
+# Generate a script for a specific job (e.g., quality-checks)
+uv run python scripts/local_ci_runner.py quality-checks
+
+# Run the generated script
+./scripts/local_run_ci_quality-checks.sh
+```
+
 Note on tests and networking: tests block outbound network connections by default. If you intentionally need network for an explicit integration test, set `ALLOW_NET_TESTS=1` in the environment.
 
 ## Testing

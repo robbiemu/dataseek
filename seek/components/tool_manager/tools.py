@@ -23,7 +23,6 @@ from langchain_core.tools import BaseTool, tool
 from seek.common.config import get_active_seek_config
 from seek.components.search_graph.litesearch import AsyncRateLimitManager, SearchProviderProxy
 
-
 # Optional import for deep crawling
 try:
     from libcrawler.libcrawler import crawl_and_convert

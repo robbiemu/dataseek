@@ -909,7 +909,13 @@ if _HAVE_LIBCRAWLER:
             from bs4 import Tag
 
             links = [a for a in soup.find_all("a", href=True) if isinstance(a, Tag)]
-            hrefs = {urljoin(start_url, a.get("href", "")) for a in links}
+            hrefs: set[str] = set()
+            for link in links:
+                href = link.get("href", "")
+                if isinstance(href, str) and href:
+                    joined_url = urljoin(start_url, href)
+                    if isinstance(joined_url, str):
+                        hrefs.add(joined_url)
 
             # Extract page title for better context
             title_tag = soup.find("title")
@@ -930,7 +936,7 @@ if _HAVE_LIBCRAWLER:
             path_frequencies: dict[int, int] = {}
 
             for href in hrefs:
-                if href.startswith(base_url_clean):
+                if isinstance(href, str) and href.startswith(base_url_clean):
                     path = urlparse(href).path
                     # Count path segments to identify common structures
                     segments = [seg for seg in path.strip("/").split("/") if seg]

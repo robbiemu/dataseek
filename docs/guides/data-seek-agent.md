@@ -166,64 +166,29 @@ dataseek compile \
   --output-path compiled_prompts/selection.json
 ```
 
-## 6.5. Advanced Configuration: Tool Prefetching and Validation
+### Advanced Configuration: Tool Prefetching and Validation
 
-The Data Seek Agent includes advanced configuration options for controlling how search tools behave, including prefetching and validation features that make the research process more robust.
+The Data Seek Agent supports mission-specific overrides for tool behavior, including prefetching and validation. These are configured in `mission_config.yaml` under the `tools` section for each mission.
 
-### Tool Configuration Options
+For details on global tool settings and overrides, see the [Configuration Guide](../configuration-guide.md#mission_configyaml-mission-specific-configuration).
 
-You can configure tool behavior by adding a `tools` section to your mission configuration:
+Key parameters include:
+- `pre_fetch_pages`: Enable prefetching of search results.
+- `pre_fetch_limit`: Number of results to validate.
+- `validate_urls`: Check URL accessibility.
+- `retry_on_failure`: Auto-retry on failures.
+- `max_retries`: Retry count.
 
+Example:
 ```yaml
-missions:
-  - name: "production_corpus"
-    target_size: 150
-    synthetic_budget: 0.2
-    tools:
-      web_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 5
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
-      arxiv_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 3
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
-      wikipedia_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 3
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
-    goals:
-      - characteristic: "Verifiability"
-        topics: ["news reports", "scientific abstracts"]
+tools:
+  web_search:
+    pre_fetch_pages: true
+    pre_fetch_limit: 5
+    # ... other options
 ```
 
-### Configuration Parameters
-
-Each tool supports the following configuration parameters:
-
-- **`pre_fetch_pages`**: Enable/disable prefetching and validation of search results
-- **`pre_fetch_limit`**: Number of search results to validate (default: 3)
-- **`validate_urls`**: Enable/disable URL validation (default: true)
-- **`retry_on_failure`**: Enable/disable automatic retry with expanded results (default: true)
-- **`max_retries`**: Maximum number of retry attempts (default: 2)
-
-### How Prefetching Works
-
-When prefetching is enabled:
-
-1. **Initial Search**: The search tool returns a list of results
-2. **Validation**: The system validates the accessibility of the first N results (where N = `pre_fetch_limit`)
-3. **Filtering**: Inaccessible URLs are filtered out before being passed to the researcher
-4. **Automatic Retry**: If all validated results are inaccessible, the system automatically retries with expanded results
-5. **Smart Deduplication**: Previously validated bad URLs are excluded from retry attempts
-
-This process makes the research workflow more robust by eliminating dead links before the researcher attempts to fetch them, while maintaining search intent by not modifying queries.
+This enhances robustness by filtering dead links before research.
 
 ## 7. Conclusion
 

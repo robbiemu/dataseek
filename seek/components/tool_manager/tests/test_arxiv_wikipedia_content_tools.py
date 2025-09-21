@@ -16,7 +16,8 @@ def test_arxiv_get_content():
     try:
         from seek.components.tool_manager.tools import arxiv_get_content
 
-        result = arxiv_get_content("machine learning")
+        # Use .invoke to avoid deprecated __call__
+        result = arxiv_get_content.invoke({"query": "machine learning"})
         print(f"Arxiv get content result: {result}")
         if result.get("status") == "ok":
             print("✅ Arxiv get content tool works correctly!")
@@ -36,7 +37,8 @@ def test_wikipedia_get_content():
     try:
         from seek.components.tool_manager.tools import wikipedia_get_content
 
-        result = wikipedia_get_content("artificial intelligence")
+        # Use .invoke to avoid deprecated __call__
+        result = wikipedia_get_content.invoke({"query": "artificial intelligence"})
         print(f"Wikipedia get content result: {result}")
         if result.get("status") == "ok":
             print("✅ Wikipedia get content tool works correctly!")

@@ -11,7 +11,6 @@ from langchain_community.tools import DuckDuckGoSearchRun
 
 # Import all the necessary wrappers from the LangChain ecosystem
 from langchain_community.utilities import (
-    ArxivAPIWrapper,
     # BraveSearchWrapper,
     BingSearchAPIWrapper,
     PubMedAPIWrapper,
@@ -170,7 +169,7 @@ class SearchProviderProxy:
             "you/search": YouSearchAPIWrapper,
             "pubmed/search": PubMedAPIWrapper,
             "wikipedia/search": WikipediaAPIWrapper,
-            "arxiv/search": ArxivAPIWrapper,
+            "arxiv/search": ArxivSearchClient,
         }
 
         # Special handling for providers that need additional configuration
@@ -334,3 +333,37 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+class ArxivSearchClient:
+    """Lightweight Arxiv search client using the modern arxiv.Client API."""
+
+    def run(self, query: str, max_results: int | None = None) -> list[dict[str, Any]]:
+        import arxiv  # Local import to avoid hard dependency at import time
+
+        client = arxiv.Client()
+        search = arxiv.Search(query=query, max_results=max_results or 10)
+        results = client.results(search)
+
+        out: list[dict[str, Any]] = []
+        for r in results:
+            try:
+                authors = [a.name for a in getattr(r, "authors", [])]
+            except Exception:
+                authors = []
+            published = getattr(r, "published", None)
+            out.append(
+                {
+                    "title": getattr(r, "title", None),
+                    "summary": getattr(r, "summary", None),
+                    "published": (
+                        published.isoformat()
+                        if published is not None and hasattr(published, "isoformat")
+                        else str(published) if published is not None else None
+                    ),
+                    "url": getattr(r, "entry_id", None),
+                    "authors": authors,
+                }
+            )
+
+        return out

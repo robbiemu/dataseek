@@ -18,7 +18,7 @@ def test_arxiv_search_vs_content():
 
         # Test search tool
         print("\n--- Arxiv Search Tool ---")
-        search_result = arxiv_search("machine learning")
+        search_result = arxiv_search.invoke({"query": "machine learning"})
         print(f"Search status: {search_result.get('status')}")
         if search_result.get("status") == "ok":
             print(f"Search results type: {type(search_result.get('results'))}")
@@ -28,7 +28,7 @@ def test_arxiv_search_vs_content():
 
         # Test content tool
         print("\n--- Arxiv Content Tool ---")
-        content_result = arxiv_get_content("machine learning")
+        content_result = arxiv_get_content.invoke({"query": "machine learning"})
         print(f"Content status: {content_result.get('status')}")
         if content_result.get("status") == "ok":
             results = content_result.get("results", [])
@@ -63,7 +63,7 @@ def test_wikipedia_search_vs_content():
 
         # Test search tool
         print("\n--- Wikipedia Search Tool ---")
-        search_result = wikipedia_search("artificial intelligence")
+        search_result = wikipedia_search.invoke({"query": "artificial intelligence"})
         print(f"Search status: {search_result.get('status')}")
         if search_result.get("status") == "ok":
             print(f"Search results type: {type(search_result.get('results'))}")
@@ -73,7 +73,7 @@ def test_wikipedia_search_vs_content():
 
         # Test content tool
         print("\n--- Wikipedia Content Tool ---")
-        content_result = wikipedia_get_content("artificial intelligence")
+        content_result = wikipedia_get_content.invoke({"query": "artificial intelligence"})
         print(f"Content status: {content_result.get('status')}")
         if content_result.get("status") == "ok":
             results = content_result.get("results", [])

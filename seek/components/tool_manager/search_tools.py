@@ -188,31 +188,29 @@ def arxiv_get_content(query: str) -> dict[str, Any]:
     It uses asyncio.run() internally to handle the async operations.
     """
     try:
-        # Using LangChain's ArxivAPIWrapper for detailed content retrieval
-        from langchain_community.utilities import ArxivAPIWrapper
+        # Use modern arxiv.Client API to avoid deprecated Search.results
+        import arxiv
 
-        arxiv_wrapper = ArxivAPIWrapper(
-            top_k_results=5,
-            ARXIV_MAX_QUERY_LENGTH=300,
-            load_max_docs=5,
-            load_all_available_meta=False,
-            arxiv_search=None,
-            arxiv_exceptions=None,
-        )
+        client = arxiv.Client()
+        search = arxiv.Search(query=query, max_results=5)
+        results = client.results(search)
 
-        # Get detailed documents
-        docs = arxiv_wrapper.load(query)
-
-        # Format the results for consistency
-        formatted_results = []
-        for doc in docs:
+        formatted_results: list[dict[str, Any]] = []
+        for r in results:
+            try:
+                authors = [a.name for a in getattr(r, "authors", [])]
+            except Exception:
+                authors = []
+            published = getattr(r, "published", None)
+            summary = getattr(r, "summary", "") or ""
             formatted_results.append(
                 {
-                    "title": doc.metadata.get("Title", "N/A"),
-                    "authors": doc.metadata.get("Authors", "N/A"),
-                    "published": doc.metadata.get("Published", "N/A"),
-                    "summary": doc.metadata.get("Summary", "N/A"),
-                    "content": doc.page_content if doc.page_content else "N/A",
+                    "title": getattr(r, "title", "N/A") or "N/A",
+                    "authors": authors or [],
+                    "published": published.isoformat() if published is not None else "N/A",
+                    "summary": summary,
+                    # Basic content: use summary as content placeholder to keep interface stable
+                    "content": summary,
                 }
             )
 

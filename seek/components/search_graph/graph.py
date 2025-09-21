@@ -41,7 +41,6 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
     workflow.add_node("fitness", fitness_node)
     workflow.add_node("synthetic", synthetic_node)  # Handles synthetic data generation
 
-
     # --- Define Role-Specific Tool Nodes ---
     seek_config.get("use_robots", True)
 

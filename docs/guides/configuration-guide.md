@@ -115,10 +115,10 @@ missions:
         result_char_limit: 65536  # Cap for fetched markdown
     
     goals:                         # Per-characteristic targets
-      - characteristic: "Verifiability"
-        topics: ["news reports", "scientific abstracts"]
-      - characteristic: "Self-containment"
-        topics: ["political analysis"]
+      - characteristic: "Evidence-Based Reasoning"
+        topics: ["clinical psychology", "data analysis"]
+      - characteristic: "Controlled Experimental Design"
+        topics: ["machine learning ethics", "scientific methods"]
 ```
 
 ### Overrides

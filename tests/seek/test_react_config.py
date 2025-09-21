@@ -71,8 +71,10 @@ def test_research_node_uses_config_max_iterations(
     mock_llm_instance.invoke.side_effect = [AIMessage(content="Thinking...")] * 4 + [final_report]
 
     # Create state
-    state = DataSeekState(messages=[HumanMessage(content="Find stuff")])
-
+    state = DataSeekState(
+        messages=[HumanMessage(content="Find stuff")],
+        current_task={"characteristic": "TestCharacteristic", "topic": "TestTopic"}
+    )
     # Bypass prompt formatting to call LLM directly
     class DummyPrompt:
         @classmethod

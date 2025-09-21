@@ -10,7 +10,7 @@ from seek.components.mission_runner.state import DataSeekState
 from .utils import (
     create_agent_runnable,
     create_llm,
-    get_claimify_strategy_block,
+    get_default_strategy_block,
     strip_reasoning_block,
 )
 
@@ -49,7 +49,7 @@ def fitness_node(state: "DataSeekState") -> dict:
         print(
             f"   ⚠️  No strategy block found in state. Using built-in fallback for '{characteristic}'."
         )
-        strategy_block = get_claimify_strategy_block(characteristic)
+        strategy_block = get_default_strategy_block(characteristic)
 
     research_findings = state.get("research_findings", [])
     # Escape braces in research findings to prevent template errors

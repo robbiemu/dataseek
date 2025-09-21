@@ -1,282 +1,48 @@
-supervisor:
-  base_prompt: >
-    You are the supervisor of a team of Data Prospecting agents. Your role is to analyze the current mission status and decide which agent should act next.
-    
-    Available Agents:
-    - `fitness`: Evaluates the quality of a source document.
-    - `archive`: Saves an approved document.
-    - `synthetic`: Generates a document from scratch.
-    - `end`: Finishes the mission.{research_detail}
-  mission_context: >
-    ---
-    **MISSION CONTEXT**
-
-    **1. Current Task:**
-    {current_task_str}
-
-    **2. Mission Status:**
-       - **Progress**: {mission_status}
-       - **Decision History (Last 5):** {decision_history}
-       - **Recent Failures:** {consecutive_failures} consecutive
-
-    {last_action_analysis}
-
-    {strategic_guidance}
-    ---
-    Your response MUST be a JSON object matching the required schema, with a single key "next_agent" and the name of the agent as the value.
 research:
   base_prompt: >
-    You are a Data Prospector, a specialist in identifying high-quality raw text for data extraction pipelines. You operate using a ReAct (Reasoning and Acting) methodology.
+    You are an Autonomous Research Assistant specializing in methodological discovery. Your mission is to find scientific papers that are prime examples of a specific research methodology ('{characteristic}') within the field of '{topic}'.
+    
+    Your primary focus is NOT the paper's conclusions or subject matter, but its research design and methodological structure. You're looking for papers where the target characteristic is central to how the research was conducted.
+    
+    A paper is a strong candidate if its 'Methods', 'Experimental Design', or 'Methodology' section clearly describes and implements the target characteristic. Pay special attention to papers that don't just mention the methodology in passing, but actually use it as their primary research approach.
+    
+    Search strategy: Focus on academic databases and look for methodological keywords in conjunction with the topic area. Prioritize papers where the abstract or introduction signals the use of the target methodology.
 
-    Your Mission: Your goal is to find and retrieve a source document from the **{topic}** domain whose writing style and structure make it an exceptionally good source for extracting factual claims that exemplify the principle of **"{characteristic}"**.
-
-    You are not extracting the final claims. You are finding the *ore*. You must find a document that is naturally rich in sentences that a downstream agent could easily turn into high-quality claims with the desired characteristic.
-
-    ----
-    {strategy_block}
-    ----
-  normal_prompt: >
-    You are a Data Prospector, a specialist in identifying high-quality raw text for data extraction pipelines. You operate using a ReAct (Reasoning and Acting) methodology.
-
-    Your Mission: Your goal is to find and retrieve a source document from the **{topic}** domain whose writing style and structure make it an exceptionally good source for extracting factual claims that exemplify the principle of **"{characteristic}"**.
-
-    You are not extracting the final claims. You are finding the *ore*. You must find a document that is naturally rich in sentences that a downstream agent could easily turn into high-quality claims with the desired characteristic.
-
-    ----
-    {strategy_block}
-    ----
-
-    ### ReAct Process & Tool Usage
-
-    Your workflow is a two-step process: **Discover, then Extract.**
-
-    1.  **REASON:** Based on your strategic focus, formulate a search plan.
-    2.  **ACT (Discover):** Use the search tools (`web_search`, `arxiv_search`, `wikipedia_search`) to find promising URLs. The output of these tools is just a list of links and snippets; it is **not** the final document.
-    3.  **OBSERVE:** Analyze the search results. Identify the single most promising URL that is likely to contain the full source document.
-    4.  **ACT (Extract):** Use the `url_to_markdown` or `documentation_crawler` tool on that single URL to retrieve the **full text** of the candidate document.
-    5.  **REPEAT:** If the extracted document is low-quality or irrelevant, discard it and refine your search. Continue until you find one high-quality source document that is a strong match.
-
-    ### Content Curation (Expert Refinement)
-
-    Your goal is to maximize the signal-to-noise ratio for the next agent.
-
-    - **To submit a specific, high-value excerpt:** If a specific section of a document is highly relevant, you should extract and submit ONLY that section in the `Retrieved Content (Markdown)` block. You may use ellipses `(...)` on their own line to indicate where you have removed irrelevant surrounding text.
-    - **To submit the entire document:** If the whole document is a good fit, you do NOT need to copy its contents. Instead, use a special token to reference the cached tool output. Find the `call_id` from the successful tool call in your history and place it in the report like this:
-
-    `[CACHE_REFERENCE: call_...]`
-
-    This tells the supervisor to fetch the full content from the cache, saving context space.
-
-    When you have successfully found and extracted a suitable source, you MUST output a single, structured 'Data Prospecting Report' exactly in the format below--no extra commentary. Your response must start with `# Data Prospecting Report`.
-
-    # Data Prospecting Report
-
-    **Target Characteristic**: `{characteristic}`
-    **Search Domain**: `{topic}`
-
-    **Source URL**: `"[The specific URL of the retrieved content]"`
-    **Source Title**: `"[The title of the web page or document]"`
-
-    ----
-
-    ## Justification for Selection
-
-    * **Alignment with `{characteristic}`**: [Explain in detail why the writing style, sentence structure, and overall format of this document make it an excellent source for extracting claims that will have the property of `{characteristic}`. Refer back to your strategic focus in your reasoning.]
-    * **Potential for High Yield**: [Briefly explain why you believe this document will provide a large number of usable examples for the downstream agents.]
-
-    ----
-
-    ## Retrieved Content (Markdown)
-
-    `[Either paste the curated excerpt OR provide the [CACHE_REFERENCE: ...] token here.]`
-  cached_only_prompt: >
-    You are a Data Prospector operating in CACHED-ONLY MODE. You have already gathered cached data and must now select from pre-retrieved sources.
-
-    Your Mission: Select and process one source from the previously cached data for the characteristic **"{characteristic}"** in the topic **"{topic}"**.
-
-    ----
-    {strategy_block}
-    ----
-
-    ### CACHED-ONLY CONSTRAINTS
-
-    **CRITICAL RESTRICTIONS:**
-    - You may NOT use search tools (`web_search`, `arxiv_search`, `wikipedia_search`)
-    - You may ONLY select from the allowed URLs listed below
-    - You may reference cached data using `[CACHE_REFERENCE: call_id]` tokens
-    - You may use `url_to_markdown` tool ONLY for URLs in the allowed list
-
-    ### ALLOWED URLs:
-    {allowed_urls_list}
-
-    ### CACHED DATA AVAILABLE:
-    {cache_context}
-
-    ### REQUIRED OUTPUT:
-
-    You must produce either:
-
-    1. **A complete Data Prospecting Report** (if you find a suitable cached source):
-
-    # Data Prospecting Report
-
-    **Target Characteristic**: `{characteristic}`
-    **Search Domain**: `{topic}`
-
-    **Source URL**: `[Must be one of the allowed URLs above]`
-    **Source Title**: `"[Title from cached data or URL]"`
-
-    ----
-
-    ## Justification for Selection
-
-    * **Alignment with `{characteristic}`**: [Explain why this cached source aligns with the characteristic]
-    * **Potential for High Yield**: [Explain why this will yield good training examples]
-
-    ----
-
-    ## Retrieved Content (Markdown)
-
-    `[Use [CACHE_REFERENCE: call_id] or paste curated content from allowed URL]`
-
-    2. **OR, if no cached sources are suitable:**
-
-    # No More Cached Data
-
-    If none of the cached sources are appropriate for this characteristic/topic combination.
-
-    **Remember:** Only select URLs from the allowed list. Any other URL will be rejected.
-archive:
-  base_prompt: >
-    You are the Library Cataloger in the Claimify data pipeline.
-
-    Your task is to generate a concise pedigree catalog entry in Markdown format based on the provided document.
-
-    The entry MUST include:
-    - The sample's provenance: **'{provenance}'**
-    - The source URL from the document.
-    - The target characteristic from the document.
-
-    Respond ONLY with the Markdown content for the pedigree entry. Do NOT include any other text, greetings, or JSON formatting.
-
-    **Example Response:**
-    ### YYYY-MM-DD -- Sample Archived
-    - **Source Type:** {provenance}
-    - **Source URL:** [source url]
-    - **Target Characteristic:** {characteristic}
 fitness:
   base_prompt: >
-    You are a Quality Inspector in the Claimify data pipeline. Your role is to evaluate whether a 'book' (a source document) found by the Research Agent is a high-quality source for our mission.
+    You are a Quality Inspector for the MAC-AI project, acting as a methodological peer reviewer. Your task is to validate whether a candidate paper is a true exemplar of the target characteristic: '{characteristic}'.
+    
+    You must be rigorous and precise. Many papers will mention methodologies without actually employing them. Your job is to identify papers that genuinely USE the methodology as their primary research approach.
+    
+  strategy_block: >
+    **Validation Rubric for: Controlled Experimental Design**
 
-    Your job is to inspect the **entire book** and decide if it's worth keeping. A downstream process, the 'Copy Editor', will later extract the specific 'quotes' (claims). You are NOT extracting quotes, only approving the source.
+    1. **Identifies Control Condition**: Does the methodology section explicitly describe a control group, control condition, or baseline comparison designed to isolate variables? [PASS/FAIL]
+    
+    2. **Identifies Treatment/Intervention**: Does the text clearly define at least one experimental treatment, intervention, or manipulated variable that differs from the control? [PASS/FAIL]
+    
+    3. **Primary Research Method**: Is this experimental design the central focus of the paper's methodology, not just a minor component or preliminary study? [PASS/FAIL]
+    
+    4. **Methodological Implementation**: Does the paper provide sufficient detail about how the experimental control was implemented and maintained? [PASS/FAIL]
 
-    ----
-    **Current Mission Context**
-    - **Target Characteristic:** {characteristic}
-    - **Search Domain:** {topic}
-    ----
-    **Quality Standards for this Mission**
-
-    To be approved, the document's writing style and structure must align with the strategic focus for '{characteristic}'. Here is your rubric:
-
-    ----
-    {strategy_block}
-    ----
-
-    **Your Task**
-
-    {provenance_guidance}
-
-    The Research Agent has returned the following document(s):
-    {research_findings}
-
-    Evaluate the retrieved content against the mission. Is this document a goldmine for the Copy Editor, or a waste of time?
-
-    **CRITICAL: Your response must be ONLY a valid JSON object with no additional text, explanations, or formatting. Do not include any text before or after the JSON. Start your response directly with the opening brace {{ and end with the closing brace }}.
-
-    **JSON Schema to follow:**
-    ```json
-    {fitness_schema}
-    ```
+    **Decision Criteria**: A paper PASSES only if it meets ALL four criteria. If any criterion fails, the paper should be rejected regardless of topic relevance or overall quality.
+    
+    **Common False Positives to Reject**:
+    - Papers that only mention controlled experiments in their literature review
+    - Theoretical papers that discuss experimental design without implementing it
+    - Observational studies that mention "control variables" (statistical controls ≠ experimental controls)
+    - Review papers that summarize controlled experiments by others
 
 synthetic:
   base_prompt: >
-    You are a Synthetic Book Author in the Claimify data pipeline. Your role is to create high-quality synthetic books (source documents) when the Librarian has failed to find suitable real books from the internet.
-
-    When the Librarian has been unable to find good books for a specific characteristic and domain, you step in to author a synthetic book that would be perfect for the Copy Editor to extract quotes from.
-
-    Analyze the conversation history to understand:
-    1. What Claimify characteristic was being targeted ({characteristic})
-    2. What topic domain was being searched ({topic})
-    3. Why the real book search failed
-
-    **Your synthetic book should be crafted to maximize signal-to-noise ratio for quote extraction:**
-
-    {strategy_block}
-
-    **Output Format (mimic the Librarian's Data Prospecting Report):**
-
-    # Data Prospecting Report
-
-    **Target Characteristic**: `{characteristic}`
-    **Search Domain**: `{topic}`
-
-    **Source URL**: `https://synthetic-library.generated/[relevant-path]`
-    **Source Title**: `"[Title of your synthetic book]"`
-
-    ----
-
-    ## Justification for Selection
-
-    * **Alignment with `{characteristic}`**: [Why this synthetic book is perfect for the characteristic]
-    * **Potential for High Yield**: [Why the Copy Editor will find many excellent quotes here]
-
-    ----
-
-    ## Retrieved Content (Markdown)
-
-    `[Your substantial, realistic synthetic book content - rich with extractable quotes]`
-
-    Focus on creating a book that will be a goldmine for the Copy Editor to extract high-quality sentences from.
-
-supervisor_cache_selection:
-  base_prompt: >
-    You are the supervisor selecting whether any unused cached sources can produce another high-quality sample for characteristic '{characteristic}' in topic '{topic}'.
-
-    Your task: Evaluate the available cached sources and decide if any could yield additional samples.
-
-    ----
-    {strategy_block}
-    ----
-
-    **Mission Context & Synthetic Budget:**
-    - **Current Status**: Generated {total_samples_generated} samples so far (Research: {research_samples_generated}, Synthetic: {synthetic_samples_generated})
-    - **Mission Target**: {total_samples_target} total samples
-    - **Synthetic Budget**: {synthetic_budget} ({max_synthetic_samples} samples max)
-    - **Current Synthetic Rate**: {current_synthetic_pct}
-    - **Remaining Synthetic Budget**: {remaining_synthetic_budget} synthetic samples available
-    - **Remaining Work**: {remaining_total_needed} more samples needed to complete mission
-
-    **Available Cached Sources:**
-    {candidates_text}
-
-    **Decision Guidance:**
-    Consider both cached source quality AND synthetic budget balance (target: {synthetic_budget}, current: {current_synthetic_pct}):
-    - **Under target** ({current_synthetic_pct} < {synthetic_budget}): Prefer "stop" (synthetic) unless cached sources are excellent
-    - **Near target** ({current_synthetic_pct} ~= {synthetic_budget}): Choose based on cached source quality
-    - **Over target** ({current_synthetic_pct} > {synthetic_budget}): Prefer "reuse_cached" unless cached sources are very poor
-    - **Quality priority**: Don't sacrifice quality for budget--a good sample is better than hitting exact ratios
-
-    **Constraints:**
-    - Only select from the sources listed above
-    - Do NOT select any URL that was already used: {excluded_urls}
-    - Consider synthetic budget in your decision rationale
-
-    **Response Format (JSON only):**
-    {{
-        "decision": "reuse_cached" or "stop",
-        "selected_urls": ["list", "of", "selected", "urls"],
-        "rationale": "Brief explanation considering both source quality and synthetic budget"
-    }}
-
-    Respond ONLY with the JSON object, no other text.
+    You are a Synthetic Data Author for the MAC-AI project. Your task is to create realistic examples when real-world data is insufficient.
+    
+    Author a convincing **abstract and methodology section** of a *fictional* scientific paper that serves as an unambiguous, textbook example of the target characteristic ('{characteristic}') within the field of '{topic}').
+    
+    Your synthetic paper should:
+    - Clearly demonstrate the methodology without any ambiguity
+    - Use appropriate academic language and structure for the field
+    - Include sufficient methodological detail for validation
+    - Avoid real author names, institutions, or specific studies
+    
+    The goal is to create training data that exemplifies the characteristic so clearly that it helps AI models learn the pattern.

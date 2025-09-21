@@ -6,7 +6,7 @@ from seek.components.mission_runner.state import DataSeekState
 from .utils import (
     create_agent_runnable,
     create_llm,
-    get_claimify_strategy_block,
+    get_default_strategy_block,
     strip_reasoning_block,
 )
 
@@ -21,20 +21,22 @@ def synthetic_node(state: DataSeekState) -> dict:
 
     current_task = state.get("current_task")
     strategy_block = state.get("strategy_block", "")
-    if current_task:
-        characteristic = current_task.get("characteristic", "Verifiability")
-        topic = current_task.get("topic", "general domain")
-        print(f"   🎯 Task selected: characteristic={characteristic} topic={topic}")
-    else:
-        characteristic = "Verifiability"
-        topic = "general domain"
-        print("   🎯 No specific task queued; using default mission focus.")
+
+    if not current_task:
+        raise ValueError("FATAL: No current_task found in state. The agent cannot proceed without a task.")
+
+    characteristic = current_task.get("characteristic")
+    if not characteristic:
+        raise ValueError(f"FATAL: The current task is missing a 'characteristic'. Task: {current_task}")
+
+    topic = current_task.get("topic", "general domain")
+    print(f"   🎯 Task selected: characteristic={characteristic} topic={topic}")
 
     if not strategy_block:
         print(
             f"   ⚠️  No strategy block found in state. Using built-in fallback for '{characteristic}'."
         )
-        strategy_block = get_claimify_strategy_block(characteristic)
+        strategy_block = get_default_strategy_block(characteristic)
 
     tpl = get_prompt("synthetic", "base_prompt")
     system_prompt = tpl.format(

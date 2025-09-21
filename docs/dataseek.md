@@ -1,7 +1,7 @@
 # DataSeek Overview
 
 Purpose and scope
-- DataSeek is a standalone data prospecting agent that discovers, extracts, and archives verifiable sources. It is structured as discrete components under `seek/`.
+- DataSeek is a generic, extensible framework for autonomous data collection. It discovers, validates, and archives sources tailored to mission goals in areas like scientific research. Core components are under `seek/`.
 
 Key interfaces and modules
 - CLI entrypoints:
@@ -20,15 +20,15 @@ Dependencies and integration points
 
 Configuration
 - Primary runtime config: `config/seek_config.yaml` (model defaults, search provider, writer, etc.).
-- Mission plan (targets and quotas): `settings/mission_config.yaml`.
+- Mission plan: `config/mission_config.yaml` (goals like "Evidence-Based Reasoning" for topics such as "Clinical Psychology").
 - Config precedence: env > `.env` > files. Use `seek.common.config` helpers.
 
 Minimal usage examples
 - CLI
-  - New mission: `dataseek --mission <name> --config config/seek_config.yaml --mission-config settings/mission_config.yaml`
+  - New mission: `dataseek --mission <name> --config config/seek_config.yaml --mission-config config/mission_config.yaml`
   - Resume: `dataseek --resume-from <mission_id>`
 - TUI
-  - `dataseek-tui settings/mission_config.yaml`
+  - `dataseek-tui config/mission_config.yaml`
 - Library usage
   - Build and run a graph with a `SqliteSaver`: see `tests/seek/test_integration.py` for a minimal programmatic example.
 

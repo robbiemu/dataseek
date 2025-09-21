@@ -96,58 +96,23 @@ def get_characteristic_context(task: dict, mission_config: dict) -> str | None:
     return None  # Return None if no matching characteristic is found
 
 
-def get_claimify_strategy_block(characteristic: str) -> str:
-    """Get the strategic focus block for Claimify characteristics in data prospecting."""
-    strategies = {
-        "Decontextualization": """
-**Strategic Focus for Decontextualization:**
-Look for formal, encyclopedic, reference-style text that presents facts in a neutral, standalone manner. Ideal sources include:
-- Academic papers with clear factual statements
-- Technical documentation with precise specifications
-- News articles with objective reporting style
-- Reference materials like encyclopedias or handbooks
+def get_default_strategy_block(characteristic: str) -> str:
+    """
+    Get a generic, fallback strategy block for a given characteristic.
 
-Avoid sources with:
-- Heavy contextual dependencies ("as mentioned above", "this approach")
-- Conversational or informal tone
-- Opinion pieces or subjective commentary
-
-The best documents will have sentences that can be extracted and understood independently, without needing surrounding context.""",
-        "Coverage": """
-**Strategic Focus for Coverage:**
-Seek data-dense, comprehensive sources that thoroughly cover their subject matter with factual breadth. Ideal sources include:
-- Comprehensive reports or surveys
-- Statistical summaries and data compilations
-- Complete technical specifications
-- Thorough news coverage of events
-- Academic literature reviews
-
-Avoid sources with:
-- Narrow, single-topic focus
-- Sparse factual content
-- Heavily theoretical or abstract content
-
-The best documents will be rich repositories of diverse, verifiable facts that demonstrate comprehensive coverage of their domain.""",
-        "Entailment": """
-**Strategic Focus for Entailment:**
-Target sources with clear, logical, unambiguous sentence structures that support straightforward factual claims. Ideal sources include:
-- Technical manuals with step-by-step processes
-- Scientific papers with clear methodology sections
-- News reports with direct factual statements
-- Educational materials with explicit explanations
-- Legal or regulatory documents with precise language
-
-Avoid sources with:
-- Complex, multi-clause sentences
-- Ambiguous or vague language
-- Heavy use of metaphors or figurative language
-- Speculative or hypothetical statements
-
-The best documents will have simple, direct sentences where the logical relationship between premise and conclusion is crystal clear.""",
-    }
-    return strategies.get(
-        characteristic,
-        f"Look for sources that demonstrate clear {characteristic} characteristics in their writing style and structure.",
+    This function is used when a specific strategy_block is not provided
+    in the mission's prompts.yaml file. It provides a basic, unopinionated
+    instruction to the agent.
+    """
+    # The new implementation is a simple, formatted string that works for any characteristic.
+    # This removes the hardcoded, mission-specific logic.
+    return (
+        f"**Strategic Focus for {characteristic}:**\n"
+        f"Your goal is to find source documents whose writing style and structure "
+        f"make them exceptionally good sources for extracting factual claims that "
+        f"exemplify the principle of '{characteristic}'. Look for documents that are "
+        f"naturally rich in sentences that a downstream agent could easily turn into "
+        f"high-quality examples with this desired characteristic."
     )
 
 

@@ -19,7 +19,7 @@ from seek.components.tool_manager.utils import (
 )
 
 from .supervisor import index_research_cache
-from .utils import create_llm, get_claimify_strategy_block, normalize_url
+from .utils import create_llm, get_default_strategy_block, normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -93,20 +93,32 @@ def research_node(state: "DataSeekState") -> dict:
 
     current_task = state.get("current_task")
     strategy_block = state.get("strategy_block", "")
-    if current_task:
-        characteristic = current_task.get("characteristic", "Verifiability")
-        topic = current_task.get("topic", "general domain")
-        print(f"   🎯 Task selected: characteristic={characteristic} topic={topic}")
-    else:
-        characteristic = "Verifiability"
-        topic = "general domain"
-        print("   🎯 No specific task queued; using default mission focus.")
+
+    if not current_task:
+        # A current_task is essential for the agent to function.
+        # If it's missing, it indicates a problem in the mission's state management.
+        # It's better to fail fast than to proceed with incorrect or default values.
+        raise ValueError(
+            "FATAL: No current_task found in state. The agent cannot proceed without a task."
+        )
+
+    # If we have a current_task, we can safely extract its properties.
+    characteristic = current_task.get("characteristic")
+    topic = current_task.get("topic", "general domain")  # A default for topic is acceptable.
+
+    if not characteristic:
+        # A characteristic is also essential.
+        raise ValueError(
+            f"FATAL: The current task is missing a 'characteristic'. Task: {current_task}"
+        )
+
+    print(f"   🎯 Task selected: characteristic={characteristic} topic={topic}")
 
     if not strategy_block:
         print(
             f"   ⚠️  No strategy block found in state. Using built-in fallback for '{characteristic}'."
         )
-        strategy_block = get_claimify_strategy_block(characteristic)
+        strategy_block = get_default_strategy_block(characteristic)
 
     # --- CACHED-ONLY MODE CHECK ---
     cached_only = state.get("cached_only_mode") or state.get("no_search_tools")

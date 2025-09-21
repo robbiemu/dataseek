@@ -148,7 +148,10 @@ class TestNodes:
         mock_chat_llm.return_value = mock_llm_instance
         mock_get_tools.return_value = []
 
-        state = self.create_test_state(messages=[HumanMessage(content="Find info on X")])
+        state = self.create_test_state(
+            messages=[HumanMessage(content="Find info on X")],
+            current_task={"characteristic": "TestCharacteristic", "topic": "TestTopic"},
+        )
 
         # Bypass prompt formatting and have pipeline call LLM directly
         class DummyPrompt:
@@ -172,8 +175,7 @@ class TestNodes:
 
         assert "messages" in result
         assert len(result["messages"]) == 1
-        # The test is flawed and enters a failure state, so we test the fallback report
-        assert "No qualifying source selected" in result["messages"][0].content
+        assert "# Data Prospecting Report" in result["messages"][0].content
         assert "research_session_cache" in result
 
     @patch("seek.components.search_graph.nodes.utils.get_active_seek_config")
@@ -251,7 +253,9 @@ class TestNodes:
         )
         mock_llm_instance.invoke.return_value = mock_response
 
-        state = self.create_test_state()
+        state = self.create_test_state(
+            current_task={"characteristic": "TestCharacteristic", "topic": "TestTopic"}
+        )
 
         # Bypass prompt formatting
         class DummyPrompt:

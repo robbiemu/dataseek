@@ -13,7 +13,7 @@ from seek.components.mission_runner.state import DataSeekState
 from .utils import (
     create_llm,
     get_characteristic_context,
-    get_claimify_strategy_block,
+    get_default_strategy_block,
     normalize_url,
     strip_reasoning_block,
 )
@@ -202,7 +202,7 @@ def supervisor_node(state: DataSeekState) -> dict:
         }
 
     # We have a task. Now, we determine the strategy block for it.
-    characteristic = next_task.get("characteristic", "Verifiability")
+    characteristic = next_task["characteristic"]
     topic = next_task.get("topic", "general domain")
     try:
         with open("settings/mission_config.yaml") as f:
@@ -223,7 +223,7 @@ def supervisor_node(state: DataSeekState) -> dict:
         print(
             f"   ⚠️  Supervisor: Could not find dynamic context for '{characteristic}'. Using built-in fallback."
         )
-        strategy_block = get_claimify_strategy_block(characteristic)
+        strategy_block = get_default_strategy_block(characteristic)
 
     decision_history = state.get("decision_history", [])
     tool_execution_failures = state.get("tool_execution_failures", 0)
@@ -890,7 +890,7 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
             print(f"✅ Supervisor: Switching to new task: {decision_obj.new_task}")
             next_task = decision_obj.new_task
             # Recalculate strategy block for the new task
-            characteristic = next_task.get("characteristic", "Verifiability")
+            characteristic = next_task["characteristic"]
             try:
                 with open("settings/mission_config.yaml") as f:
                     content = f.read()
@@ -908,7 +908,7 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
                     f"**Strategic Focus for '{characteristic}':**\n{characteristic_context}"
                 )
             else:
-                strategy_block = get_claimify_strategy_block(characteristic)
+                strategy_block = get_default_strategy_block(characteristic)
 
             # Clear messages for the researcher
             messages = []

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataseek"
-version = "0.2.0"
+version = "0.2.1"
 description = "DataSeek: A standalone data prospecting agent for finding reliable, verifiable data sources"
 authors = [
     { name = "Robert Collins", email = "roberto.tomas.cuentas@gmail.com"}
@@ -41,6 +41,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-asyncio",
     "pytest-cov",
     "black>=24.0.0",
     "ruff>=0.13.1",

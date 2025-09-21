@@ -2,15 +2,13 @@
 
 Welcome to `dataseek`! You've installed a powerful framework for building autonomous AI agents that can find, validate, and collect high-quality data from the web. But `dataseek` isn't a simple web scraper—it's something much more sophisticated.
 
-`dataseek` is designed for missions where the data you need can't be found with a simple keyword search. Its real power shines when you need to find documents that possess a specific, often nuanced, **quality** or **characteristic** that requires deep content understanding to validate.
-
-Think of it this way: anyone can search for "articles about finance." But what if you need to find "quarterly earnings reports that contain forward-looking statements about supply chain risks"? That's where `dataseek` comes in. It's the difference between pattern matching and true content comprehension.
+`dataseek` is designed for missions where the data you need can't be found with a simple keyword search. It really shines when you need to find documents that possess a specific, often nuanced, quality or **characteristic** that requires deep content understanding to validate. Think of it this way: anyone can search for "articles about finance." But what if you need to find "quarterly earnings reports that contain forward-looking statements about supply chain risks"? That's where `dataseek` comes in. It's the difference between pattern matching and true content comprehension.
 
 This tutorial will walk you through the process of designing and configuring a `dataseek` mission from scratch. While we'll be building a specific example, the steps and principles here form a generic recipe you can apply to your own unique data collection challenges.
 
 ## The Art of the Possible: What Can You Build?
 
-Before we dive in, let's explore the kinds of sophisticated tasks `dataseek` is built for. The core pattern is always about finding a specific **characteristic** within a broader **topic**. Here are some ideas to spark your imagination:
+Before we dive in, let's explore the kinds of sophisticated tasks `dataseek` is built for. The core pattern is always about finding a specific **characteristic** from a broader **topic**. Here are some ideas to spark your imagination:
 
 * **Financial Document Analysis**: Find financial filings (`topic`) that contain forward-looking statements (`characteristic`) to train risk analysis models.
 * **Legal Contract Review**: Search through legal agreements (`topic`) to find examples of specific clauses, like indemnification or non-compete provisions (`characteristic`).
@@ -20,7 +18,7 @@ Before we dive in, let's explore the kinds of sophisticated tasks `dataseek` is 
 
 For this tutorial, we're going to build out that last idea: **The Automated Research Assistant**. This mission, which we call MAC-AI (Methodologically-Aware Corpus for AI in Science), is the default configuration for `dataseek`. We'll walk through how we designed it so you can understand the process from start to finish.
 
-Why did we choose this as our flagship example? Because it perfectly demonstrates `dataseek`'s unique strengths:
+Why did we choose this as our flagship example? Because it demonstrates `dataseek`'s unique strengths:
 
 - **Complex Pattern Recognition**: Identifying research methodologies requires understanding document structure and distinguishing between papers that *mention* a method versus papers that *employ* it
 - **Cross-Domain Intelligence**: The same methodology (like controlled experiments) appears very differently in physics versus psychology versus economics
@@ -121,6 +119,8 @@ research:
     Search strategy: Focus on academic databases and look for methodological keywords in conjunction with the topic area. Prioritize papers where the abstract or introduction signals the use of the target methodology.
 ```
 
+_idea: If we preferred, would could have asked it to give us focused excerpts using ellipses._
+
 #### The `fitness` Agent: The Peer Reviewer 🧐
 
 This is the most critical agent—it's the gatekeeper that decides if a document found by the `research` agent truly exemplifies the target characteristic. The key to a good `fitness` prompt is a **clear, structured validation rubric** that can distinguish between papers that mention versus employ the methodology:
@@ -205,7 +205,7 @@ You've now walked through the complete process of designing and configuring a `d
 
 The key insight is that `dataseek`'s power comes from this thoughtful design process. The framework can only be as intelligent as the mission you design for it.
 
-Now it's your turn. Take another look at the potential applications we discussed at the beginning—financial document analysis, legal contract review, content moderation, knowledge base curation. Pick one that interests you and try sketching out your own proposal:
+Now it's your turn. If you don't already have a good idea of what you want to build, or want to practice, take another look at the potential applications we discussed at the beginning—financial document analysis, legal contract review, content moderation, knowledge base curation. Pick one that interests you and try sketching out your own proposal:
 
 - What problem would you solve?
 - What characteristics would you look for? 

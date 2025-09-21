@@ -3,6 +3,7 @@
 Builds the LangGraph application graph for the Data Seek agent.
 """
 
+import asyncio
 from typing import Any
 
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -10,7 +11,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from seek.components.mission_runner.state import DataSeekState
-from seek.components.tool_manager.tools import get_tools_for_role
+from seek.components.tool_manager.tool_manager import ToolManager
 
 from .nodes import (
     archive_node,
@@ -21,13 +22,14 @@ from .nodes import (
 )
 
 
-def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
+def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> Any:
     """
     Builds and compiles the multi-agent graph with a supervisor.
 
     Args:
         checkpointer: A LangGraph checkpointer instance for persisting state.
         seek_config: The seek configuration dictionary.
+        mission_config: The mission configuration dictionary.
 
     Returns:
         A compiled LangGraph app.
@@ -41,14 +43,15 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
     workflow.add_node("fitness", fitness_node)
     workflow.add_node("synthetic", synthetic_node)  # Handles synthetic data generation
 
-    # --- Define Role-Specific Tool Nodes ---
-    seek_config.get("use_robots", True)
+    # --- Define Tool Nodes using the new ToolManager ---
+    tool_manager = ToolManager()
+    toolsets = asyncio.run(tool_manager.get_toolsets_for_mission(mission_config))
 
-    research_tools = get_tools_for_role("research")
-    archive_tools = get_tools_for_role("archive")
+    research_tools_node = ToolNode(toolsets.get("research", []))
+    workflow.add_node("research_tools", research_tools_node)
 
-    workflow.add_node("research_tools", ToolNode(research_tools))
-    workflow.add_node("archive_tools", ToolNode(archive_tools))
+    archive_tools_node = ToolNode(toolsets.get("archive", []))
+    workflow.add_node("archive_tools", archive_tools_node)
 
     # --- Wire the Graph ---
     workflow.set_entry_point("supervisor")

@@ -226,7 +226,7 @@ def run_agent_process(
         sys.stdout.flush()
 
         try:
-            app = build_graph(checkpointer=checkpointer, seek_config=seek_config.to_dict())
+            app = build_graph(checkpointer=checkpointer, mission_config=mission_config)
             mission_runner = MissionRunner(
                 checkpointer=checkpointer,
                 app=app,

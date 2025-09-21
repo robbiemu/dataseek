@@ -147,7 +147,7 @@ uv pip install -e .[dev]
 
 - Type check (MyPy)
   ```bash
-  mypy seek
+  mypy seek plugins --exclude tests
   ```
 
 - Security scan (Bandit)

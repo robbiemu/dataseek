@@ -73,8 +73,9 @@ def test_research_node_uses_config_max_iterations(
     # Create state
     state = DataSeekState(
         messages=[HumanMessage(content="Find stuff")],
-        current_task={"characteristic": "TestCharacteristic", "topic": "TestTopic"}
+        current_task={"characteristic": "TestCharacteristic", "topic": "TestTopic"},
     )
+
     # Bypass prompt formatting to call LLM directly
     class DummyPrompt:
         @classmethod

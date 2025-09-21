@@ -5,8 +5,19 @@ missions:
     output_paths:
       samples_path: "datasets/mac_ai_corpus/samples"
       audit_trail_path: "datasets/mac_ai_corpus/PEDIGREE.md"
-    tools:
-      # Configure arxiv_search, wikipedia_search, web_search as needed
+    tool_configs:
+      arxiv_search:
+        roles: ["research"]
+        max_docs: 10
+      wikipedia_search:
+        roles: ["research"]
+        max_docs: 5
+      url_to_markdown:
+        roles: ["research"]
+        timeout: 30
+      file_saver:
+        roles: ["archive"]
+        output_path: "datasets/mac_ai_corpus/final"
     goals:
       - characteristic: "Controlled Experimental Design"
         context: "The goal is to find scientific papers that describe a study with a clear experimental control. The agent must verify that the paper's methodology section details at least one treatment/intervention group and a separate control group designed to isolate variables. It must distinguish papers that *employ* this method from those that merely *discuss* it in a literature review. This methodology appears across disciplines—from psychology lab studies to physics experiments to economics field trials—but always involves systematic comparison with controls."

@@ -23,11 +23,15 @@ def synthetic_node(state: DataSeekState) -> dict:
     strategy_block = state.get("strategy_block", "")
 
     if not current_task:
-        raise ValueError("FATAL: No current_task found in state. The agent cannot proceed without a task.")
+        raise ValueError(
+            "FATAL: No current_task found in state. The agent cannot proceed without a task."
+        )
 
     characteristic = current_task.get("characteristic")
     if not characteristic:
-        raise ValueError(f"FATAL: The current task is missing a 'characteristic'. Task: {current_task}")
+        raise ValueError(
+            f"FATAL: The current task is missing a 'characteristic'. Task: {current_task}"
+        )
 
     topic = current_task.get("topic", "general domain")
     print(f"   🎯 Task selected: characteristic={characteristic} topic={topic}")

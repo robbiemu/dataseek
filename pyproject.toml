@@ -54,9 +54,11 @@ dev = [
 # Optional dependency for the crawler tool, requires playwright is installed on the system
 crawler = ["libcrawler"]
 
+
 [project.scripts]
 dataseek = "seek.main:main"
 dataseek-tui = "seek.components.tui.dataseek_tui:main"
+
 
 [tool.setuptools]
 # Auto-discover all seek* packages so moved components are included
@@ -65,9 +67,11 @@ packages = { find = { where = ["."], include = ["seek*"] } }
 [tool.setuptools.package-data]
 "seek" = ["../config/*.yaml", "../settings/*.yaml"]
 
+
 [tool.black]
 line-length = 100
 target-version = ["py313"]
+
 
 [tool.ruff]
 target-version = "py313"
@@ -77,16 +81,23 @@ extend-select = [
     "B",   # flake8-bugbear
     "I",   # isort
     "UP",  # pyupgrade
+    "ARG", # flake8-arg-names
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "PT",  # flake8-pytest-style
 ]
 exclude = [".venv", "build", "dist"]
+dummy-variable-rgx = "^(_.*|dummy|unused|ctx|args|kwargs|event)$"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**.py" = [
+    "ARG001",  # Unused parameters in tests (fixtures, mocks)
     "ARG002",  # Unused arguments in tests (fixtures, mocks)
     "F841",    # Assigned but unused (side-effect tests)
     "SIM117",  # try/finally often clearer in tests
     "B018",    # Useless expression (docstrings in tests)
 ]
+
 
 [tool.mypy]
 python_version = "3.13"
@@ -113,7 +124,6 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "libcrawler.libcrawler"
 ignore_missing_imports = true
-
 
 
 [tool.bandit]

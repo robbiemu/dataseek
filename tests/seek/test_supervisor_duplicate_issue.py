@@ -87,10 +87,10 @@ def test_supervisor_prevents_duplicate_consecutive_agent_calls():
     # Mock the create_llm function to return our mock
     with (
         unittest.mock.patch(
-            "seek.components.search_graph.nodes.create_llm"
+            "seek.components.search_graph.nodes.supervisor.create_llm"
         ) as mock_create_llm_func,
         unittest.mock.patch(
-            "seek.components.search_graph.nodes.get_active_seek_config"
+            "seek.components.search_graph.nodes.supervisor.get_active_seek_config"
         ) as mock_config_func,
     ):
 

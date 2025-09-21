@@ -42,10 +42,10 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
     workflow.add_node("synthetic", synthetic_node)  # Add synthetic node
 
     # --- Define Role-Specific Tool Nodes ---
-    use_robots = seek_config.get("use_robots", True)
+    seek_config.get("use_robots", True)
 
-    research_tools = get_tools_for_role("research", use_robots=use_robots)
-    archive_tools = get_tools_for_role("archive", use_robots=use_robots)
+    research_tools = get_tools_for_role("research")
+    archive_tools = get_tools_for_role("archive")
 
     workflow.add_node("research_tools", ToolNode(research_tools))
     workflow.add_node("archive_tools", ToolNode(archive_tools))

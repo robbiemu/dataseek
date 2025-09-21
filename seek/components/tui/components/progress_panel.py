@@ -14,6 +14,10 @@ class ProgressPanel(Static):
         self.recent_samples_widget: Static | None = None
         self.recent_samples: list[str] = []
 
+    def on_mount(self) -> None:
+        """Start watching for stats changes when the component is mounted."""
+        self.watch(self.app, "stats", self.on_stats_change)
+
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Static("📈 Generation Progress", classes="panel-title")
@@ -24,7 +28,8 @@ class ProgressPanel(Static):
             )
             yield self.recent_samples_widget
 
-    def update_progress(self, stats: GenerationStats) -> None:
+    def on_stats_change(self, stats: GenerationStats) -> None:
+        """Update the progress bar when the stats object changes."""
         if self.progress_display:
             progress_pct = int(100 * stats.completed / max(1, stats.target))
             # Create a simple progress bar using characters

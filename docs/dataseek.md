@@ -5,13 +5,13 @@ Purpose and scope
 
 Key interfaces and modules
 - CLI entrypoints:
-  - `main.py` (root): Typer app (`seek.main`) exposing `run()` and orchestration.
+  - [`main.py` (root)](components/mission_runner.md): Typer app (`seek.main`) exposing `run()` and orchestration.
   - `dataseek-tui`: Textual TUI (`seek.components.tui.dataseek_tui:main`).
-- Graph builder: `seek/components/search_graph/graph.py` — assembles LangGraph nodes and tool nodes.
-- Nodes: `seek/components/search_graph/nodes.py` — supervisor, research, fitness, synthetic, archive.
-- Tools: `seek/components/tool_manager/tools.py` — production tools (search, content, URL→Markdown, write_file).
-- Config: `seek/common/config.py` — `load_seek_config()`, `set_active_seek_config()`, `get_active_seek_config()`.
-- State: `seek/components/mission_runner/state.py` — `DataSeekState` schema used across nodes.
+- [Graph builder](components/search_graph.md): `seek/components/search_graph/graph.py` — assembles LangGraph nodes and tool nodes.
+- [Nodes](components/search_graph.md): `seek/components/search_graph/nodes/` — supervisor, research, fitness, synthetic, archive.
+- [Tools](components/tool_manager.md): `seek/components/tool_manager/tools.py` — production tools (search, content, URL→Markdown, write_file).
+- [Config](components/mission_runner.md): `seek/common/config.py` — `load_seek_config()`, `set_active_seek_config()`, `get_active_seek_config()`.
+- [State](components/mission_runner.md): `seek/components/mission_runner/state.py` — `DataSeekState` schema used across nodes.
 
 Dependencies and integration points
 - LangChain/LangGraph for orchestration.

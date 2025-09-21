@@ -35,8 +35,8 @@ class TestTools:
         assert "write_file" in tool_names
 
     @patch("seek.components.tool_manager.search_tools.get_active_seek_config")
-    @patch("seek.components.tool_manager.search_tools._run_async_safely")
-    def test_web_search_success(self, mock_run_async_safely, mock_get_cfg):
+    @patch("seek.components.tool_manager.search_tools.SearchProviderProxy.run")
+    def test_web_search_success(self, mock_proxy_run, mock_get_cfg):
         """Test successful web search."""
         # Force a provider that doesn't require extra packages
         mock_get_cfg.return_value = {
@@ -46,11 +46,14 @@ class TestTools:
         # Create the web search tool inside the test
         web_search = create_web_search_tool()
 
-        # Mock the async result
-        mock_run_async_safely.return_value = "Test search results"
+        # Mock the async result from the proxy
+        async def _fake_run(_query: str, **kwargs):  # type: ignore[no-redef]
+            return "Test search results"
 
-        # Call the tool
-        result = web_search("test query")
+        mock_proxy_run.side_effect = _fake_run
+
+        # Call the tool with .invoke to avoid deprecation
+        result = web_search.invoke({"query": "test query"})
 
         # Verify the result
         assert result["status"] == "ok"
@@ -61,8 +64,8 @@ class TestTools:
         assert result["provider"] == "wikipedia/search"
 
     @patch("seek.components.tool_manager.search_tools.get_active_seek_config")
-    @patch("seek.components.tool_manager.search_tools._run_async_safely")
-    def test_web_search_failure(self, mock_run_async_safely, mock_get_cfg):
+    @patch("seek.components.tool_manager.search_tools.SearchProviderProxy.run")
+    def test_web_search_failure(self, mock_proxy_run, mock_get_cfg):
         """Test failed web search."""
         mock_get_cfg.return_value = {
             "web_search": {"provider": "wikipedia/search"},
@@ -72,10 +75,13 @@ class TestTools:
         web_search = create_web_search_tool()
 
         # Mock the async result to raise an exception
-        mock_run_async_safely.side_effect = Exception("Search failed")
+        async def _fake_run_err(_query: str, **kwargs):  # type: ignore[no-redef]
+            raise Exception("Search failed")
 
-        # Call the tool
-        result = web_search("test query")
+        mock_proxy_run.side_effect = _fake_run_err
+
+        # Call the tool with .invoke to avoid deprecation
+        result = web_search.invoke({"query": "test query"})
 
         # Verify the result
         assert result["status"] == "error"
@@ -93,8 +99,8 @@ class TestTools:
         )
         mock_safe_request.return_value = mock_response
 
-        # Call the tool
-        result = url_to_markdown("http://example.com")
+        # Call the tool with explicit .invoke to avoid __call__ deprecation
+        result = url_to_markdown.invoke({"url": "http://example.com"})
 
         # Verify the result
         assert result["status"] == "ok"
@@ -109,8 +115,8 @@ class TestTools:
         # Mock the HTTP request to raise an exception
         mock_safe_request.side_effect = Exception("Network error")
 
-        # Call the tool
-        result = url_to_markdown("http://example.com")
+        # Call the tool with explicit .invoke to avoid __call__ deprecation
+        result = url_to_markdown.invoke({"url": "http://example.com"})
 
         # Verify the result
         assert result["status"] == "error"

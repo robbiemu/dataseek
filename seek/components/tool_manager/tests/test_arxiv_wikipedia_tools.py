@@ -16,7 +16,8 @@ def test_arxiv_search():
     try:
         from seek.components.tool_manager.tools import arxiv_search
 
-        result = arxiv_search("machine learning")
+        # Use .invoke to avoid deprecated __call__
+        result = arxiv_search.invoke({"query": "machine learning"})
         print(f"Arxiv search result: {result}")
         if result.get("status") == "ok":
             print("✅ Arxiv search tool works correctly!")
@@ -36,7 +37,8 @@ def test_wikipedia_search():
     try:
         from seek.components.tool_manager.tools import wikipedia_search
 
-        result = wikipedia_search("artificial intelligence")
+        # Use .invoke to avoid deprecated __call__
+        result = wikipedia_search.invoke({"query": "artificial intelligence"})
         print(f"Wikipedia search result: {result}")
         if result.get("status") == "ok":
             print("✅ Wikipedia search tool works correctly!")

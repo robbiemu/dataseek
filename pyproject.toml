@@ -125,6 +125,10 @@ ignore_missing_imports = true
 module = "libcrawler.libcrawler"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "arxiv"
+ignore_missing_imports = true
+
 
 [tool.bandit]
 skips = ["B101", "B608"]

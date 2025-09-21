@@ -91,16 +91,6 @@ See the [Data Seek Agent Guide](../guides/data-seek-agent.md#65-advanced-configu
 
 ## Result Size Limits (Post-Tool)
 
-The Data Seek Agent enforces result size limits after each tool call:
+The agent enforces post-tool truncation for efficiency. Search tools truncate per entry to `summary_char_limit`; fetch tools cap markdown to `result_char_limit`. Defaults derive from node `max_tokens`.
 
-- Search-like tools (web_search, arxiv_search, wikipedia_search, arxiv_get_content, wikipedia_get_content):
-  - Per-entry truncation to `summary_char_limit` configured on the research node.
-- Fetch-like tools (url_to_markdown, documentation_crawler):
-  - Truncate final markdown (`markdown` or `full_markdown`) to `result_char_limit` on the research node.
-
-Notes:
-- If `summary_char_limit` is not set, a default is derived from the research node's `max_tokens` (≈80% of 4 chars/token across 5 sources).
-- If `result_char_limit` is not set, it defaults to 65,536 characters.
-- Truncation annotations are appended (e.g., "[Entry truncated]", "[Markdown truncated due to size]").
-
-All tools are rate-limited to prevent abuse and ensure fair usage.
+For full details, see [Configuration Guide - Result Size Limits](guides/configuration-guide.md#result-size-limits).

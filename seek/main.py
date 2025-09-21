@@ -233,6 +233,7 @@ def run_agent_process(
                 mission_config=mission_config,
                 seek_config=seek_config.to_dict(),
                 resume_from_mission_id=resume_from,
+                db_path=db_path,
             )
             mission_runner.run_mission(recursion_limit=recursion_limit, max_samples=max_samples)
 

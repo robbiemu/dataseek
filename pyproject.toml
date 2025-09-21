@@ -66,7 +66,7 @@ dataseek-tui = "seek.components.tui.dataseek_tui:main"
 packages = { find = { where = ["."], include = ["seek*"] } }
 
 [tool.setuptools.package-data]
-"seek" = ["../config/*.yaml", "../settings/*.yaml"]
+"seek" = ["../config/*.yaml", "../settings/*.yaml", "components/tui/styles.tcss"]
 
 
 [tool.black]

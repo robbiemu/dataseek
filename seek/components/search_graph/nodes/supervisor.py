@@ -204,15 +204,23 @@ def supervisor_node(state: DataSeekState) -> dict:
     # We have a task. Now, we determine the strategy block for it.
     characteristic = next_task["characteristic"]
     topic = next_task.get("topic", "general domain")
+    # Resolve mission config: prefer value from state, else try known file paths
+    mission_config_data = state.get("mission_config")
+    if not mission_config_data:
+        for path in ("config/mission_config.yaml", "settings/mission_config.yaml"):
+            try:
+                with open(path) as f:
+                    content = f.read()
+                    if content.startswith("#"):
+                        first_newline = content.find("\n")
+                        if first_newline != -1:
+                            content = content[first_newline + 1 :]
+                    mission_config_data = yaml.safe_load(content)
+                    break
+            except Exception:
+                mission_config_data = None
     try:
-        with open("settings/mission_config.yaml") as f:
-            content = f.read()
-            if content.startswith("#"):
-                first_newline = content.find("\n")
-                if first_newline != -1:
-                    content = content[first_newline + 1 :]
-            mission_config = yaml.safe_load(content)
-        characteristic_context = get_characteristic_context(next_task, mission_config)
+        characteristic_context = get_characteristic_context(next_task, mission_config_data or {})
     except Exception:
         characteristic_context = None
 
@@ -891,15 +899,26 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
             next_task = decision_obj.new_task
             # Recalculate strategy block for the new task
             characteristic = next_task["characteristic"]
+            # Resolve mission config as above
+            mission_config_data = state.get("mission_config")
+            if not mission_config_data:
+                for path in ("config/mission_config.yaml", "settings/mission_config.yaml"):
+                    try:
+                        with open(path) as f:
+                            content = f.read()
+                            if content.startswith("#"):
+                                first_newline = content.find("\n")
+                                if first_newline != -1:
+                                    content = content[first_newline + 1 :]
+                            mission_config_data = yaml.safe_load(content)
+                            break
+                    except Exception:
+                        mission_config_data = None
+
             try:
-                with open("settings/mission_config.yaml") as f:
-                    content = f.read()
-                    if content.startswith("#"):
-                        first_newline = content.find("\n")
-                        if first_newline != -1:
-                            content = content[first_newline + 1 :]
-                    mission_config = yaml.safe_load(content)
-                characteristic_context = get_characteristic_context(next_task, mission_config)
+                characteristic_context = get_characteristic_context(
+                    next_task, mission_config_data or {}
+                )
             except Exception:
                 characteristic_context = None
 

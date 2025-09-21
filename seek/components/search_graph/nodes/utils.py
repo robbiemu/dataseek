@@ -87,11 +87,16 @@ def get_characteristic_context(task: dict, mission_config: dict) -> str | None:
     if not characteristic_name:
         return None
 
-    # Search through all missions and goals to find the matching context
-    for mission in mission_config.get("missions", []):
+    # Accept either a full mission plan (with 'missions') or a single-mission dict (with 'goals')
+    if "missions" in mission_config and isinstance(mission_config["missions"], list):
+        search_space = mission_config["missions"]
+    else:
+        search_space = [mission_config]
+
+    for mission in search_space:
         for goal in mission.get("goals", []):
             if goal.get("characteristic") == characteristic_name:
-                return goal.get("context")  # Return the context string
+                return goal.get("context")
 
     return None  # Return None if no matching characteristic is found
 

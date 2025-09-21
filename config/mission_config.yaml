@@ -1,6 +1,6 @@
 missions:
   - name: "mac_ai_corpus_v1"
-    target_size: 50 # Samples per characteristic
+    target_size: 2 # Samples per characteristic
     synthetic_budget: 0.1 # We want mostly real-world data
     output_paths:
       samples_path: "datasets/mac_ai_corpus/samples"

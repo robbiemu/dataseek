@@ -41,12 +41,12 @@ def get_available_tools() -> list[Callable]:
     return core_tools + optional
 
 
-def get_tools_for_role(role: str, use_robots: bool = True) -> list[BaseTool]:
+def get_tools_for_role(role: str) -> list[BaseTool]:
     """Return tools intended for a specific role."""
     role = (role or "").lower()
 
     # Create the web_search tool with the configured provider
-    web_search = create_web_search_tool(use_robots=use_robots)
+    web_search = create_web_search_tool()
 
     # Build tool registry, guarding optional crawler tool
     all_tools = {

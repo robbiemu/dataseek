@@ -1,3 +1,4 @@
+# ruff: noqa: ARG001, ARG002
 """
 LiteLLM/Ollama patch shims (component-level).
 

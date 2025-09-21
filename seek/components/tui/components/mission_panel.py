@@ -50,7 +50,7 @@ class MissionPanel(Static):
             f"Status: {mission_status}"
         )
 
-    def on_status_change(self, new_status: str) -> None:
+    def on_status_change(self, _new_status: str) -> None:
         """Update the mission status displayed in the panel."""
         if self.mission_info_widget:
             self.mission_info_widget.update(self._get_mission_info())

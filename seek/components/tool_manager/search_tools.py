@@ -18,7 +18,7 @@ class WebSearchInput(pydantic.BaseModel):
     query: str = pydantic.Field(description="The search query to execute.")
 
 
-def create_web_search_tool(use_robots: bool = True) -> Any:
+def create_web_search_tool() -> Any:
     """
     Factory function that creates a web_search tool with the configured provider hard-coded.
     This ensures that the search provider is determined by the configuration, not by the agent.

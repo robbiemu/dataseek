@@ -313,7 +313,7 @@ def _safe_request_get(
         raise Exception("Unknown error occurred")  # pragma: no cover
 
 
-def _extract_main_text_and_title(html: str, css_selector: str | None = None) -> dict[str, str]:
+def _extract_main_text_and_title(html: str) -> dict[str, str]:
     """Extract title and main textual content from HTML."""
     soup = BeautifulSoup(html, "html5lib")
     title_tag = soup.find("title")

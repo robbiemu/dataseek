@@ -49,9 +49,9 @@ def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str) -> Ru
     """Factory to create a new agent node's runnable."""
     # Load the seek config to get the use_robots setting
     seek_config = get_active_seek_config()
-    use_robots = seek_config.get("use_robots", True)
+    seek_config.get("use_robots", True)
 
-    tools = get_tools_for_role(role, use_robots=use_robots)
+    tools = get_tools_for_role(role)
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system_prompt),

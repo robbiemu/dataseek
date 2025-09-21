@@ -37,9 +37,6 @@ class UrlToMarkdownInput(pydantic.BaseModel):
     url: str = pydantic.Field(
         description="Fully qualified URL to fetch (e.g., https://example.com/article)."
     )
-    css_selector: str | None = pydantic.Field(
-        default=None, description="Optional CSS selector to isolate the main content."
-    )
     timeout_s: int = pydantic.Field(default=15, description="HTTP timeout in seconds.")
     max_retries: int = pydantic.Field(default=2, description="Network retry attempts.")
     add_front_matter: bool = pydantic.Field(
@@ -54,7 +51,6 @@ class UrlToMarkdownInput(pydantic.BaseModel):
 @tool("url_to_markdown", args_schema=UrlToMarkdownInput)
 def url_to_markdown(
     url: str,
-    css_selector: str | None = None,
     timeout_s: int = 15,
     max_retries: int = 2,
     add_front_matter: bool = True,
@@ -95,8 +91,7 @@ def url_to_markdown(
 
         resp = _safe_request_get(url, timeout_s=timeout_s, max_retries=max_retries)
         html = resp.text
-        extracted = _extract_main_text_and_title(html, css_selector=css_selector)
-
+        extracted = _extract_main_text_and_title(html)
         # Prefer rich HTML->Markdown via attachments if available
         markdown = None
         try:

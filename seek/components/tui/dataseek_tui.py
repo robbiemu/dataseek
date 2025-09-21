@@ -576,10 +576,6 @@ def generate(
     robots: bool = typer.Option(
         True, "--robots/--no-robots", help="Enable or disable robots.txt compliance."
     ),
-    tui: bool = typer.Option(False, "--tui", "-t", help="Run with Terminal User Interface"),
-    recursion_limit: int = typer.Option(
-        30, "--recursion-limit", help="Maximum recursion steps for the agent."
-    ),
 ) -> None:
     """Start the Data Seek Agent TUI for sample generation."""
     # Validate mission plan path, not the mission name

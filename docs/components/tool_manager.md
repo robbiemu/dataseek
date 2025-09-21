@@ -5,16 +5,23 @@ Implements production-ready tools for data acquisition and processing used by ag
 
 **Why this might change**: Updates are likely when integrating new data sources (e.g., social media APIs, proprietary databases), adding content processing features (e.g., image analysis, multimedia extraction), or implementing advanced filtering (e.g., content quality scoring). Changes may also address new compliance requirements or performance optimizations for high-rate data collection.
 
-## Key Interfaces
-- `seek.components.tool_manager.tools.get_tools_for_role()`: Factory function returning role-specific tool sets
-- Individual tool functions:
-  - `create_web_search_tool()`: Configurable web search with provider abstraction
-  - `url_to_markdown()`: Content extraction and HTML-to-markdown conversion
-  - `write_file()`: Secure file writing with metadata tracking
-  - Search-specific tools: `arxiv_search()`, `wikipedia_search()`, etc.
-- `seek.components.tool_manager.tools.SearchProviderProxy`: Async proxy for various search backends
+## Plugin System
 
-**When to extend**: New tools are added for novel data types, and existing tools are modified to support additional formatting options or enhanced error handling.
+The plugin system enables extensible tools via Python modules in the `plugins/` directory. Tools are discovered dynamically, registered with `@register_plugin`, and must inherit from `BaseTool`, `BaseSearchTool`, or `BaseUtilityTool` in `plugin_base.py`.
+
+Key components:
+- `registry.py`: Central `PLUGIN_REGISTRY` dictionary and registration decorator.
+- `tool_manager.py`: Loads plugins from `plugins/*.py`, validates configs, instantiates tools, and manages lifecycle via `get_toolsets_for_mission` and `teardown_tools`.
+- `plugin_base.py`: Abstract base classes with optional `ConfigSchema`, `setup()`, and `teardown()` hooks.
+
+Plugins support role-based assignment in mission configs and integrate with LangGraph's tool calling.
+
+For implementation details, see the [Plugin Tutorial](https://github.com/blob/main/docs/guides/plugin_tutorial.md).
+
+**Why this might change**: Enhancements may include plugin versioning, dependency injection, or hot-reloading for development.
+
+**When to extend**: Create new plugins for custom data sources; extend base classes for tool subtypes.
+
 
 ## Dependencies
 - `seek.components.search_graph.litesearch`: Async rate-limited search proxy implementation

@@ -18,9 +18,9 @@ from .utils import (
     strip_reasoning_block,
 )
 
-# Define the minimum step cost for a successful research cycle
+# Minimum steps required for a complete research cycle
 MIN_STEPS_FOR_SUCCESSFUL_RESEARCH = (
-    10  # 9 allows a full completion, 10 allows a synthetic fallback for failed research
+    10  # Ensures adequate steps for research completion or synthetic fallback
 )
 
 
@@ -58,7 +58,7 @@ def _get_next_task_from_progress(
     if not eligible_tasks:
         return None
 
-    # Non-cryptographic randomness is not required; using secrets.choice for Bandit compliance
+    # Select next task using secure random selection
     return secrets.choice(eligible_tasks)
 
 
@@ -502,7 +502,7 @@ def supervisor_node(state: DataSeekState) -> dict:
             state_dict = dict(state)
             state_dict["fitness_report"] = None
 
-            # --- NEW: Log the failure ---
+            # Log the failure in task history for analysis
             task_history: list[tuple[str, str, str]] = state.get("task_history", [])
             current_task = state.get("current_task")
             if current_task:
@@ -511,7 +511,7 @@ def supervisor_node(state: DataSeekState) -> dict:
                 reason = str(fitness_report.reason)
                 task_history.append((char, topic, reason))
 
-            # --- NEW: Give the supervisor the option to change tasks ---
+            # Provide failure context to supervisor for decision-making
             excluded_tasks = [(t[0], t[1]) for t in task_history]
             alt_task = _get_next_task_from_progress(progress, exclude=excluded_tasks)
 
@@ -885,7 +885,7 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
             # You could also add logic here to try 'synthetic' if it's cheaper and budget allows.
             next_agent = "end"
 
-        # --- NEW: Handle task switching ---
+        # Handle task switching based on failure patterns
         if decision_obj.new_task:
             print(f"✅ Supervisor: Switching to new task: {decision_obj.new_task}")
             next_task = decision_obj.new_task

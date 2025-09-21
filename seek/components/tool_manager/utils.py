@@ -14,7 +14,7 @@ from .clients import SYNC_HTTP_CLIENT
 TOKEN_CHARACTER_RATIO = 3.5
 
 
-# Avoid circular import with seek_utils by defining a minimal local helper
+# Helper function to find URL fields in search results
 def _find_url_field(results: list[dict[str, Any]]) -> str | None:
     if not results:
         return None
@@ -229,9 +229,6 @@ def _get_research_limits_from_config() -> tuple[int, int]:
         result_char_limit = 65536
 
     return int(summary_char_limit), int(result_char_limit)
-
-
-# removed: apply_tool_result_limits (logic merged into _truncate_response_for_role)
 
 
 def _safe_request_get(

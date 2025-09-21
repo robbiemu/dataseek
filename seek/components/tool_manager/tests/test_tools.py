@@ -20,7 +20,7 @@ class TestTools:
         tool_names = [tool.name for tool in research_tools]
         assert "web_search" in tool_names
         assert "url_to_markdown" in tool_names
-        # Check that our new tools are included
+        # Verify the tools are in the role bindings
         assert "arxiv_search" in tool_names
         assert "arxiv_get_content" in tool_names
         assert "wikipedia_search" in tool_names

@@ -155,14 +155,14 @@ def apply_theme_styling(app: DataSeekTUI) -> None:
 
                 header_widget = app.query_one(Header)
 
-                # Try direct styling
+                # Apply direct styling
                 header_widget.styles.background = header_bg
                 header_widget.styles.color = text_color
 
-                # Try forcing a refresh
+                # Force refresh to apply changes
                 header_widget.refresh()
 
-                # Try setting CSS variables if they exist
+                # Set CSS variables if available
                 try:
                     header_widget.styles.background = header_bg
                     header_widget.styles.color = text_color

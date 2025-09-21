@@ -21,7 +21,7 @@ from .utils import (
     _to_markdown_simple,
 )
 
-# Optional import for deep crawling
+# Optional import for documentation crawling functionality
 try:
     from libcrawler.libcrawler import crawl_and_convert
 
@@ -239,7 +239,7 @@ if _HAVE_LIBCRAWLER:
                 "error": f"Pre-scan failed: {type(e).__name__}: {str(e)}",
             }
 
-        # Improved path inference with more sophisticated analysis
+        # Infer allowed paths from site structure if not provided
         inferred_allowed = allowed_paths or []
         if not inferred_allowed:
             common_prefixes: dict[str, int] = {}

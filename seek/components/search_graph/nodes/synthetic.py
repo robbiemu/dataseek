@@ -44,7 +44,7 @@ def synthetic_node(state: DataSeekState) -> dict:
     agent_runnable = create_agent_runnable(llm, system_prompt, "synthetic")
     result = agent_runnable.invoke({"messages": state["messages"]})
 
-    # --- FIX: Align output with the new data flow ---
+    # Process LLM output to match research node format for downstream compatibility
     report_content = strip_reasoning_block(result.content)
 
     print(f"🎨 SYNTHETIC NODE: Generated response of {len(report_content)} characters")

@@ -256,7 +256,7 @@ def research_node(state: "DataSeekState") -> dict:
 
         system_prompt_for_iteration = system_prompt + warning_message
 
-        # Debug final iteration (uncomment for detailed debugging)
+        # Optional detailed debugging for final iteration
         # if iteration == max_iterations:
         #     print("      ❗ FINAL PROMPT: The following system prompt is being sent to the LLM for its last chance.")
         #     print("      " + "-" * 20)
@@ -278,12 +278,12 @@ def research_node(state: "DataSeekState") -> dict:
         try:
             result = react_agent.invoke({"messages": react_messages})
 
-            # Debug LLM responses (uncomment for detailed debugging)
+            # Optional detailed debugging of LLM responses
             # print("      📝 --- START RAW LLM RESPONSE ---")
             # print(f"{getattr(result, 'content', '[NO CONTENT]').strip()}")
             # print("      📝 ---  END RAW LLM RESPONSE  ---")
 
-            # RECOVERY: Handle empty responses on final iteration with sleep-and-retry
+            # Handle empty responses on final iteration with retry mechanism
             raw_content = getattr(result, "content", "")
             if iteration == max_iterations and (not raw_content or not raw_content.strip()):
                 print(
@@ -365,7 +365,7 @@ def research_node(state: "DataSeekState") -> dict:
 
                         tool_result = matching_tool.invoke(tool_call_args)
 
-                        # Debug: Print tool result details
+                        # Log tool execution results
                         if isinstance(tool_result, dict):
                             status = tool_result.get("status")
                             if status == "error":

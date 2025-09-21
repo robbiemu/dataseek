@@ -48,7 +48,7 @@ class ConversationPanel(Log):
         role_str = f"{role:>9}"
         message_line = f"{timestamp} {role_str}: {content}"
 
-        # Debug: Log what we're trying to write if debug enabled
+        # Log write attempts for debugging when enabled
         if self.debug:
             try:
                 debug_path = os.path.join(tempfile.gettempdir(), "tui_debug.log")

@@ -62,7 +62,7 @@ async def _run_agent(app: DataSeekTUI) -> None:
 
 def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
     """Handle events from the agent output parser."""
-    # Debug: Log all events being handled
+    # Log event handling for debugging purposes
     app.debug_log(f"HANDLING EVENT: {type(event).__name__} - {event}")
 
     if isinstance(event, ProgressUpdate):

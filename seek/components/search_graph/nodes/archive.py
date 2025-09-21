@@ -20,7 +20,7 @@ def archive_node(state: "DataSeekState") -> dict:
     get_active_seek_config()
     llm = create_llm("archive")
 
-    # --- FIX: Get content from research_findings, not messages ---
+    # Extract content from research findings
     provenance = state.get("current_sample_provenance", "synthetic")
     print(f"   🏷️  Archive: Received provenance '{provenance}' from state")
     messages = state.get("messages", [])
@@ -59,7 +59,7 @@ def archive_node(state: "DataSeekState") -> dict:
         characteristic = current_task.get("characteristic", "unknown").lower().replace(" ", "_")
         topic = current_task.get("topic", "unknown").lower().replace(" ", "_")
 
-    # --- FIX: Remove JSON and ask for the raw markdown string directly ---
+    # Request raw markdown string directly from LLM
     tpl = get_prompt("archive", "base_prompt")
     system_prompt = tpl.format(provenance=provenance, characteristic=characteristic)
     agent_runnable = create_agent_runnable(llm, system_prompt, "archive")

@@ -39,7 +39,8 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
     workflow.add_node("research", research_node)
     workflow.add_node("archive", archive_node)
     workflow.add_node("fitness", fitness_node)
-    workflow.add_node("synthetic", synthetic_node)  # Add synthetic node
+    workflow.add_node("synthetic", synthetic_node)  # Handles synthetic data generation
+
 
     # --- Define Role-Specific Tool Nodes ---
     seek_config.get("use_robots", True)
@@ -53,7 +54,7 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
     # --- Wire the Graph ---
     workflow.set_entry_point("supervisor")
 
-    # The supervisor decides which agent to run next.
+    # Routes to the appropriate agent based on supervisor decision
     def supervisor_router(state: DataSeekState) -> str:
         """Route based on supervisor decision with debugging."""
         # Track recursion step (for TUI display only)
@@ -95,23 +96,22 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
             "research": "research",
             "archive": "archive",
             "fitness": "fitness",
-            "synthetic": "synthetic",  # Add synthetic route
+            "synthetic": "synthetic",  # Route for synthetic data generation
             "end": END,
         },
     )
 
-    # Agent nodes route to their tool nodes, which then route back to the supervisor.
+    # Connect agents to their tools and back to supervisor
     workflow.add_edge("research", "research_tools")
     workflow.add_edge("research_tools", "supervisor")
 
     workflow.add_edge("archive", "archive_tools")
     workflow.add_edge("archive_tools", "supervisor")
 
-    # The fitness agent has no tools, so it routes directly back to the supervisor.
+    # Fitness agent flows directly back to supervisor
     workflow.add_edge("fitness", "supervisor")
 
-    # The synthetic agent routes directly to archive (bypassing fitness check)
-    # as per the "Unhappy Path" design: synthetic data is assumed to be correct by design
+    # Synthetic data flows directly to archive
     workflow.add_edge("synthetic", "archive")
 
     # Compile the graph with the provided checkpointer

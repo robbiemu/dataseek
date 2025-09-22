@@ -9,6 +9,14 @@ DataSeek is a versatile, extensible framework for autonomous data collection and
 
 DataSeek is a powerful tool for automated data collection and prospecting. It uses advanced AI techniques to search, validate, and organize data from various sources including academic papers, Wikipedia, and web searches.
 
+## Features
+
+- Automated data prospecting from multiple sources
+- Configurable mission plans for targeted data collection
+- Support for academic papers (arXiv), Wikipedia, and web searches
+- Built-in validation and filtering mechanisms
+- Command-line interface for easy execution
+
 ## Quickstart
 
 1. **Clone and set up the project**:
@@ -43,13 +51,27 @@ DataSeek is a powerful tool for automated data collection and prospecting. It us
    - `examples/data/datasets/tier2` - Curated data samples
    - `examples/PEDIGREE.md` - Audit trail of the data collection process
 
-## Features
+## Documentation
 
-- Automated data prospecting from multiple sources
-- Configurable mission plans for targeted data collection
-- Support for academic papers (arXiv), Wikipedia, and web searches
-- Built-in validation and filtering mechanisms
-- Command-line interface for easy execution
+### Overview
+- [DataSeek Overview](docs/dataseek.md): High-level project description and purpose.
+
+### Components
+- [Mission Runner](docs/components/mission_runner.md): Manages the execution and state of data collection missions.
+- [Search Graph](docs/components/search_graph.md): Defines the AI agent workflow for data prospecting and validation.
+- [Tool Manager](docs/components/tool_manager.md): Handles tool registration, execution, and integration for agents.
+- [TUI (Terminal User Interface)](docs/components/tui.md): Provides an interactive terminal interface for monitoring missions.
+
+### Guides
+- [Data Seek Agent Guide](docs/guides/data-seek-agent.md): Instructions for curating datasets using the agent.
+- [Configuration Guide](docs/guides/configuration-guide.md): Details setup and customization of agent and mission configurations.
+- [Prompting Guide](docs/guides/prompting-guide.md): Explains prompt assembly for different agent nodes.
+- [Tools Guide](docs/guides/tools-guide.md): Documentation on available tools and their usage.
+
+### Tutorials
+- [From Idea to Dataset](docs/tutorials/from-idea-to-dataset.tutorial.md): Step-by-step guide to configuring your first mission.
+- [Plugin System Tutorial](docs/tutorials/plugin.tutorial.md): How to create and integrate custom plugins.
+
 
 ## Installation
 
@@ -163,19 +185,11 @@ uv pip install -e .[dev]
   pytest -q --cov=seek
   ```
 
-### Local CI Execution
+### Scripts
 
-To run the same checks that CI runs locally:
-
-```bash
-# Generate a script for a specific job (e.g., quality-checks)
-uv run python scripts/local_ci_runner.py quality-checks
-
-# Run the generated script
-./scripts/local_run_ci_quality-checks.sh
-```
-
-Note on tests and networking: tests block outbound network connections by default. If you intentionally need network for an explicit integration test, set `ALLOW_NET_TESTS=1` in the environment.
+- [check_prompts.py](scripts/check_prompts.py): Verifies prompt templates in `config/prompts.yaml` against code references (missing, unused, placeholder mismatches).
+- [dup.awk](scripts/dup.awk): Identifies groups of adjacent duplicate lines in log files by extracting core messages.
+- [local_ci_runner.py](scripts/local_ci_runner.py): Generates shell scripts to execute specific CI jobs locally (e.g., `uv run python scripts/local_ci_runner.py quality-checks`).
 
 ## Testing
 

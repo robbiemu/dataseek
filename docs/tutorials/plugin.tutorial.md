@@ -8,9 +8,9 @@ This tutorial guides you through creating a simple plugin that searches a fictio
 
 ## Prerequisites
 
-- Basic Python knowledge
-- Familiarity with Pydantic for configuration (optional)
-- Access to the DataSeek codebase
+  - Basic Python knowledge
+  - Familiarity with Pydantic for configuration (optional)
+  - Access to the DataSeek codebase
 
 ## Step 1: Define the Tool Class
 
@@ -52,7 +52,7 @@ class WeatherSearchTool(BaseSearchTool):
 
 ## Step 2: Optional Lifecycle Hooks
 
-Override `setup` and `teardown` for initialization and cleanup:
+Override `setup` and `teardown` for initialization and cleanup.
 
 ```python
 async def setup(self) -> None:
@@ -66,7 +66,7 @@ async def teardown(self) -> None:
 
 ## Step 3: Configuration in Mission YAML
 
-In your mission configuration file (e.g., `config/mission_config.yaml`), add the tool under `tool_configs`:
+In your mission configuration file (e.g., `config/mission_config.yaml`), add the tool under `tool_configs`.
 
 ```yaml
 tool_configs:
@@ -78,18 +78,46 @@ tool_configs:
 
 ## Step 4: Testing the Plugin
 
-1. Place `weather_search.py` in `plugins/`.
-2. Run the mission with the updated config.
-3. The `ToolManager` will load and instantiate the tool for specified roles.
-4. Bind tools to agents in your mission setup.
+1.  Place `weather_search.py` in `plugins/`.
+2.  Run the mission with the updated config.
+3.  The `ToolManager` will load and instantiate the tool for specified roles.
+4.  Bind tools to agents in your mission setup.
 
 ## Advanced Topics
 
-- **Error Handling**: Raise informative exceptions in `search` or `execute`; they will be captured and returned in results.
-- **Dependencies**: Add required packages to `plugins/requirements.txt` if not already in the main `pyproject.toml`.
-- **Integration**: For web APIs, use the provided `HTTP_CLIENT` and `RATE_MANAGER` from `seek.components.tool_manager.clients`.
-- **Validation**: Use Pydantic's `ConfigSchema` for runtime config validation.
+  - **Error Handling**: Raise informative exceptions in `search` or `execute`; they will be captured and returned in results.
+  - **Dependencies**: Add required packages to `plugins/requirements.txt` if not already in the main `pyproject.toml`.
+  - **Integration**: For web APIs, use the provided `HTTP_CLIENT` and `RATE_MANAGER` from `seek.components.tool_manager.clients`.
+  - **Validation**: Use Pydantic's `ConfigSchema` for runtime config validation.
 
-For full API details, see the [Tool Manager Component Documentation](../components/tool_manager.md).
+For full API details, see the [Tool Manager Component Documentation](https://www.google.com/search?q=../components/tool_manager.md).
 
 **Note**: Plugins are loaded dynamically at runtime. Ensure no name collisions in `PLUGIN_REGISTRY`.
+
+## Validating Prompts with check\_prompts.py
+
+When extending DataSeek with plugins, you should use the `scripts/check_prompts.py` script to verify prompt templates in `config/prompts.yaml` against your code references.
+
+### How to Execute
+
+Run the script from the project root:
+
+```bash
+uv run python scripts/check_prompts.py --prompts config/prompts.yaml
+```
+
+You can optionally specify additional source directories to scan, such as your plugins folder:
+
+```bash
+uv run python scripts/check_prompts.py --prompts config/prompts.yaml --src seek/components/search_graph/nodes --src plugins
+```
+
+### Expected Output and How to Read It
+
+The script performs three main checks:
+
+1.  **Missing Prompts**: Checks that every `get_prompt(role, key)` call in the code corresponds to a prompt in the YAML file.
+2.  **Unused Prompts**: Flags prompts in the YAML file that are not referenced in the code (unless you use the `--allow-extra` flag).
+3.  **Placeholder Validation**: Verifies that `{variable}` placeholders in a template match what the code expects to provide.
+
+A successful run will show a confirmation message and exit with code 0. If failures are found, the script will list the specific errors (e.g., missing prompts, unused prompts, or placeholder mismatches) and exit with code 1. You should fix the issues in your code or `prompts.yaml` and re-run the script.

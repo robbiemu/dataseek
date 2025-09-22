@@ -62,7 +62,7 @@ async def _run_agent(app: DataSeekTUI) -> None:
 
 def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
     """Handle events from the agent output parser."""
-    # Debug: Log all events being handled
+    # Log event handling for debugging purposes
     app.debug_log(f"HANDLING EVENT: {type(event).__name__} - {event}")
 
     if isinstance(event, ProgressUpdate):
@@ -171,6 +171,14 @@ def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
     elif isinstance(event, ErrorMessage):
         app.debug_log(f"ERROR MESSAGE EVENT: {event.message[:100]}...")
         app.conversation.add_message("error", event.message)
+        # Keep a copy for the error modal even if conversation scrolls
+        try:
+            app.error_messages.append(event.message)
+            # Cap error list growth
+            if len(app.error_messages) > 200:
+                app.error_messages = app.error_messages[-200:]
+        except (TypeError, ValueError, KeyError, AttributeError) as e:
+            app.debug_log(f"Could not append to error_messages due to: {e}")
         new_stats = app.stats.copy()
         new_stats.errors += 1
         app.stats = new_stats

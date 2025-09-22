@@ -19,7 +19,7 @@ from seek.components.tool_manager.utils import (
 )
 
 from .supervisor import index_research_cache
-from .utils import create_llm, get_claimify_strategy_block, normalize_url
+from .utils import create_llm, get_default_strategy_block, normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +51,8 @@ def research_node(state: "DataSeekState") -> dict:
     session_tool_domain_blocklist = state.get("session_tool_domain_blocklist", [])
     if session_tool_domain_blocklist:
         print(f"   🚫 Session blocklist contains {len(session_tool_domain_blocklist)} entries:")
-        for tool_name, domain in session_tool_domain_blocklist:
-            print(f"      - {tool_name} blocked for domain {domain}")
+        for blocked_tool, domain in session_tool_domain_blocklist:
+            print(f"      - {blocked_tool} blocked for domain {domain}")
 
     # --- Extract the latest human question ---
     user_question = None
@@ -93,20 +93,32 @@ def research_node(state: "DataSeekState") -> dict:
 
     current_task = state.get("current_task")
     strategy_block = state.get("strategy_block", "")
-    if current_task:
-        characteristic = current_task.get("characteristic", "Verifiability")
-        topic = current_task.get("topic", "general domain")
-        print(f"   🎯 Task selected: characteristic={characteristic} topic={topic}")
-    else:
-        characteristic = "Verifiability"
-        topic = "general domain"
-        print("   🎯 No specific task queued; using default mission focus.")
+
+    if not current_task:
+        # A current_task is essential for the agent to function.
+        # If it's missing, it indicates a problem in the mission's state management.
+        # It's better to fail fast than to proceed with incorrect or default values.
+        raise ValueError(
+            "FATAL: No current_task found in state. The agent cannot proceed without a task."
+        )
+
+    # If we have a current_task, we can safely extract its properties.
+    characteristic = current_task.get("characteristic")
+    topic = current_task.get("topic", "general domain")  # A default for topic is acceptable.
+
+    if not characteristic:
+        # A characteristic is also essential.
+        raise ValueError(
+            f"FATAL: The current task is missing a 'characteristic'. Task: {current_task}"
+        )
+
+    print(f"   🎯 Task selected: characteristic={characteristic} topic={topic}")
 
     if not strategy_block:
         print(
             f"   ⚠️  No strategy block found in state. Using built-in fallback for '{characteristic}'."
         )
-        strategy_block = get_claimify_strategy_block(characteristic)
+        strategy_block = get_default_strategy_block(characteristic)
 
     # --- CACHED-ONLY MODE CHECK ---
     cached_only = state.get("cached_only_mode") or state.get("no_search_tools")
@@ -153,11 +165,21 @@ def research_node(state: "DataSeekState") -> dict:
         )
 
     # --- System prompt (mission-specific) ---
+    # Base role prompt (shared)
+    base_tpl = get_prompt("research", "base_prompt")
+    try:
+        base_prompt = base_tpl.format(
+            characteristic=characteristic, topic=topic, strategy_block=strategy_block
+        )
+    except Exception:
+        # Tolerate base prompts without placeholders
+        base_prompt = base_tpl
+
     if cached_only:
         # Cached-only mode prompt template
         tpl = get_prompt("research", "cached_only_prompt")
         allowed_urls_list = "\n".join(f"- {url}" for url in allowed_urls)
-        system_prompt = tpl.format(
+        specific_prompt = tpl.format(
             characteristic=characteristic,
             topic=topic,
             strategy_block=strategy_block,
@@ -167,11 +189,13 @@ def research_node(state: "DataSeekState") -> dict:
     else:
         # Normal mode prompt template
         tpl = get_prompt("research", "normal_prompt")
-        system_prompt = tpl.format(
+        specific_prompt = tpl.format(
             characteristic=characteristic,
             topic=topic,
             strategy_block=strategy_block,
         )
+
+    system_prompt = f"{base_prompt}\n\n{specific_prompt}" if base_prompt else specific_prompt
 
     # --- Base prompt template (system is dynamic per-iteration) ---
     prompt_template = ChatPromptTemplate.from_messages(
@@ -256,7 +280,7 @@ def research_node(state: "DataSeekState") -> dict:
 
         system_prompt_for_iteration = system_prompt + warning_message
 
-        # Debug final iteration (uncomment for detailed debugging)
+        # Optional detailed debugging for final iteration
         # if iteration == max_iterations:
         #     print("      ❗ FINAL PROMPT: The following system prompt is being sent to the LLM for its last chance.")
         #     print("      " + "-" * 20)
@@ -264,7 +288,7 @@ def research_node(state: "DataSeekState") -> dict:
         #     print("      " + "-" * 20)
 
         # Bind tools as scoped this iteration
-        llm_with_tools = llm.bind_tools(current_tools) if current_tools else llm
+        llm_with_tools = llm.bind_tools(current_tools, tool_choice="auto") if current_tools else llm
         print(
             f"      Tools this iteration: {[t.name for t in current_tools] if current_tools else '[]'}"
         )
@@ -278,12 +302,12 @@ def research_node(state: "DataSeekState") -> dict:
         try:
             result = react_agent.invoke({"messages": react_messages})
 
-            # Debug LLM responses (uncomment for detailed debugging)
+            # Optional detailed debugging of LLM responses
             # print("      📝 --- START RAW LLM RESPONSE ---")
             # print(f"{getattr(result, 'content', '[NO CONTENT]').strip()}")
             # print("      📝 ---  END RAW LLM RESPONSE  ---")
 
-            # RECOVERY: Handle empty responses on final iteration with sleep-and-retry
+            # Handle empty responses on final iteration with retry mechanism
             raw_content = getattr(result, "content", "")
             if iteration == max_iterations and (not raw_content or not raw_content.strip()):
                 print(
@@ -363,9 +387,12 @@ def research_node(state: "DataSeekState") -> dict:
                             f"         ▶ Executing {tool_call_name} with args: {str(tool_call_args)[:200]} ..."
                         )
 
+                        # Normalize tool name for downstream logging/handling
+                        tool_name: str = tool_call_name or matching_tool.name
+
                         tool_result = matching_tool.invoke(tool_call_args)
 
-                        # Debug: Print tool result details
+                        # Log tool execution results
                         if isinstance(tool_result, dict):
                             status = tool_result.get("status")
                             if status == "error":

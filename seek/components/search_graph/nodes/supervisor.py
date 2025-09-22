@@ -1,3 +1,4 @@
+import contextlib
 import secrets
 from typing import Any
 
@@ -13,14 +14,14 @@ from seek.components.mission_runner.state import DataSeekState
 from .utils import (
     create_llm,
     get_characteristic_context,
-    get_claimify_strategy_block,
+    get_default_strategy_block,
     normalize_url,
     strip_reasoning_block,
 )
 
-# Define the minimum step cost for a successful research cycle
+# Minimum steps required for a complete research cycle
 MIN_STEPS_FOR_SUCCESSFUL_RESEARCH = (
-    10  # 9 allows a full completion, 10 allows a synthetic fallback for failed research
+    10  # Ensures adequate steps for research completion or synthetic fallback
 )
 
 
@@ -35,6 +36,14 @@ class SupervisorDecision(BaseModel):
         None,
         description="Optional: A new task to assign if the supervisor decides to switch focus.",
     )
+
+
+class CacheSelectionDecision(BaseModel):
+    """Structured output for cache selection decision."""
+
+    decision: str
+    selected_urls: list[str] = []
+    rationale: str | None = None
 
 
 def _get_next_task_from_progress(
@@ -58,7 +67,7 @@ def _get_next_task_from_progress(
     if not eligible_tasks:
         return None
 
-    # Non-cryptographic randomness is not required; using secrets.choice for Bandit compliance
+    # Select next task using secure random selection
     return secrets.choice(eligible_tasks)
 
 
@@ -202,17 +211,26 @@ def supervisor_node(state: DataSeekState) -> dict:
         }
 
     # We have a task. Now, we determine the strategy block for it.
-    characteristic = next_task.get("characteristic", "Verifiability")
+    characteristic = next_task["characteristic"]
     topic = next_task.get("topic", "general domain")
+    # Resolve mission config: prefer value from state, else try known file paths
+    mission_config_data = state.get("mission_config")
+    if not mission_config_data:
+        for path in ("config/mission_config.yaml", "settings/mission_config.yaml"):
+            try:
+                with open(path) as f:
+                    content = f.read()
+                    if content.startswith("#"):
+                        first_newline = content.find("\n")
+                        if first_newline != -1:
+                            content = content[first_newline + 1 :]
+                    mission_config_data = yaml.safe_load(content)
+                    break
+            except Exception:
+                mission_config_data = None
     try:
-        with open("settings/mission_config.yaml") as f:
-            content = f.read()
-            if content.startswith("#"):
-                first_newline = content.find("\n")
-                if first_newline != -1:
-                    content = content[first_newline + 1 :]
-            mission_config = yaml.safe_load(content)
-        characteristic_context = get_characteristic_context(next_task, mission_config)
+        cfg_dict = mission_config_data if isinstance(mission_config_data, dict) else {}
+        characteristic_context = get_characteristic_context(next_task, cfg_dict)
     except Exception:
         characteristic_context = None
 
@@ -223,7 +241,7 @@ def supervisor_node(state: DataSeekState) -> dict:
         print(
             f"   ⚠️  Supervisor: Could not find dynamic context for '{characteristic}'. Using built-in fallback."
         )
-        strategy_block = get_claimify_strategy_block(characteristic)
+        strategy_block = get_default_strategy_block(characteristic)
 
     decision_history = state.get("decision_history", [])
     tool_execution_failures = state.get("tool_execution_failures", 0)
@@ -502,7 +520,7 @@ def supervisor_node(state: DataSeekState) -> dict:
             state_dict = dict(state)
             state_dict["fitness_report"] = None
 
-            # --- NEW: Log the failure ---
+            # Log the failure in task history for analysis
             task_history: list[tuple[str, str, str]] = state.get("task_history", [])
             current_task = state.get("current_task")
             if current_task:
@@ -511,7 +529,7 @@ def supervisor_node(state: DataSeekState) -> dict:
                 reason = str(fitness_report.reason)
                 task_history.append((char, topic, reason))
 
-            # --- NEW: Give the supervisor the option to change tasks ---
+            # Provide failure context to supervisor for decision-making
             excluded_tasks = [(t[0], t[1]) for t in task_history]
             alt_task = _get_next_task_from_progress(progress, exclude=excluded_tasks)
 
@@ -689,12 +707,14 @@ def supervisor_node(state: DataSeekState) -> dict:
                 try:
                     source_url_parts = line.split("`")
                     source_url = source_url_parts[1] if len(source_url_parts) > 1 else None
+                    if source_url:
+                        # Strip surrounding quotes and whitespace
+                        source_url = source_url.strip().strip('"').strip("'")
                 except IndexError:
                     pass
                 break
 
         # Verify provenance if a URL was found
-        research_cache = state.get("research_session_cache", [])
         if source_url and research_cache:
             for evidence in research_cache:
                 is_valid_evidence = (
@@ -705,14 +725,18 @@ def supervisor_node(state: DataSeekState) -> dict:
                 if is_valid_evidence:
                     args = evidence["args"]
                     found_url = args.get("url") or args.get("base_url") or args.get("start_url")
-                    if found_url == source_url:
-                        output = evidence.get("output", {})
-                        if isinstance(output, dict) and output.get("status") == "ok":
-                            provenance = "researched"
-                            print(
-                                f"✅ Supervisor: Provenance VERIFIED as 'researched' for URL: {source_url}"
-                            )
-                            break  # Found definitive proof
+                    # Normalize and compare without surrounding quotes
+                    if found_url:
+                        n_found = normalize_url(found_url)
+                        n_report = normalize_url(source_url)
+                        if n_found == n_report:
+                            output = evidence.get("output", {})
+                            if isinstance(output, dict) and output.get("status") == "ok":
+                                provenance = "researched"
+                                print(
+                                    f"✅ Supervisor: Provenance VERIFIED as 'researched' for URL: {source_url}"
+                                )
+                                break  # Found definitive proof
             if provenance == "synthetic":
                 print(
                     f"⚠️  Supervisor: Provenance could NOT be verified for URL: {source_url}. Defaulting to 'synthetic'."
@@ -867,17 +891,30 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
         ]
     )
 
-    agent = agent_prompt | llm
-    raw_result = agent.invoke({"messages": messages})
+    # Prefer structured output when supported
+    next_agent = "research"
+    decision_obj: SupervisorDecision | None = None
 
     try:
-        content_value = raw_result.content
-        dethought = strip_reasoning_block(
-            content_value if isinstance(content_value, str) else str(content_value)
-        )
-        repaired_data = json_repair.loads(dethought)
-        decision_obj = SupervisorDecision.model_validate(repaired_data)
-        next_agent = decision_obj.next_agent.lower()
+        if hasattr(llm, "with_structured_output"):
+            structured_llm = llm.with_structured_output(SupervisorDecision)
+            agent = agent_prompt | structured_llm
+            maybe = agent.invoke({"messages": messages})
+            if isinstance(maybe, SupervisorDecision):
+                decision_obj = maybe
+                next_agent = decision_obj.next_agent.lower()
+        if decision_obj is None:
+            # Fallback to previous parsing path
+            agent = agent_prompt | llm
+            raw_result = agent.invoke({"messages": messages})
+            # Robustly access content whether result is a dict-like or model
+            content_value = getattr(raw_result, "content", raw_result)
+            dethought = strip_reasoning_block(
+                content_value if isinstance(content_value, str) else str(content_value)
+            )
+            repaired_data = json_repair.loads(dethought)
+            decision_obj = SupervisorDecision.model_validate(repaired_data)
+            next_agent = decision_obj.next_agent.lower()
 
         # Override research choice if it's off-limits due to insufficient steps
         if research_is_off_limits and next_agent == "research":
@@ -885,21 +922,31 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
             # You could also add logic here to try 'synthetic' if it's cheaper and budget allows.
             next_agent = "end"
 
-        # --- NEW: Handle task switching ---
-        if decision_obj.new_task:
+        # Handle task switching based on failure patterns
+        if decision_obj and decision_obj.new_task:
             print(f"✅ Supervisor: Switching to new task: {decision_obj.new_task}")
             next_task = decision_obj.new_task
             # Recalculate strategy block for the new task
-            characteristic = next_task.get("characteristic", "Verifiability")
+            characteristic = next_task["characteristic"]
+            # Resolve mission config as above
+            mission_config_data = state.get("mission_config")
+            if not mission_config_data:
+                for path in ("config/mission_config.yaml", "settings/mission_config.yaml"):
+                    try:
+                        with open(path) as f:
+                            content = f.read()
+                            if content.startswith("#"):
+                                first_newline = content.find("\n")
+                                if first_newline != -1:
+                                    content = content[first_newline + 1 :]
+                            mission_config_data = yaml.safe_load(content)
+                            break
+                    except Exception:
+                        mission_config_data = None
+
             try:
-                with open("settings/mission_config.yaml") as f:
-                    content = f.read()
-                    if content.startswith("#"):
-                        first_newline = content.find("\n")
-                        if first_newline != -1:
-                            content = content[first_newline + 1 :]
-                    mission_config = yaml.safe_load(content)
-                characteristic_context = get_characteristic_context(next_task, mission_config)
+                cfg_dict = mission_config_data if isinstance(mission_config_data, dict) else {}
+                characteristic_context = get_characteristic_context(next_task, cfg_dict)
             except Exception:
                 characteristic_context = None
 
@@ -908,16 +955,25 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
                     f"**Strategic Focus for '{characteristic}':**\n{characteristic_context}"
                 )
             else:
-                strategy_block = get_claimify_strategy_block(characteristic)
+                strategy_block = get_default_strategy_block(characteristic)
 
             # Clear messages for the researcher
             messages = []
 
             # Reset the session tool/domain blocklist for the new task
             session_tool_domain_blocklist = []
+        # Prevent consecutive 'fitness' unless driven by a new research report path
+        if decision_history and decision_history[-1] == "fitness" and next_agent == "fitness":
+            print(
+                "   ⚠️ Supervisor: Preventing consecutive 'fitness' decision. Overriding to 'research'."
+            )
+            next_agent = "research"
+
     except Exception as parse_error:
         print(f"⚠️ Supervisor: JSON parsing failed: {parse_error}")
-        print(f"   Raw content: '{raw_result.content}'")
+        with contextlib.suppress(Exception):
+            # raw_result may not be defined or may not have 'content'
+            print(f"   Raw content: '{getattr(raw_result, 'content', raw_result)}'")
         next_agent = "research"
 
     # Calculate predictive steps for the LLM decision case
@@ -1167,20 +1223,46 @@ def llm_select_cached_sources(
         ]
     )
 
-    agent = prompt | llm
-
+    # Prefer structured output if supported
     try:
-        result = agent.invoke({})
-        content_val = result.content
-        dethought = strip_reasoning_block(
-            content_val if isinstance(content_val, str) else str(content_val)
-        )
-        data_any = json_repair.loads(dethought)
-        repaired_data: dict[str, Any] = data_any if isinstance(data_any, dict) else {}
-
-        decision = repaired_data.get("decision", "stop")
-        selected_urls = repaired_data.get("selected_urls", [])
-        rationale = repaired_data.get("rationale", "LLM selection completed")
+        decision = "stop"
+        selected_urls: list[str] = []
+        rationale = ""
+        if hasattr(llm, "with_structured_output"):
+            structured_llm = llm.with_structured_output(CacheSelectionDecision)
+            agent = prompt | structured_llm
+            maybe = agent.invoke({})
+            if isinstance(maybe, CacheSelectionDecision):
+                decision = maybe.decision
+                selected_urls = maybe.selected_urls or []
+                rationale = maybe.rationale or ""
+            else:
+                # Fallback to unstructured parsing
+                agent = prompt | llm
+                result = agent.invoke({})
+                content_val = getattr(result, "content", result)
+                dethought = strip_reasoning_block(
+                    content_val if isinstance(content_val, str) else str(content_val)
+                )
+                data_any = json_repair.loads(dethought)
+                parsed_data_unstructured: dict[str, Any] = (
+                    data_any if isinstance(data_any, dict) else {}
+                )
+                decision = parsed_data_unstructured.get("decision", "stop")
+                selected_urls = parsed_data_unstructured.get("selected_urls", [])
+                rationale = parsed_data_unstructured.get("rationale", "LLM selection completed")
+        else:
+            agent = prompt | llm
+            result = agent.invoke({})
+            content_val = getattr(result, "content", result)
+            dethought = strip_reasoning_block(
+                content_val if isinstance(content_val, str) else str(content_val)
+            )
+            data_any = json_repair.loads(dethought)
+            parsed_data_fallback: dict[str, Any] = data_any if isinstance(data_any, dict) else {}
+            decision = parsed_data_fallback.get("decision", "stop")
+            selected_urls = parsed_data_fallback.get("selected_urls", [])
+            rationale = parsed_data_fallback.get("rationale", "LLM selection completed")
 
         # Validate decision
         if decision not in ["reuse_cached", "stop"]:

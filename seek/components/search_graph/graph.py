@@ -3,6 +3,7 @@
 Builds the LangGraph application graph for the Data Seek agent.
 """
 
+import asyncio
 from typing import Any
 
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -10,7 +11,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from seek.components.mission_runner.state import DataSeekState
-from seek.components.tool_manager.tools import get_tools_for_role
+from seek.components.tool_manager.tool_manager import ToolManager
 
 from .nodes import (
     archive_node,
@@ -21,13 +22,14 @@ from .nodes import (
 )
 
 
-def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
+def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> Any:
     """
     Builds and compiles the multi-agent graph with a supervisor.
 
     Args:
         checkpointer: A LangGraph checkpointer instance for persisting state.
         seek_config: The seek configuration dictionary.
+        mission_config: The mission configuration dictionary.
 
     Returns:
         A compiled LangGraph app.
@@ -39,21 +41,22 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
     workflow.add_node("research", research_node)
     workflow.add_node("archive", archive_node)
     workflow.add_node("fitness", fitness_node)
-    workflow.add_node("synthetic", synthetic_node)  # Add synthetic node
+    workflow.add_node("synthetic", synthetic_node)  # Handles synthetic data generation
 
-    # --- Define Role-Specific Tool Nodes ---
-    seek_config.get("use_robots", True)
+    # --- Define Tool Nodes using the new ToolManager ---
+    tool_manager = ToolManager()
+    toolsets = asyncio.run(tool_manager.get_toolsets_for_mission(mission_config))
 
-    research_tools = get_tools_for_role("research")
-    archive_tools = get_tools_for_role("archive")
+    research_tools_node = ToolNode(toolsets.get("research", []))
+    workflow.add_node("research_tools", research_tools_node)
 
-    workflow.add_node("research_tools", ToolNode(research_tools))
-    workflow.add_node("archive_tools", ToolNode(archive_tools))
+    archive_tools_node = ToolNode(toolsets.get("archive", []))
+    workflow.add_node("archive_tools", archive_tools_node)
 
     # --- Wire the Graph ---
     workflow.set_entry_point("supervisor")
 
-    # The supervisor decides which agent to run next.
+    # Routes to the appropriate agent based on supervisor decision
     def supervisor_router(state: DataSeekState) -> str:
         """Route based on supervisor decision with debugging."""
         # Track recursion step (for TUI display only)
@@ -95,23 +98,22 @@ def build_graph(checkpointer: SqliteSaver, seek_config: dict[str, Any]) -> Any:
             "research": "research",
             "archive": "archive",
             "fitness": "fitness",
-            "synthetic": "synthetic",  # Add synthetic route
+            "synthetic": "synthetic",  # Route for synthetic data generation
             "end": END,
         },
     )
 
-    # Agent nodes route to their tool nodes, which then route back to the supervisor.
+    # Connect agents to their tools and back to supervisor
     workflow.add_edge("research", "research_tools")
     workflow.add_edge("research_tools", "supervisor")
 
     workflow.add_edge("archive", "archive_tools")
     workflow.add_edge("archive_tools", "supervisor")
 
-    # The fitness agent has no tools, so it routes directly back to the supervisor.
+    # Fitness agent flows directly back to supervisor
     workflow.add_edge("fitness", "supervisor")
 
-    # The synthetic agent routes directly to archive (bypassing fitness check)
-    # as per the "Unhappy Path" design: synthetic data is assumed to be correct by design
+    # Synthetic data flows directly to archive
     workflow.add_edge("synthetic", "archive")
 
     # Compile the graph with the provided checkpointer

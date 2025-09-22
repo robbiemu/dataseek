@@ -41,6 +41,8 @@ class AgentOutputParser:
     def __init__(self) -> None:
         self.ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\\[0-?]*[ -/]*[@-~])")
         self.synthetic_count = 0  # Track cumulative synthetic samples
+        # Suppress immediate duplicate lines that often occur from dual loggers
+        self._last_clean_line: str | None = None
 
     def parse_line(
         self,
@@ -52,6 +54,11 @@ class AgentOutputParser:
         clean_line = self.ansi_escape.sub("", line).strip()
         if not clean_line:
             return
+
+        # Deduplicate immediate repeats of the exact same content
+        if clean_line == self._last_clean_line:
+            return
+        self._last_clean_line = clean_line
 
         # 1. Progress patterns: "📊 Mission Progress: 123/1200 samples (10.3%)"
         progress_match = re.search(
@@ -176,13 +183,18 @@ class AgentOutputParser:
             yield NewMessage(role="debug", content=clean_line)
             return
 
-        # 17. Error patterns
+        # 17. Demote pydantic help line to debug, not error
+        if "errors.pydantic.dev" in clean_line:
+            yield NewMessage(role="debug", content=clean_line)
+            return
+
+        # 18. Error patterns
         clean_lower = clean_line.lower()
         if any(keyword in clean_lower for keyword in ["error", "failed", "exception", "traceback"]):
             yield ErrorMessage(message=clean_line)
             return
 
-        # 18. Tool operation messages
+        # 19. Tool operation messages
         if any(
             keyword in clean_lower
             for keyword in ["search", "found", "fetching", "downloading", "crawling"]
@@ -190,7 +202,7 @@ class AgentOutputParser:
             yield NewMessage(role="tool", content=clean_line)
             return
 
-        # 19. Creation/generation messages
+        # 20. Creation/generation messages
         if any(
             keyword in clean_lower
             for keyword in ["generating", "created", "completed", "writing", "saved"]
@@ -198,12 +210,12 @@ class AgentOutputParser:
             yield NewMessage(role="assistant", content=clean_line)
             return
 
-        # 20. Thread/connection messages
+        # 21. Thread/connection messages
         if any(keyword in clean_line for keyword in ["thread", "Thread", "config"]):
             yield NewMessage(role="system", content=clean_line)
             return
 
-        # 21. Supervisor end decision - detect when agent decides to end
+        # 22. Supervisor end decision - detect when agent decides to end
         if "Decided on 'end'" in clean_line or "Routing to END" in clean_line:
             yield NewMessage(role="system", content="Agent decided to end conversation")
             return

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 
 
@@ -56,3 +57,17 @@ class AgentProcessManager:
         """Terminates the agent subprocess."""
         if self.process and self.process.returncode is None:
             self.process.terminate()
+
+    async def shutdown(self) -> None:
+        """Gracefully terminate and await subprocess exit, closing pipes."""
+        if not self.process:
+            return
+        try:
+            if self.process.returncode is None:
+                self.process.terminate()
+            # Wait for process to exit; stdout closes with the process
+            # Wait for process to exit
+            with contextlib.suppress(Exception):
+                await self.process.wait()
+        finally:
+            self.process = None

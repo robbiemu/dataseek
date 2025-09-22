@@ -23,52 +23,50 @@ class MissionStateManager:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        # Keep a single connection so in-memory databases persist across operations
+        self._conn = sqlite3.connect(self.db_path)
         self._create_table()
 
     def _create_table(self) -> None:
         """Create the mission_state table if it doesn't exist."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS mission_state (
-                    mission_id TEXT PRIMARY KEY,
-                    state TEXT NOT NULL
-                )
+        cursor = self._conn.cursor()
+        cursor.execute(
             """
+            CREATE TABLE IF NOT EXISTS mission_state (
+                mission_id TEXT PRIMARY KEY,
+                state TEXT NOT NULL
             )
-            conn.commit()
+        """
+        )
+        self._conn.commit()
 
     def create_mission(self, mission_id: str, initial_state: dict[str, Any]) -> None:
         """Create a new mission entry in the database."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO mission_state (mission_id, state) VALUES (?, ?)",
-                (mission_id, json.dumps(initial_state)),
-            )
-            conn.commit()
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO mission_state (mission_id, state) VALUES (?, ?)",
+            (mission_id, json.dumps(initial_state)),
+        )
+        self._conn.commit()
         logging.info(f"Mission {mission_id} created in the database.")
 
     def get_mission_state(self, mission_id: str) -> dict[str, Any] | None:
         """Retrieve the state of a mission."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT state FROM mission_state WHERE mission_id = ?", (mission_id,))
-            row = cursor.fetchone()
-            if row:
-                return json.loads(row[0])
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT state FROM mission_state WHERE mission_id = ?", (mission_id,))
+        row = cursor.fetchone()
+        if row:
+            return json.loads(row[0])
         return None
 
     def update_mission_state(self, mission_id: str, new_state: dict[str, Any]) -> None:
         """Update the state of an existing mission."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE mission_state SET state = ? WHERE mission_id = ?",
-                (json.dumps(new_state), mission_id),
-            )
-            conn.commit()
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "UPDATE mission_state SET state = ? WHERE mission_id = ?",
+            (json.dumps(new_state), mission_id),
+        )
+        self._conn.commit()
         logging.info(f"Mission {mission_id} state updated.")
 
 
@@ -100,8 +98,8 @@ class MissionRunner:
 
         # Load mission config for output paths and recursion limit
         output_paths = self.mission_config.get("output_paths", {})
-        pedigree_path = output_paths.get("audit_trail_path", "examples/PEDIGREE.md")
-        samples_path = output_paths.get("samples_path", "examples/data/datasets/samples")
+        pedigree_path = output_paths.get("audit_trail_path", "PEDIGREE.md")
+        samples_path = output_paths.get("samples_path", "samples")
         max_recursion_steps = self.seek_config.get("recursion_per_sample", 30)
 
         progress = {
@@ -205,6 +203,8 @@ class MissionRunner:
             "last_action_status": "success",
             "last_action_agent": "",
             "fitness_report": None,
+            # Provide mission configuration for dynamic context resolution
+            "mission_config": self.mission_config,
             # Carry over mission-level info
             "current_mission": mission_state.get("mission_name"),
             "total_samples_target": mission_state.get("total_samples_target"),
@@ -258,21 +258,21 @@ class MissionRunner:
         }
         inputs = {"messages": [HumanMessage(content="Start the data generation cycle.")]}
 
-        print(f"[DEBUG] Starting cycle for thread {thread_id}")
+        # print(f"[DEBUG] Starting cycle for thread {thread_id}")
 
         try:
             for event in self.app.stream(inputs, config=thread_config):
-                print(f"[DEBUG] Received event from app.stream: {list(event.keys())}")
+                # print(f"[DEBUG] Received event from app.stream: {list(event.keys())}")
                 for _node_name, node_output in event.items():
                     if "messages" in node_output:
                         # Minimal logging to avoid clutter
                         pass
             logging.info(f"  -> Cycle for thread {thread_id} finished.")
-        except Exception as e:
-            import traceback
+        except Exception as _e:
+            # import traceback
 
-            print(f"[DEBUG] Exception in run_full_cycle: {e}")
-            print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+            # print(f"[DEBUG] Exception in run_full_cycle: {_e}")
+            # print(f"[DEBUG] Traceback: {traceback.format_exc()}")
             raise
 
     def _update_mission_progress(self, mission_id: str, thread_id: str) -> dict[str, Any]:

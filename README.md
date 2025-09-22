@@ -1,6 +1,6 @@
 # DataSeek
 
-DataSeek is a standalone data prospecting agent for finding reliable, verifiable data sources.
+DataSeek is a versatile, extensible framework for autonomous data collection and prospecting. It uses AI agents to discover, validate, and organize data from sources like academic papers, Wikipedia, and web searches, targeting configurable data quality characteristics.
 
 ## Overview
 
@@ -26,13 +26,14 @@ DataSeek is a powerful tool for automated data collection and prospecting. It us
    ```
 
 4. **Review and customize configuration files**:
-   - Agent configuration: `config/seek_config.yaml` (see [Agent Configuration Guide](docs/guides/seek_config_guide.md))
-   - Mission configuration: `settings/mission_config.yaml` (see [Mission Configuration Guide](docs/guides/data-seek-agent.md))
+   - Agent configuration: `config/seek_config.yaml` (see [Configuration Guide](docs/guides/configuration-guide.md))
+   - Mission configuration: `config/mission_config.yaml` (see [Mission Configuration Guide](docs/guides/data-seek-agent.md))
 
-5. **Run a data prospecting mission**:
+5. **Run the default mac_ai_corpus_v1 mission**:
    ```bash
-   dataseek --mission research_dataset
+   dataseek --mission mac_ai_corpus_v1
    ```
+   This collects 50 samples per characteristic into `examples/data/datasets/tier1/` with audit trails in `examples/PEDIGREE.md`.
 
 6. **Monitor progress** through the terminal interface or check the output directories:
    - `examples/data/datasets/tier1` - Raw data samples
@@ -63,12 +64,12 @@ After installation, you can run DataSeek in two ways:
 
 ### Command-Line Interface
 ```bash
-dataseek --mission research_dataset
+dataseek --mission mac_ai_corpus_v1
 ```
 
 ### Terminal User Interface (TUI)
 ```bash
-dataseek-tui settings/mission_config.yaml
+dataseek-tui config/mission_config.yaml
 ```
 
 You can also use Python module syntax:
@@ -93,7 +94,7 @@ This file configures the overall behavior of the DataSeek agent, including model
 
 See [Agent Configuration Guide](docs/guides/seek_config_guide.md) for detailed documentation.
 
-### 2. Mission Configuration (`settings/mission_config.yaml`)
+### 2. Mission Configuration (`config/mission_config.yaml`)
 
 This file defines specific missions with their goals and parameters, including target sizes, synthetic budgets, and topic lists.
 
@@ -146,7 +147,7 @@ uv pip install -e .[dev]
 
 - Type check (MyPy)
   ```bash
-  mypy seek
+  mypy seek plugins --exclude tests
   ```
 
 - Security scan (Bandit)

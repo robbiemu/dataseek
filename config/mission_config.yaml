@@ -1,74 +1,32 @@
 missions:
-  # Mission 1: Generate the small, high-quality corpus for production artifacts.
-  - name: "production_corpus"
-    target_size: 70 #110  # Samples per goal
-    synthetic_budget: 1.0 # Allow 100% synthetic data to create perfect edge cases
+  - name: "mac_ai_corpus_v1"
+    target_size: 50 # Samples per characteristic
+    synthetic_budget: 0.1 # We want mostly real-world data
     output_paths:
-      samples_path: "examples/data/datasets/tier1"
-      audit_trail_path: "examples/PEDIGREE.md"
-    tools:
-      web_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 5
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
+      samples_path: "samples"
+      audit_trail_path: "PEDIGREE.md"
+    tool_configs:
       arxiv_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 3
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
+        roles: ["research"]
+        max_docs: 10
       wikipedia_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 3
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
+        roles: ["research"]
+        max_docs: 5
+      url_to_markdown:
+        roles: ["research"]
+        timeout: 30
+      file_saver:
+        roles: ["archive"]
+        output_path: "examples/datasets/mac_ai_corpus"
     goals:
-      - characteristic: "Verifiability"
-        context: "The goal is to find source documents that contain a mix of verifiable facts and subjective, unverifiable content. The ideal document is something like a news report, a product review, or an opinion editorial that blends factual statements (e.g., 'the product costs $50') with opinions (e.g., 'it's a wonderful product'). This mix is essential for training the Selection agent to correctly identify and isolate factual content."
-        topics: ["news reports", "scientific abstracts", "financial statements"]
-      - characteristic: "Self-containment"
-        context: "The goal is to find source documents that are rich in contextual dependencies. The ideal text is narrative in style, like a multi-paragraph news story, a historical account, or a political analysis. Look for documents that frequently use pronouns (it, they, he, she), temporal references ('three days later', 'the previous year'), and assume the reader has context from earlier sentences. This is essential for training the Disambiguation agent."
-        topics: ["political analysis", "historical narratives"]
-      - characteristic: "Atomicity"
-        context: "The goal is to find source documents containing complex, compound sentences that can be broken down into multiple, smaller facts. The ideal text comes from dense, formal sources like legal documents, policy summaries, or technical specifications. Look for sentences that use connectors like 'and', 'while', 'because', and 'which', as these are perfect for training the Decomposition agent to break them into atomic claims."
-        topics: ["legal documents", "policy summaries"]
+      - characteristic: "Controlled Experimental Design"
+        context: "The goal is to find scientific papers that describe a study with a clear experimental control. The agent must verify that the paper's methodology section details at least one treatment/intervention group and a separate control group designed to isolate variables. It must distinguish papers that *employ* this method from those that merely *discuss* it in a literature review. This methodology appears across disciplines—from psychology lab studies to physics experiments to economics field trials—but always involves systematic comparison with controls."
+        topics: ["Clinical Psychology", "Economics", "Public Health", "Physics", "Computer Science"]
 
-  # Mission 2: Generate the large-scale research dataset.
-  - name: "research_dataset"
-    target_size: 203 #290 # Samples per component
-    synthetic_budget: 0.2 # Allow up to 20% synthetic data
-    output_paths:
-      samples_path: "examples/data/datasets/tier2"
-      audit_trail_path: "examples/PEDIGREE.md"
-    tools:
-      web_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 5
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
-      arxiv_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 3
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
-      wikipedia_search:
-        pre_fetch_pages: true
-        pre_fetch_limit: 3
-        validate_urls: true
-        retry_on_failure: true
-        max_retries: 2
-    goals:
-      - characteristic: "Verifiability"
-        context: "The goal is to find source documents that contain a mix of verifiable facts and subjective, unverifiable content. The ideal document is something like a news report, a product review, or an opinion editorial that blends factual statements (e.g., 'the product costs $50') with opinions (e.g., 'it's a wonderful product'). This mix is essential for training the Selection agent to correctly identify and isolate factual content."
-        topics: ["news reports", "scientific abstracts", "financial statements", "literary criticism", "product reviews", "academic lectures", "technical documentation", "social media posts", "blog posts", "encyclopedia entries", "government reports", "medical journals", "market research", "press releases", "interview transcripts", "white papers", "case studies", "user manuals", "FAQs", "wiki articles"]
-      - characteristic: "Self-containment"
-        context: "The goal is to find source documents that are rich in contextual dependencies. The ideal text is narrative in style, like a multi-paragraph news story, a historical account, or a political analysis. Look for documents that frequently use pronouns (it, they, he, she), temporal references ('three days later', 'the previous year'), and assume the reader has context from earlier sentences. This is essential for training the Disambiguation agent."
-        topics: ["political analysis", "historical narratives", "biographical sketches", "travel guides", "recipe instructions", "tutorial guides", "how-to articles", "product descriptions", "event summaries", "book summaries", "movie plots", "scientific explanations", "legal case summaries", "business proposals", "project reports", "meeting minutes", "email threads", "forum discussions", "chat logs", "news commentaries"]
-      - characteristic: "Atomicity"
-        context: "The goal is to find source documents containing complex, compound sentences that can be broken down into multiple, smaller facts. The ideal text comes from dense, formal sources like legal documents, policy summaries, or technical specifications. Look for sentences that use connectors like 'and', 'while', 'because', and 'which', as these are perfect for training the Decomposition agent to break them into atomic claims."
-        topics: ["legal documents", "policy summaries", "contract clauses", "scientific hypotheses", "mathematical proofs", "technical specifications", "medical diagnoses", "financial analyses", "engineering schematics", "research methodologies", "business plans", "strategic overviews", "regulatory compliance", "insurance claims", "patent descriptions", "academic theses", "code documentation", "system architectures", "process flows", "risk assessments"]
+      - characteristic: "Comparative Analysis Methodology"
+        context: "The goal is to identify papers that conduct a systematic comparison between two or more distinct items, methods, theories, or approaches as their primary research activity. The agent must verify that the paper's methodology involves structured comparison with clear criteria, not just casual mentions of differences. This could manifest as algorithm benchmarking in computer science, treatment comparisons in medicine, or theoretical framework comparisons in social sciences."
+        topics: ["Computer Science", "Clinical Medicine", "Literary Studies", "Engineering", "Economics"]
+
+      - characteristic: "Primary Data Collection"
+        context: "The goal is to find papers that gather original data through direct observation, measurement, surveys, or experiments, as opposed to analyzing existing datasets or conducting purely theoretical work. The agent must verify that the methodology section describes the original data gathering process—whether through laboratory measurements, field observations, surveys, interviews, or experimental procedures. This distinguishes empirical research from literature reviews, theoretical papers, or secondary data analysis."
+        topics: ["Social Sciences", "Natural Sciences", "Engineering", "Public Health", "Psychology"]

@@ -154,7 +154,7 @@ class StatsHeader(Static):
         )
         status_text.append(f"❌ Errors: {stats.errors}")
 
-        # For debug logging, keep the markup string version
+        # Maintain markup string version for debugging
         synthetic_display = f"{synth_color}{synthetic_pct:.0f}% synth{synth_color_end}"
         status_line = (
             f"📊 Progress: {stats.completed}/{stats.target} ({synthetic_display}) | "
@@ -164,7 +164,7 @@ class StatsHeader(Static):
             f"❌ Errors: {stats.errors}"
         )
 
-        # Debug: Log stats header updates
+        # Log stats header updates for debugging
         try:
             import os
             import tempfile

@@ -28,7 +28,7 @@ uv sync
 
 The entire behavior of the Data Seek Agent is controlled by a single YAML configuration file: the **Mission Plan**. Think of this file as the "brain" of the agent. You don't write code to change the agent's goals; you simply describe your desired outcome in the mission plan, and the agent adapts its strategy to achieve it.
 
-The default mission plan is located at `settings/mission_config.yaml`.
+The default mission plan is located at `config/mission_config.yaml`.
 
 ## 4. Quick Start: A Simple Example
 
@@ -36,17 +36,17 @@ Let's run the agent with a simple mission to see it in action.
 
 #### **Step 1: Define a Simple Mission**
 
-Create a new file named `settings/simple_mission.yaml` and add the following content. This mission tells the agent to find just 10 text samples related to "Quantum Computing."
+Create a new file named `config/simple_mission.yaml` and add the following content. This mission tells the agent to find just 10 text samples related to "Quantum Computing."
 
 ```yaml
-# in settings/simple_mission.yaml
+# in config/simple_mission.yaml
 missions:
   - name: "quantum_computing_corpus"
     target_size: 10 # Find 10 total samples
     synthetic_budget: 0.1 # Allow 10% (1 sample) to be invented if needed
     goals:
-      - characteristic: "Verifiability"
-        topics: ["Quantum Computing Research Abstracts"]
+      - characteristic: "Evidence-Based Reasoning"
+        topics: ["clinical psychology"]
 ```
 
 #### **Step 2: Execute the Agent**
@@ -58,7 +58,7 @@ You have two options for running the agent:
 Run the interactive TUI that shows real-time progress, agent conversation, and statistics:
 
 ```bash
-dataseek-tui settings/simple_mission.yaml
+dataseek-tui config/simple_mission.yaml
 ```
 
 The TUI provides:
@@ -73,7 +73,7 @@ The TUI provides:
 Run the agent from your terminal in batch mode:
 
 ```bash
-dataseek --mission settings/simple_mission.yaml
+dataseek --mission config/simple_mission.yaml
 ```
 
 Both methods will execute the same underlying agent. The TUI is recommended for interactive use as it provides better visibility into the agent's progress and allows for real-time control.
@@ -105,29 +105,10 @@ missions:
 
     # A list of specific goals. The agent will work to fulfill each one.
     goals:
-      - # Goal 1: Find text to test the "Verifiability" characteristic.
-        characteristic: "Verifiability"
-
-        # A list of specific topics to search for within this goal.
-        topics:
-          - "news reports"
-          - "scientific abstracts"
-          - "financial statements"
-          - "opinion editorials" # Good for negative examples
-
-      - # Goal 2: Find text to test "Self-containment" (Disambiguation).
-        characteristic: "Self-containment"
-        topics:
-          - "political analysis"
-          - "historical narratives"
-          - "multi-paragraph news stories"
-      
-      - # Goal 3: Find text to test "Atomicity" (Decomposition).
-        characteristic: "Atomicity"
-        topics:
-          - "legal documents"
-          - "policy summaries"
-          - "contract clauses"
+      - characteristic: "Evidence-Based Reasoning"
+        topics: ["clinical psychology", "data analysis"]
+      - characteristic: "Controlled Experimental Design"
+        topics: ["machine learning ethics", "scientific methods"]
 ```
 
 ## 6. The Full Workflow: From Seek to Compiled Artifact
@@ -139,10 +120,10 @@ Run the agent with your configured mission plan to produce the Tier 2 raw text c
 
 ```bash
 # Option A: Interactive TUI (recommended for monitoring progress)
-dataseek-tui settings/mission_config.yaml
+dataseek-tui config/mission_config.yaml
 
 # Option B: Command-line batch mode
-dataseek --mission settings/mission_config.yaml
+dataseek --mission config/mission_config.yaml
 ```
 
 **Step 2: Generate the "Gold Standard" Dataset**

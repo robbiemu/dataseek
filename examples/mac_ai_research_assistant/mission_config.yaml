@@ -1,0 +1,32 @@
+missions:
+  - name: "mac_ai_corpus_v1"
+    target_size: 50 # Samples per characteristic
+    synthetic_budget: 0.1 # We want mostly real-world data
+    output_paths:
+      samples_path: "samples"
+      audit_trail_path: "PEDIGREE.md"
+    tool_configs:
+      arxiv_search:
+        roles: ["research"]
+        max_docs: 10
+      wikipedia_search:
+        roles: ["research"]
+        max_docs: 5
+      url_to_markdown:
+        roles: ["research"]
+        timeout: 30
+      file_saver:
+        roles: ["archive"]
+        output_path: "examples/datasets/mac_ai_corpus"
+    goals:
+      - characteristic: "Controlled Experimental Design"
+        context: "The goal is to find scientific papers that describe a study with a clear experimental control. The agent must verify that the paper's methodology section details at least one treatment/intervention group and a separate control group designed to isolate variables. It must distinguish papers that *employ* this method from those that merely *discuss* it in a literature review. This methodology appears across disciplines—from psychology lab studies to physics experiments to economics field trials—but always involves systematic comparison with controls."
+        topics: ["Clinical Psychology", "Economics", "Public Health", "Physics", "Computer Science"]
+
+      - characteristic: "Comparative Analysis Methodology"
+        context: "The goal is to identify papers that conduct a systematic comparison between two or more distinct items, methods, theories, or approaches as their primary research activity. The agent must verify that the paper's methodology involves structured comparison with clear criteria, not just casual mentions of differences. This could manifest as algorithm benchmarking in computer science, treatment comparisons in medicine, or theoretical framework comparisons in social sciences."
+        topics: ["Computer Science", "Clinical Medicine", "Literary Studies", "Engineering", "Economics"]
+
+      - characteristic: "Primary Data Collection"
+        context: "The goal is to find papers that gather original data through direct observation, measurement, surveys, or experiments, as opposed to analyzing existing datasets or conducting purely theoretical work. The agent must verify that the methodology section describes the original data gathering process—whether through laboratory measurements, field observations, surveys, interviews, or experimental procedures. This distinguishes empirical research from literature reviews, theoretical papers, or secondary data analysis."
+        topics: ["Social Sciences", "Natural Sciences", "Engineering", "Public Health", "Psychology"]

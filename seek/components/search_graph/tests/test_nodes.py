@@ -320,8 +320,8 @@ class TestNodes:
 
         # Assert
         expected_filename = "test_characteristic_test_topic_20250904123456.md"
-        # Current implementation writes to examples/data/datasets/tier1/
-        expected_filepath = f"examples/data/datasets/tier1/{expected_filename}"
+        # New implementation writes to relative 'samples/' by default
+        expected_filepath = f"samples/{expected_filename}"
 
         mock_write_file.invoke.assert_called_once_with(
             {

@@ -333,4 +333,4 @@ docs/tasks/
 *.sqlite-shm
 *.sqlite-wal
 checkpoints/
-examples/
+examples/datasets/

@@ -165,11 +165,21 @@ def research_node(state: "DataSeekState") -> dict:
         )
 
     # --- System prompt (mission-specific) ---
+    # Base role prompt (shared)
+    base_tpl = get_prompt("research", "base_prompt")
+    try:
+        base_prompt = base_tpl.format(
+            characteristic=characteristic, topic=topic, strategy_block=strategy_block
+        )
+    except Exception:
+        # Tolerate base prompts without placeholders
+        base_prompt = base_tpl
+
     if cached_only:
         # Cached-only mode prompt template
         tpl = get_prompt("research", "cached_only_prompt")
         allowed_urls_list = "\n".join(f"- {url}" for url in allowed_urls)
-        system_prompt = tpl.format(
+        specific_prompt = tpl.format(
             characteristic=characteristic,
             topic=topic,
             strategy_block=strategy_block,
@@ -179,11 +189,13 @@ def research_node(state: "DataSeekState") -> dict:
     else:
         # Normal mode prompt template
         tpl = get_prompt("research", "normal_prompt")
-        system_prompt = tpl.format(
+        specific_prompt = tpl.format(
             characteristic=characteristic,
             topic=topic,
             strategy_block=strategy_block,
         )
+
+    system_prompt = f"{base_prompt}\n\n{specific_prompt}" if base_prompt else specific_prompt
 
     # --- Base prompt template (system is dynamic per-iteration) ---
     prompt_template = ChatPromptTemplate.from_messages(
@@ -276,7 +288,7 @@ def research_node(state: "DataSeekState") -> dict:
         #     print("      " + "-" * 20)
 
         # Bind tools as scoped this iteration
-        llm_with_tools = llm.bind_tools(current_tools) if current_tools else llm
+        llm_with_tools = llm.bind_tools(current_tools, tool_choice="auto") if current_tools else llm
         print(
             f"      Tools this iteration: {[t.name for t in current_tools] if current_tools else '[]'}"
         )
@@ -374,6 +386,9 @@ def research_node(state: "DataSeekState") -> dict:
                         print(
                             f"         ▶ Executing {tool_call_name} with args: {str(tool_call_args)[:200]} ..."
                         )
+
+                        # Normalize tool name for downstream logging/handling
+                        tool_name = tool_call_name
 
                         tool_result = matching_tool.invoke(tool_call_args)
 

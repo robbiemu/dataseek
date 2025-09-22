@@ -52,14 +52,17 @@ def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str) -> Ru
     seek_config.get("use_robots", True)
 
     tools = get_tools_for_role(role)
+    # Escape curly braces to avoid ChatPromptTemplate treating literals as variables
+    safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", system_prompt),
+            ("system", safe_system_prompt),
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
     if tools:
-        return prompt | llm.bind_tools(tools)
+        # Force a provider-compatible tool_choice
+        return prompt | llm.bind_tools(tools, tool_choice="auto")
     return prompt | llm
 
 

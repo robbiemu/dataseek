@@ -98,6 +98,9 @@ def load_mission_plan(
         }
 
 
+_OBS_CONFIGURED_FLAG = "DATASEEK_OBS_CONFIGURED"
+
+
 def setup_observability(seek_config: dict[str, Any]) -> None:
     """Configure LangSmith tracing via LangChain/LangGraph environment variables.
 
@@ -123,6 +126,10 @@ def setup_observability(seek_config: dict[str, Any]) -> None:
     endpoint = env_endpoint or cfg_endpoint
     project = env_project or cfg_project
 
+    # Avoid duplicate configuration/prints when called multiple times
+    if os.getenv(_OBS_CONFIGURED_FLAG) == "1":
+        return
+
     # Respect explicit disable
     if tracing and str(tracing).lower() in {"false", "0", "no", "off"}:
         print("LangSmith tracing explicitly disabled.")
@@ -141,6 +148,7 @@ def setup_observability(seek_config: dict[str, Any]) -> None:
         # Enable tracing with LangChain v2
         os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
         print("Observability configured (LangChain/LangGraph tracing enabled).")
+        os.environ[_OBS_CONFIGURED_FLAG] = "1"
     else:
         if tracing and str(tracing).lower() in {"true", "1", "yes", "on"}:
             print(
@@ -148,6 +156,8 @@ def setup_observability(seek_config: dict[str, Any]) -> None:
             )
         else:
             print("Note: No LangSmith configuration found. Skipping observability setup.")
+        # Mark as configured to prevent duplicate prints downstream
+        os.environ[_OBS_CONFIGURED_FLAG] = "1"
 
 
 def run_agent_process(

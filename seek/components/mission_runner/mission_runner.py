@@ -98,8 +98,8 @@ class MissionRunner:
 
         # Load mission config for output paths and recursion limit
         output_paths = self.mission_config.get("output_paths", {})
-        pedigree_path = output_paths.get("audit_trail_path", "examples/PEDIGREE.md")
-        samples_path = output_paths.get("samples_path", "examples/data/datasets/samples")
+        pedigree_path = output_paths.get("audit_trail_path", "PEDIGREE.md")
+        samples_path = output_paths.get("samples_path", "samples")
         max_recursion_steps = self.seek_config.get("recursion_per_sample", 30)
 
         progress = {
@@ -258,21 +258,21 @@ class MissionRunner:
         }
         inputs = {"messages": [HumanMessage(content="Start the data generation cycle.")]}
 
-        print(f"[DEBUG] Starting cycle for thread {thread_id}")
+        # print(f"[DEBUG] Starting cycle for thread {thread_id}")
 
         try:
             for event in self.app.stream(inputs, config=thread_config):
-                print(f"[DEBUG] Received event from app.stream: {list(event.keys())}")
+                # print(f"[DEBUG] Received event from app.stream: {list(event.keys())}")
                 for _node_name, node_output in event.items():
                     if "messages" in node_output:
                         # Minimal logging to avoid clutter
                         pass
             logging.info(f"  -> Cycle for thread {thread_id} finished.")
-        except Exception as e:
-            import traceback
+        except Exception as _e:
+            # import traceback
 
-            print(f"[DEBUG] Exception in run_full_cycle: {e}")
-            print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+            # print(f"[DEBUG] Exception in run_full_cycle: {_e}")
+            # print(f"[DEBUG] Traceback: {traceback.format_exc()}")
             raise
 
     def _update_mission_progress(self, mission_id: str, thread_id: str) -> dict[str, Any]:

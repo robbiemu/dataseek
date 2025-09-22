@@ -487,6 +487,18 @@ try:
     def patched_litellm_completion(*args: Any, **kwargs: Any) -> Any:
         """Patched LiteLLM completion that properly handles Ollama tool calls."""
 
+        # Sanitize incompatible provider args
+        # OpenAI rejects tool_choice='any'; map to 'auto'
+        try:
+            if kwargs.get("tool_choice") == "any":
+                kwargs["tool_choice"] = "auto"
+            # Some integrations pass tool_choice via extra_body
+            extra_body = kwargs.get("extra_body")
+            if isinstance(extra_body, dict) and extra_body.get("tool_choice") == "any":
+                extra_body["tool_choice"] = "auto"
+        except Exception:
+            pass
+
         # Store original kwargs for debugging
         model = kwargs.get("model", args[0] if args else "")
 

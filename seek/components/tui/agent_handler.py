@@ -171,6 +171,14 @@ def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
     elif isinstance(event, ErrorMessage):
         app.debug_log(f"ERROR MESSAGE EVENT: {event.message[:100]}...")
         app.conversation.add_message("error", event.message)
+        # Keep a copy for the error modal even if conversation scrolls
+        try:
+            app.error_messages.append(event.message)
+            # Cap error list growth
+            if len(app.error_messages) > 200:
+                app.error_messages = app.error_messages[-200:]
+        except Exception:
+            pass
         new_stats = app.stats.copy()
         new_stats.errors += 1
         app.stats = new_stats

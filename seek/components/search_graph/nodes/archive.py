@@ -9,6 +9,7 @@ from seek.components.mission_runner.state import DataSeekState
 from seek.components.tool_manager.tools import write_file
 
 from .utils import create_agent_runnable, create_llm
+import os
 
 
 def archive_node(state: "DataSeekState") -> dict:
@@ -70,29 +71,48 @@ def archive_node(state: "DataSeekState") -> dict:
 
     # --- Procedural control flow ---
 
+    # Resolve base output directory from mission_config.tool_configs.file_saver.output_path
+    mission_cfg = state.get("mission_config", {}) or {}
+    tool_cfgs = mission_cfg.get("tool_configs", {}) if isinstance(mission_cfg, dict) else {}
+    file_saver_cfg = tool_cfgs.get("file_saver", {}) if isinstance(tool_cfgs, dict) else {}
+    base_output_dir = file_saver_cfg.get("output_path") or ""
+    # Get paths from state (may be relative)
+    samples_path_rel = state.get("samples_path") or "samples"
+    pedigree_rel = state.get("pedigree_path") or "PEDIGREE.md"
+
     # Generate a unique timestamp
     timestamp = time.strftime("%Y%m%d%H%M%S")
 
     # Construct the deterministic filepath using mission state
     filename = f"{characteristic}_{topic}_{timestamp}.md"
-    samples_path = state.get("samples_path", "examples/data/datasets/tier1")
-    filepath = f"{samples_path}/{filename}"
+    if os.path.isabs(samples_path_rel) or not base_output_dir:
+        samples_dir = samples_path_rel
+    else:
+        samples_dir = os.path.join(base_output_dir, samples_path_rel)
+    filepath = f"{samples_dir}/{filename}"
+    abs_filepath = filepath
 
     # Now use this 'filepath' variable in the write_file tool.
     write_result = write_file.invoke({"filepath": filepath, "content": document_content})
 
     if write_result.get("status") == "ok":
+        print(f"📄 Archive: Wrote sample to '{abs_filepath}' ({write_result.get('bytes_written', 0)} bytes)")
         run_id = state.get("run_id")
-        # Use pedigree path from mission state
-        pedigree_path = state.get("pedigree_path") or "examples/PEDIGREE.md"
+        # Use pedigree path from mission state (resolve relative to base)
+        if os.path.isabs(pedigree_rel) or not base_output_dir:
+            pedigree_path = pedigree_rel
+        else:
+            pedigree_path = os.path.join(base_output_dir, pedigree_rel)
         append_to_pedigree(
             pedigree_path=pedigree_path,
             entry_markdown=entry_markdown,
             run_id=run_id,
         )
     else:
+        err = write_result.get('error')
+        print(f"❌ Archive: Failed to write sample to '{filepath}': {err}")
         error_message = AIMessage(
-            content=f"Archive Error: Failed to write file to '{filepath}'. Error: {write_result.get('error')}"
+            content=f"Archive Error: Failed to write file to '{filepath}'. Error: {err}"
         )
         return {"messages": messages + [error_message]}
 

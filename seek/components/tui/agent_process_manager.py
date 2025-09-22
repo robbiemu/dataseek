@@ -56,3 +56,24 @@ class AgentProcessManager:
         """Terminates the agent subprocess."""
         if self.process and self.process.returncode is None:
             self.process.terminate()
+
+    async def shutdown(self) -> None:
+        """Gracefully terminate and await subprocess exit, closing pipes."""
+        if not self.process:
+            return
+        try:
+            if self.process.returncode is None:
+                self.process.terminate()
+            # Close stdout pipe to avoid GC closing on loop shutdown
+            if self.process.stdout and not self.process.stdout.at_eof():
+                try:
+                    self.process.stdout.close()
+                except Exception:
+                    pass
+            # Wait for process to exit
+            try:
+                await self.process.wait()
+            except Exception:
+                pass
+        finally:
+            self.process = None

@@ -86,6 +86,8 @@ class DataSeekTUI(App):
         self.user_theme_override = False
         self.dark: bool = False  # Initialize dark theme to False
         self.show_tree = False
+        # Accumulate error messages for the error modal
+        self.error_messages: list[str] = []
 
     def debug_log(self, message: str) -> None:
         """Log debug message if debug mode is enabled."""
@@ -170,17 +172,18 @@ class DataSeekTUI(App):
             self.exit(message="❌ No mission selected")
             return
 
-        # Open log file if specified
+        # Open log file if specified (keep handle open for streaming)
         if self.log_file:
             try:
-                with open(self.log_file, "a") as self.log_handle:
-                    self.log_handle.write(
-                        f"\n=== Data Seek TUI Session Started at {datetime.now().isoformat()} ===\n"
-                    )
+                # Persist the handle; _run_agent writes streaming lines here
+                self.log_handle = open(self.log_file, "a", encoding="utf-8")
+                self.log_handle.write(
+                    f"\n=== Data Seek TUI Session Started at {datetime.now().isoformat()} ===\n"
+                )
                 self.log_handle.flush()
             except Exception as _e:
                 # Log error but continue
-                self.debug_log(f"Failed flushing log header: {_e}")
+                self.debug_log(f"Failed opening log file '{self.log_file}': {_e}")
 
         mission_details = get_mission_details_from_file(self.mission_plan_path)
         if mission_details is None:
@@ -228,7 +231,8 @@ class DataSeekTUI(App):
             total_samples_target,
             seek_config.to_dict(),
         )
-        self.conversation = ConversationPanel(debug=self.debug_enabled)
+        # Keep conversation panel's own I/O debug off to reduce duplicate logs
+        self.conversation = ConversationPanel(debug=False)  # self.debug_enabled will duplicate logs
 
         # Mount the main UI components
         self.debug_log("MOUNTING COMPONENTS:")
@@ -284,10 +288,14 @@ class DataSeekTUI(App):
         """An action to toggle between dark and light themes (manual override)."""
         action_toggle_theme(self)
 
-    def action_quit(self) -> Any:
+    async def action_quit(self) -> Any:
         """Quit the application."""
         if self.agent_process_manager:
-            self.agent_process_manager.terminate()
+            try:
+                await self.agent_process_manager.shutdown()
+            except Exception:
+                # Fallback to immediate terminate
+                self.agent_process_manager.terminate()
 
         # Close log file if open
         if self.log_handle:
@@ -312,9 +320,12 @@ class DataSeekTUI(App):
         """Show the error display modal."""
         from seek.components.tui.components.error_modal import ErrorModal
 
-        error_messages = [
-            msg["content"] for msg in self.conversation.messages if msg["role"] == "error"
-        ]
+        # Prefer the accumulated error list; fall back to scanning conversation
+        error_messages = list(self.error_messages)
+        if not error_messages:
+            error_messages = [
+                msg["content"] for msg in self.conversation.messages if msg["role"] == "error"
+            ]
         if not error_messages:
             error_messages = ["No errors recorded yet."]
         self.push_screen(ErrorModal(error_messages=error_messages))

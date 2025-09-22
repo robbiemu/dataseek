@@ -177,8 +177,8 @@ def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
             # Cap error list growth
             if len(app.error_messages) > 200:
                 app.error_messages = app.error_messages[-200:]
-        except Exception:
-            pass
+        except (TypeError, ValueError, KeyError, AttributeError) as e:
+            app.debug_log(f"Could not append to error_messages due to: {e}")
         new_stats = app.stats.copy()
         new_stats.errors += 1
         app.stats = new_stats

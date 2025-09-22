@@ -1250,9 +1250,7 @@ def llm_select_cached_sources(
                 )
                 decision = parsed_data_unstructured.get("decision", "stop")
                 selected_urls = parsed_data_unstructured.get("selected_urls", [])
-                rationale = parsed_data_unstructured.get(
-                    "rationale", "LLM selection completed"
-                )
+                rationale = parsed_data_unstructured.get("rationale", "LLM selection completed")
         else:
             agent = prompt | llm
             result = agent.invoke({})
@@ -1261,9 +1259,7 @@ def llm_select_cached_sources(
                 content_val if isinstance(content_val, str) else str(content_val)
             )
             data_any = json_repair.loads(dethought)
-            parsed_data_fallback: dict[str, Any] = (
-                data_any if isinstance(data_any, dict) else {}
-            )
+            parsed_data_fallback: dict[str, Any] = data_any if isinstance(data_any, dict) else {}
             decision = parsed_data_fallback.get("decision", "stop")
             selected_urls = parsed_data_fallback.get("selected_urls", [])
             rationale = parsed_data_fallback.get("rationale", "LLM selection completed")

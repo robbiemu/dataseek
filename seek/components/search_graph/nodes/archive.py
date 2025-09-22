@@ -74,11 +74,15 @@ def archive_node(state: "DataSeekState") -> dict:
     mission_cfg = state.get("mission_config", {}) or {}
     tool_cfgs = mission_cfg.get("tool_configs", {}) if isinstance(mission_cfg, dict) else {}
     file_saver_cfg = tool_cfgs.get("file_saver", {}) if isinstance(tool_cfgs, dict) else {}
-    base_output_dir_any = file_saver_cfg.get("output_path") if isinstance(file_saver_cfg, dict) else ""
+    base_output_dir_any = (
+        file_saver_cfg.get("output_path") if isinstance(file_saver_cfg, dict) else ""
+    )
     base_output_dir = base_output_dir_any if isinstance(base_output_dir_any, str) else ""
     # Get paths from state (may be relative)
     samples_path_rel_any = state.get("samples_path") or "samples"
-    samples_path_rel = samples_path_rel_any if isinstance(samples_path_rel_any, str) else str(samples_path_rel_any)
+    samples_path_rel = (
+        samples_path_rel_any if isinstance(samples_path_rel_any, str) else str(samples_path_rel_any)
+    )
     pedigree_rel_any = state.get("pedigree_path") or "PEDIGREE.md"
     pedigree_rel = pedigree_rel_any if isinstance(pedigree_rel_any, str) else str(pedigree_rel_any)
 
@@ -98,7 +102,9 @@ def archive_node(state: "DataSeekState") -> dict:
     write_result = write_file.invoke({"filepath": filepath, "content": document_content})
 
     if write_result.get("status") == "ok":
-        print(f"📄 Archive: Wrote sample to '{abs_filepath}' ({write_result.get('bytes_written', 0)} bytes)")
+        print(
+            f"📄 Archive: Wrote sample to '{abs_filepath}' ({write_result.get('bytes_written', 0)} bytes)"
+        )
         run_id = state.get("run_id")
         # Use pedigree path from mission state (resolve relative to base)
         if os.path.isabs(pedigree_rel) or not base_output_dir:
@@ -111,7 +117,7 @@ def archive_node(state: "DataSeekState") -> dict:
             run_id=run_id,
         )
     else:
-        err = write_result.get('error')
+        err = write_result.get("error")
         print(f"❌ Archive: Failed to write sample to '{filepath}': {err}")
         error_message = AIMessage(
             content=f"Archive Error: Failed to write file to '{filepath}'. Error: {err}"

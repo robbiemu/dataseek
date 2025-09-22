@@ -176,7 +176,9 @@ class DataSeekTUI(App):
         if self.log_file:
             try:
                 # Persist the handle; _run_agent writes streaming lines here.
-                self.log_handle = open(self.log_file, "a", encoding="utf-8")  # noqa: SIM115 # intentional long-lived handle; closed in action_quit()
+                self.log_handle = open(  # noqa: SIM115 # intentional long-lived handle; closed in
+                    self.log_file, "a", encoding="utf-8"
+                )
                 self.log_handle.write(
                     f"\n=== Data Seek TUI Session Started at {datetime.now().isoformat()} ===\n"
                 )

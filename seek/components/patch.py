@@ -4,22 +4,25 @@ LiteLLM/Ollama patch shims (component-level).
 
 Why this exists
 - Some Ollama models (notably gpt-oss-20b) do not interoperate reliably with
-  LiteLLM’s default transformation pipeline. Symptoms include dropped tool calls
+  LiteLLM's default transformation pipeline. Symptoms include dropped tool calls
   and empty content when using tool-enabled prompts. This file installs a
   targeted runtime patch to make those code paths robust in our environment.
 
 Placement rationale
 - This is not a tool definition; it affects model invocation semantics used by
-  multiple components. We keep it at `seek/components/patch.py` so it’s applied
+  multiple components. We keep it at `seek/components/patch.py` so it's applied
   early via `seek/__init__.py` but remains separate from the tool manager.
 
 Observability
-- We prefer LangChain/LangGraph’s tracing (LANGCHAIN_TRACING_V2) over LiteLLM’s
+- We prefer LangChain/LangGraph's tracing (LANGCHAIN_TRACING_V2) over LiteLLM's
   logger to avoid event-loop pitfalls. This file prints only if
   VERBOSE_PATCHING=true.
+
+Note: This module contains temporary, targeted patches with relaxed code quality
+standards as an exception to project norms. Permanent defensive logic has been
+moved to seek/common/defensive_model_adapter.py.
 """
 
-# Import the modules we need to patch
 import json
 import os
 from typing import Any
@@ -28,6 +31,11 @@ import litellm
 import litellm.litellm_core_utils.prompt_templates.factory
 import litellm.llms.ollama.completion.transformation
 from langchain_core.messages import AIMessage
+
+from seek.common.defensive_model_adapter import (
+    fix_malformed_json_arguments,
+    sanitize_provider_kwargs,
+)
 
 # Check if verbose patching logs are enabled
 VERBOSE_PATCHING = os.getenv("VERBOSE_PATCHING", "false").lower() == "true"
@@ -115,28 +123,6 @@ def _patched_ollama_pt(
     }
 
     return response_dict
-
-
-def _fix_malformed_json_arguments(args_str: str) -> str:
-    """
-    Attempt to fix malformed JSON using the json-repair library.
-    """
-    if not args_str or not isinstance(args_str, str):
-        return args_str
-
-    try:
-        # Use json-repair library to fix malformed JSON
-        import json_repair
-
-        repaired = json_repair.repair_json(args_str)
-
-        # Validate the repaired JSON can be parsed
-        json.loads(repaired)
-        return repaired
-
-    except Exception as e:
-        print(f"🔧 json-repair failed: {e}, falling back to empty dict")
-        return "{}"
 
 
 def _direct_ollama_call_with_tools(
@@ -337,7 +323,7 @@ def _direct_ollama_call_with_tools(
                             except json.JSONDecodeError:
                                 # If that fails, try to fix common malformations
                                 print(f"🔧 Attempting to fix malformed JSON: {args[:100]}...")
-                                fixed_args = _fix_malformed_json_arguments(args)
+                                fixed_args = fix_malformed_json_arguments(args)
                                 try:
                                     args = json.loads(fixed_args)
                                     print("✅ Successfully fixed malformed JSON")
@@ -488,16 +474,7 @@ try:
         """Patched LiteLLM completion that properly handles Ollama tool calls."""
 
         # Sanitize incompatible provider args
-        # OpenAI rejects tool_choice='any'; map to 'auto'
-        try:
-            if kwargs.get("tool_choice") == "any":
-                kwargs["tool_choice"] = "auto"
-            # Some integrations pass tool_choice via extra_body
-            extra_body = kwargs.get("extra_body")
-            if isinstance(extra_body, dict) and extra_body.get("tool_choice") == "any":
-                extra_body["tool_choice"] = "auto"
-        except Exception:
-            pass
+        kwargs = sanitize_provider_kwargs(**kwargs)
 
         # Store original kwargs for debugging
         model = kwargs.get("model", args[0] if args else "")

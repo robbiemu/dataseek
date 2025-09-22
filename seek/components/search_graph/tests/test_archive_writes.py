@@ -22,7 +22,9 @@ def test_archive_node_writes_sample_and_pedigree(tmp_path, monkeypatch):
     # Stub LLM path used to generate the pedigree entry
     class Dummy:
         def invoke(self, _):
-            return AIMessage(content="### 2024-01-01 -- Sample Archived\n- **Source Type:** researched\n- **Target Characteristic:** controlled_experimental_design")
+            return AIMessage(
+                content="### 2024-01-01 -- Sample Archived\n- **Source Type:** researched\n- **Target Characteristic:** controlled_experimental_design"
+            )
 
     monkeypatch.setattr(
         "seek.components.search_graph.nodes.archive.create_agent_runnable",
@@ -42,4 +44,3 @@ def test_archive_node_writes_sample_and_pedigree(tmp_path, monkeypatch):
     assert Path(pedigree_path).exists()
     content = Path(pedigree_path).read_text(encoding="utf-8")
     assert "Sample Archived" in content
-

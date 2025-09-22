@@ -9,7 +9,6 @@ from seek.components.mission_runner.state import DataSeekState
 from seek.components.tool_manager.tools import write_file
 
 from .utils import create_agent_runnable, create_llm
-import os
 
 
 def archive_node(state: "DataSeekState") -> dict:
@@ -75,10 +74,13 @@ def archive_node(state: "DataSeekState") -> dict:
     mission_cfg = state.get("mission_config", {}) or {}
     tool_cfgs = mission_cfg.get("tool_configs", {}) if isinstance(mission_cfg, dict) else {}
     file_saver_cfg = tool_cfgs.get("file_saver", {}) if isinstance(tool_cfgs, dict) else {}
-    base_output_dir = file_saver_cfg.get("output_path") or ""
+    base_output_dir_any = file_saver_cfg.get("output_path") if isinstance(file_saver_cfg, dict) else ""
+    base_output_dir = base_output_dir_any if isinstance(base_output_dir_any, str) else ""
     # Get paths from state (may be relative)
-    samples_path_rel = state.get("samples_path") or "samples"
-    pedigree_rel = state.get("pedigree_path") or "PEDIGREE.md"
+    samples_path_rel_any = state.get("samples_path") or "samples"
+    samples_path_rel = samples_path_rel_any if isinstance(samples_path_rel_any, str) else str(samples_path_rel_any)
+    pedigree_rel_any = state.get("pedigree_path") or "PEDIGREE.md"
+    pedigree_rel = pedigree_rel_any if isinstance(pedigree_rel_any, str) else str(pedigree_rel_any)
 
     # Generate a unique timestamp
     timestamp = time.strftime("%Y%m%d%H%M%S")

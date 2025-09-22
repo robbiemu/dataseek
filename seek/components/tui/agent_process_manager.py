@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import os
 
 
@@ -64,16 +65,9 @@ class AgentProcessManager:
         try:
             if self.process.returncode is None:
                 self.process.terminate()
-            # Close stdout pipe to avoid GC closing on loop shutdown
-            if self.process.stdout and not self.process.stdout.at_eof():
-                try:
-                    self.process.stdout.close()
-                except Exception:
-                    pass
+            # Wait for process to exit; stdout closes with the process
             # Wait for process to exit
-            try:
+            with contextlib.suppress(Exception):
                 await self.process.wait()
-            except Exception:
-                pass
         finally:
             self.process = None

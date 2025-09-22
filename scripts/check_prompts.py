@@ -51,9 +51,13 @@ def find_required_prompts(src_dirs: list[pathlib.Path]) -> set[tuple[str, str]]:
                 # Expect two positional string args: role, key
                 if len(call.args) >= 2:
                     a0, a1 = call.args[0], call.args[1]
-                    if isinstance(a0, ast.Constant) and isinstance(a1, ast.Constant):
-                        if isinstance(a0.value, str) and isinstance(a1.value, str):
-                            required.add((a0.value, a1.value))
+                    if (
+                        isinstance(a0, ast.Constant)
+                        and isinstance(a0.value, str)
+                        and isinstance(a1, ast.Constant)
+                        and isinstance(a1.value, str)
+                    ):
+                        required.add((a0.value, a1.value))
     return required
 
 

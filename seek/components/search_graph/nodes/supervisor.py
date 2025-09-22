@@ -1,3 +1,4 @@
+import contextlib
 import secrets
 from typing import Any
 
@@ -228,7 +229,8 @@ def supervisor_node(state: DataSeekState) -> dict:
             except Exception:
                 mission_config_data = None
     try:
-        characteristic_context = get_characteristic_context(next_task, mission_config_data or {})
+        cfg_dict = mission_config_data if isinstance(mission_config_data, dict) else {}
+        characteristic_context = get_characteristic_context(next_task, cfg_dict)
     except Exception:
         characteristic_context = None
 
@@ -905,7 +907,8 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
             # Fallback to previous parsing path
             agent = agent_prompt | llm
             raw_result = agent.invoke({"messages": messages})
-            content_value = raw_result.content
+            # Robustly access content whether result is a dict-like or model
+            content_value = getattr(raw_result, "content", raw_result)
             dethought = strip_reasoning_block(
                 content_value if isinstance(content_value, str) else str(content_value)
             )
@@ -942,9 +945,8 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
                         mission_config_data = None
 
             try:
-                characteristic_context = get_characteristic_context(
-                    next_task, mission_config_data or {}
-                )
+                cfg_dict = mission_config_data if isinstance(mission_config_data, dict) else {}
+                characteristic_context = get_characteristic_context(next_task, cfg_dict)
             except Exception:
                 characteristic_context = None
 
@@ -969,10 +971,9 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
 
     except Exception as parse_error:
         print(f"⚠️ Supervisor: JSON parsing failed: {parse_error}")
-        try:
-            print(f"   Raw content: '{raw_result.content}'")  # type: ignore[name-defined]
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            # raw_result may not be defined or may not have 'content'
+            print(f"   Raw content: '{getattr(raw_result, 'content', raw_result)}'")
         next_agent = "research"
 
     # Calculate predictive steps for the LLM decision case
@@ -1239,27 +1240,33 @@ def llm_select_cached_sources(
                 # Fallback to unstructured parsing
                 agent = prompt | llm
                 result = agent.invoke({})
-                content_val = result.content
+                content_val = getattr(result, "content", result)
                 dethought = strip_reasoning_block(
                     content_val if isinstance(content_val, str) else str(content_val)
                 )
                 data_any = json_repair.loads(dethought)
-                repaired_data: dict[str, Any] = data_any if isinstance(data_any, dict) else {}
-                decision = repaired_data.get("decision", "stop")
-                selected_urls = repaired_data.get("selected_urls", [])
-                rationale = repaired_data.get("rationale", "LLM selection completed")
+                parsed_data_unstructured: dict[str, Any] = (
+                    data_any if isinstance(data_any, dict) else {}
+                )
+                decision = parsed_data_unstructured.get("decision", "stop")
+                selected_urls = parsed_data_unstructured.get("selected_urls", [])
+                rationale = parsed_data_unstructured.get(
+                    "rationale", "LLM selection completed"
+                )
         else:
             agent = prompt | llm
             result = agent.invoke({})
-            content_val = result.content
+            content_val = getattr(result, "content", result)
             dethought = strip_reasoning_block(
                 content_val if isinstance(content_val, str) else str(content_val)
             )
             data_any = json_repair.loads(dethought)
-            repaired_data: dict[str, Any] = data_any if isinstance(data_any, dict) else {}
-            decision = repaired_data.get("decision", "stop")
-            selected_urls = repaired_data.get("selected_urls", [])
-            rationale = repaired_data.get("rationale", "LLM selection completed")
+            parsed_data_fallback: dict[str, Any] = (
+                data_any if isinstance(data_any, dict) else {}
+            )
+            decision = parsed_data_fallback.get("decision", "stop")
+            selected_urls = parsed_data_fallback.get("selected_urls", [])
+            rationale = parsed_data_fallback.get("rationale", "LLM selection completed")
 
         # Validate decision
         if decision not in ["reuse_cached", "stop"]:

@@ -51,8 +51,8 @@ def research_node(state: "DataSeekState") -> dict:
     session_tool_domain_blocklist = state.get("session_tool_domain_blocklist", [])
     if session_tool_domain_blocklist:
         print(f"   🚫 Session blocklist contains {len(session_tool_domain_blocklist)} entries:")
-        for tool_name, domain in session_tool_domain_blocklist:
-            print(f"      - {tool_name} blocked for domain {domain}")
+        for blocked_tool, domain in session_tool_domain_blocklist:
+            print(f"      - {blocked_tool} blocked for domain {domain}")
 
     # --- Extract the latest human question ---
     user_question = None
@@ -388,7 +388,7 @@ def research_node(state: "DataSeekState") -> dict:
                         )
 
                         # Normalize tool name for downstream logging/handling
-                        tool_name = tool_call_name
+                        tool_name: str = tool_call_name or matching_tool.name
 
                         tool_result = matching_tool.invoke(tool_call_args)
 

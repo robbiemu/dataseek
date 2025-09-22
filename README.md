@@ -2,6 +2,9 @@
 
 DataSeek is a versatile, extensible framework for autonomous data collection and prospecting. It uses AI agents to discover, validate, and organize data from sources like academic papers, Wikipedia, and web searches, targeting configurable data quality characteristics.
 
+![dataseek_manga_v2](https://github.com/user-attachments/assets/52527858-6764-415f-87b3-148f06dad23c)
+
+
 ## Overview
 
 DataSeek is a powerful tool for automated data collection and prospecting. It uses advanced AI techniques to search, validate, and organize data from various sources including academic papers, Wikipedia, and web searches.

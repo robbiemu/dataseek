@@ -6,25 +6,50 @@ missions:
     output_paths:
       samples_path: "examples/data/datasets/tier1"
       audit_trail_path: "examples/PEDIGREE.md"
-    tools:
+    tool_configs:
       web_search:
+        roles: ["research"]
         pre_fetch_pages: true
         pre_fetch_limit: 5
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
       arxiv_search:
+        roles: ["research"]
         pre_fetch_pages: true
         pre_fetch_limit: 3
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
+        max_docs: 10
       wikipedia_search:
+        roles: ["research"]
         pre_fetch_pages: true
         pre_fetch_limit: 3
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
+        max_docs: 5
+      url_to_markdown:
+        roles: ["research"]
+        timeout: 30
+        pre_fetch_pages: true
+        pre_fetch_limit: 5
+        validate_urls: true
+        retry_on_failure: true
+        max_retries: 2
+      documentation_crawler:
+        roles: ["research"]
+        max_depth: 3
+        timeout_s: 30
+        similarity_threshold: 0.7
+        pre_fetch_pages: true
+        pre_fetch_limit: 1 # Only prefetch the starting page
+        validate_urls: true
+        retry_on_failure: true
+        max_retries: 2
+      file_saver:
+        roles: ["archive"]
     goals:
       - characteristic: "Verifiability"
         context: "The goal is to find source documents that contain a mix of verifiable facts and subjective, unverifiable content. The ideal document is something like a news report, a product review, or an opinion editorial that blends factual statements (e.g., 'the product costs $50') with opinions (e.g., 'it's a wonderful product'). This mix is essential for training the Selection agent to correctly identify and isolate factual content."
@@ -43,25 +68,50 @@ missions:
     output_paths:
       samples_path: "examples/data/datasets/tier2"
       audit_trail_path: "examples/PEDIGREE.md"
-    tools:
+    tool_configs:
       web_search:
+        roles: ["research"]
         pre_fetch_pages: true
         pre_fetch_limit: 5
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
       arxiv_search:
+        roles: ["research"]
         pre_fetch_pages: true
         pre_fetch_limit: 3
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
+        max_docs: 10
       wikipedia_search:
+        roles: ["research"]
         pre_fetch_pages: true
         pre_fetch_limit: 3
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
+        max_docs: 5
+      url_to_markdown:
+        roles: ["research"]
+        timeout: 30
+        pre_fetch_pages: true
+        pre_fetch_limit: 5
+        validate_urls: true
+        retry_on_failure: true
+        max_retries: 2
+      documentation_crawler:
+        roles: ["research"]
+        max_depth: 3
+        timeout_s: 30
+        similarity_threshold: 0.7
+        pre_fetch_pages: true
+        pre_fetch_limit: 1 # Only prefetch the starting page
+        validate_urls: true
+        retry_on_failure: true
+        max_retries: 2
+      file_saver:
+        roles: ["archive"]
     goals:
       - characteristic: "Verifiability"
         context: "The goal is to find source documents that contain a mix of verifiable facts and subjective, unverifiable content. The ideal document is something like a news report, a product review, or an opinion editorial that blends factual statements (e.g., 'the product costs $50') with opinions (e.g., 'it's a wonderful product'). This mix is essential for training the Selection agent to correctly identify and isolate factual content."

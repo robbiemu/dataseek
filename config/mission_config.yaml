@@ -3,6 +3,7 @@ missions:
     target_size: 50 # Samples per characteristic
     synthetic_budget: 0.1 # We want mostly real-world data
     output_paths:
+      base_path: "examples/datasets/mac_ai_corpus"
       samples_path: "samples"
       audit_trail_path: "PEDIGREE.md"
     tool_configs:
@@ -15,9 +16,7 @@ missions:
       url_to_markdown:
         roles: ["research"]
         timeout: 30
-      file_saver:
-        roles: ["archive"]
-        output_path: "examples/datasets/mac_ai_corpus"
+
     goals:
       - characteristic: "Controlled Experimental Design"
         context: "The goal is to find scientific papers that describe a study with a clear experimental control. The agent must verify that the paper's methodology section details at least one treatment/intervention group and a separate control group designed to isolate variables. It must distinguish papers that *employ* this method from those that merely *discuss* it in a literature review. This methodology appears across disciplines—from psychology lab studies to physics experiments to economics field trials—but always involves systematic comparison with controls."

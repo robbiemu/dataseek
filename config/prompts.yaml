@@ -113,6 +113,15 @@ fitness:
     {fitness_schema}
     ```
 
+    Output requirements:
+    - The `passed` field must be a boolean.
+    - The `reason` field MUST be non-empty and informative (at least 30 characters).
+      If `passed` is false (rejected), include 1 short, specific quote (≤ 120 chars)
+      or phrase from the document that supports rejection (e.g., "observational study",
+      "systematic review", or absence of a control group). If `passed` is true, cite
+      the section/phrase that demonstrates the methodology is employed (e.g., Methods
+      section describing control vs. treatment).
+
     **Validation Rubric for: Controlled Experimental Design**
 
     1. **Identifies Control Condition**: Does the methodology section explicitly describe a control group, control condition, or baseline comparison designed to isolate variables? [PASS/FAIL]

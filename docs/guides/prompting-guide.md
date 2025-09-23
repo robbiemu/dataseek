@@ -88,8 +88,7 @@ python scripts/check_prompts.py --prompts config/prompts.yaml
 ## Output path rules
 
 - The archive node writes files using:
-  - `mission_config.tool_configs.file_saver.output_path` as a base directory,
-    when provided.
+  - `mission_config.output_paths.base_path` as a base directory.
   - `output_paths.samples_path` and `output_paths.audit_trail_path` are resolved
     relative to that base directory when they are not absolute paths.
   - Defaults (when not specified): `samples/` and `PEDIGREE.md`.
@@ -97,11 +96,8 @@ python scripts/check_prompts.py --prompts config/prompts.yaml
 Example:
 
 ```
-tool_configs:
-  file_saver:
-    roles: ["archive"]
-    output_path: "datasets/mac_ai_corpus"
 output_paths:
+  base_path: "datasets/mac_ai_corpus"
   samples_path: "samples"
   audit_trail_path: "PEDIGREE.md"
 ```
@@ -110,4 +106,3 @@ Result:
 
 - Samples written to `datasets/mac_ai_corpus/samples/`.
 - Pedigree written to `datasets/mac_ai_corpus/PEDIGREE.md`.
-

@@ -7,6 +7,7 @@ This class orchestrates the mission execution and handles checkpointing for resu
 import json
 import logging
 import math
+import os
 import sqlite3
 import uuid
 from typing import Any
@@ -98,8 +99,24 @@ class MissionRunner:
 
         # Load mission config for output paths and recursion limit
         output_paths = self.mission_config.get("output_paths", {})
+        base_path = output_paths.get("base_path", "") if isinstance(output_paths, dict) else ""
         pedigree_path = output_paths.get("audit_trail_path", "PEDIGREE.md")
         samples_path = output_paths.get("samples_path", "samples")
+        # Resolve relative paths against base_path so downstream nodes can use them directly
+        if (
+            isinstance(samples_path, str)
+            and samples_path
+            and not os.path.isabs(samples_path)
+            and base_path
+        ):
+            samples_path = os.path.join(base_path, samples_path)
+        if (
+            isinstance(pedigree_path, str)
+            and pedigree_path
+            and not os.path.isabs(pedigree_path)
+            and base_path
+        ):
+            pedigree_path = os.path.join(base_path, pedigree_path)
         max_recursion_steps = self.seek_config.get("recursion_per_sample", 30)
 
         progress = {

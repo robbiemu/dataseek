@@ -40,6 +40,10 @@ observability:
 nodes:
   research:
     max_iterations: 7
+  supervisor:
+    # Number of characters from a failed fitness report's reason
+    # to include in supervisor logs for quick diagnosis
+    fitness_reason_log_chars: 160
 
 mission_plan:
   goal: "Find reliable, verifiable data sources to build a training corpus about the safety and efficacy of GLP-1 agonists for weight loss."

@@ -1,6 +1,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from langgraph.checkpoint.sqlite import SqliteSaver
+
 from seek.components.mission_runner.mission_runner import MissionRunner
 
 
@@ -40,6 +42,31 @@ class TestMissionRunner(unittest.TestCase):
             mock_app.get_state.assert_called_once_with(
                 {"configurable": {"thread_id": "some_thread_id"}}
             )
+
+    def test_audit_trail_path_from_mission_config(self):
+        mission_config = {
+            "name": "test_mission",
+            "target_size": 1,
+            "synthetic_budget": 0.1,
+            "output_paths": {
+                "samples_path": "samples",
+                "audit_trail_path": "examples/datasets/mac_ai_corpus/PEDIGREE.md",
+            },
+            "tool_configs": {},
+            "goals": [
+                {
+                    "characteristic": "Test Characteristic",
+                    "context": "Test Context",
+                    "topics": ["Test Topic"],
+                }
+            ],
+        }
+        checkpointer = SqliteSaver.from_conn_string(":memory:")
+        app = None  # Mock app
+        seek_config = {}
+        mission_runner = MissionRunner(checkpointer, app, mission_config, seek_config)
+        initial_state = mission_runner._initialize_mission_state()
+        assert initial_state["pedigree_path"] == "examples/datasets/mac_ai_corpus/PEDIGREE.md"
 
 
 if __name__ == "__main__":

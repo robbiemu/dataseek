@@ -70,12 +70,11 @@ def archive_node(state: "DataSeekState") -> dict:
 
     # --- Procedural control flow ---
 
-    # Resolve base output directory from mission_config.tool_configs.file_saver.output_path
+    # Resolve base output directory from mission_config.output_paths.base_path
     mission_cfg = state.get("mission_config", {}) or {}
-    tool_cfgs = mission_cfg.get("tool_configs", {}) if isinstance(mission_cfg, dict) else {}
-    file_saver_cfg = tool_cfgs.get("file_saver", {}) if isinstance(tool_cfgs, dict) else {}
+    output_paths_cfg = mission_cfg.get("output_paths", {}) if isinstance(mission_cfg, dict) else {}
     base_output_dir_any = (
-        file_saver_cfg.get("output_path") if isinstance(file_saver_cfg, dict) else ""
+        output_paths_cfg.get("base_path") if isinstance(output_paths_cfg, dict) else ""
     )
     base_output_dir = base_output_dir_any if isinstance(base_output_dir_any, str) else ""
     # Get paths from state (may be relative)

@@ -127,6 +127,14 @@ def fitness_node(state: "DataSeekState") -> dict:
             reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
         )
 
+    # Ensure we always provide a non-empty reason for downstream logs/analytics
+    if not (getattr(report, "reason", "") or "").strip():
+        report.reason = (
+            "Approved — criteria satisfied per rubric; agent omitted details."
+            if report.passed
+            else "Rejected — one or more rubric criteria not met; agent omitted details."
+        )
+
     status = "APPROVED" if report.passed else "REJECTED"
     log_message_content = (
         f"**Inspection Report**\n- **Status:** {status}\n- **Reason:** {report.reason}"

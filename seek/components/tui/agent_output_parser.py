@@ -41,6 +41,7 @@ class AgentOutputParser:
     def __init__(self) -> None:
         self.ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\\[0-?]*[ -/]*[@-~])")
         self.synthetic_count = 0  # Track cumulative synthetic samples
+        self._last_target: int | None = None  # Remember last known target to avoid 1/1 glitches
         # Suppress immediate duplicate lines that often occur from dual loggers
         self._last_clean_line: str | None = None
 
@@ -65,19 +66,19 @@ class AgentOutputParser:
             r"📊 Mission Progress: (\d+)/(\d+) samples \((\d+\.\d+)%\)", clean_line
         )
         if progress_match:
-            yield ProgressUpdate(
-                completed=int(progress_match.group(1)),
-                target=int(progress_match.group(2)),
-            )
+            completed_val = int(progress_match.group(1))
+            target_val = int(progress_match.group(2))
+            self._last_target = target_val
+            yield ProgressUpdate(completed=completed_val, target=target_val)
             return
 
         # 2. Alternative progress pattern: "📊 Progress: 123/1200 samples (10.3%)"
         progress_match2 = re.search(r"📊 Progress: (\d+)/(\d+) samples \((\d+\.\d+)%\)", clean_line)
         if progress_match2:
-            yield ProgressUpdate(
-                completed=int(progress_match2.group(1)),
-                target=int(progress_match2.group(2)),
-            )
+            completed_val = int(progress_match2.group(1))
+            target_val = int(progress_match2.group(2))
+            self._last_target = target_val
+            yield ProgressUpdate(completed=completed_val, target=target_val)
             return
 
         # 3. Sample archived: "📊 Sample #123 archived (10.3% complete) - Source: research/synthetic"
@@ -85,9 +86,13 @@ class AgentOutputParser:
         if sample_match:
             completed = int(sample_match.group(1))
             source_type = sample_match.group(2)
-            yield ProgressUpdate(
-                completed=completed, target=completed
-            )  # Update with current progress
+            # Reuse last known target if available to avoid 1/1 flicker
+            target_for_event = (
+                self._last_target
+                if self._last_target and self._last_target >= completed
+                else completed
+            )
+            yield ProgressUpdate(completed=completed, target=target_for_event)
             # If it's a synthetic sample, emit a synthetic sample update
             if source_type == "synthetic":
                 self.synthetic_count += 1
@@ -100,6 +105,7 @@ class AgentOutputParser:
             target_match = re.search(r"Targeting (\d+) samples", clean_line)
             if target_match:
                 target = int(target_match.group(1))
+                self._last_target = target
                 yield ProgressUpdate(completed=0, target=target)
             yield NewMessage(role="info", content=clean_line)
             return

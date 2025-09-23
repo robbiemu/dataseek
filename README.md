@@ -44,12 +44,11 @@ DataSeek is a powerful tool for automated data collection and prospecting. It us
    ```bash
    dataseek --mission mac_ai_corpus_v1
    ```
-   This collects 50 samples per characteristic into `examples/data/datasets/tier1/` with audit trails in `examples/PEDIGREE.md`.
+   This collects 50 samples per characteristic into `examples/datasets/mac_ai_corpus/samples/` with audit trails in `examples/datasets/mac_ai_corpus/PEDIGREE.md`.
 
 6. **Monitor progress** through the terminal interface or check the output directories:
-   - `examples/data/datasets/tier1` - Raw data samples
-   - `examples/data/datasets/tier2` - Curated data samples
-   - `examples/PEDIGREE.md` - Audit trail of the data collection process
+   - `examples/datasets/mac_ai_corpus/samples/` - Raw data samples
+   - `examples/datasets/mac_ai_corpus/PEDIGREE.md` - Audit trail of the data collection process
 
 ## Documentation
 

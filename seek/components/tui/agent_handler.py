@@ -68,7 +68,13 @@ def _handle_agent_event(app: DataSeekTUI, event: Any) -> None:
     if isinstance(event, ProgressUpdate):
         new_stats = app.stats.copy()
         new_stats.completed = event.completed
-        new_stats.target = event.target
+        # Avoid transient 1/1 target when parsing immediate archive messages
+        current_target = app.stats.target
+        if event.target < current_target and event.target == event.completed:
+            # Preserve the higher, previously known target
+            new_stats.target = current_target
+        else:
+            new_stats.target = event.target
         app.stats = new_stats
 
         # Update mission status when progress is made

@@ -91,6 +91,47 @@ def research_node(state: "DataSeekState") -> dict:
     all_research_tools = get_tools_for_role("research")
     print(f"   Tools available (global): {[t.name for t in all_research_tools]}")
 
+    # Honor mission_config.tool_configs roles: only enable tools explicitly listed for 'research'.
+    # Also auto-include corresponding *_get_content tools when their search counterpart is listed.
+    mission_cfg = state.get("mission_config", {}) or {}
+    tool_cfgs = mission_cfg.get("tool_configs", {}) if isinstance(mission_cfg, dict) else {}
+    allowed_tool_names: set[str] = set()
+    has_tool_configs = isinstance(tool_cfgs, dict) and len(tool_cfgs) > 0
+    try:
+        for name, cfg in (tool_cfgs or {}).items():
+            if not isinstance(cfg, dict):
+                continue
+            roles = cfg.get("roles", [])
+            if isinstance(roles, list) and any(str(r).lower() == "research" for r in roles):
+                allowed_tool_names.add(str(name))
+        # Implicit pairs for content retrieval when search tools are allowed
+        if "arxiv_search" in allowed_tool_names:
+            allowed_tool_names.add("arxiv_get_content")
+        if "wikipedia_search" in allowed_tool_names:
+            allowed_tool_names.add("wikipedia_get_content")
+    except Exception as e:
+        print(f"   ⚠️  Research: Could not parse mission tool_configs for filtering ({e})")
+        allowed_tool_names = set()
+
+    if allowed_tool_names:
+        filtered_tools = [
+            t for t in all_research_tools if getattr(t, "name", "") in allowed_tool_names
+        ]
+        print(
+            f"   🔧 Filtering tools per mission_config: allowed={sorted(allowed_tool_names)}, effective={[t.name for t in filtered_tools]}"
+        )
+        all_research_tools = filtered_tools
+    elif has_tool_configs:
+        # tool_configs present but none enabled for research -> disable tools
+        print(
+            "   🔧 Research: mission_config.tool_configs present but none enabled for 'research'; disabling tools"
+        )
+        all_research_tools = []
+    else:
+        # No explicit tool list provided for research; retain defaults
+        names = [getattr(t, "name", "") for t in all_research_tools]
+        print(f"   🔧 No mission-config tool filter for research; using defaults: {names}")
+
     current_task = state.get("current_task")
     strategy_block = state.get("strategy_block", "")
 

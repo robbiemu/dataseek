@@ -178,6 +178,161 @@ class TestNodes:
         assert "# Data Prospecting Report" in result["messages"][0].content
         assert "research_session_cache" in result
 
+    @patch("seek.components.search_graph.nodes.research.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.research.create_llm")
+    @patch("seek.components.search_graph.nodes.research.get_tools_for_role")
+    @patch("seek.components.search_graph.nodes.research.ChatPromptTemplate")
+    def test_research_node_tool_filtering_respects_mission_config(
+        self, mock_prompt, mock_get_tools, mock_create_llm, mock_get_active_cfg
+    ):
+        """Ensure research binds only tools enabled in mission_config (and implied companions)."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        # Mock seek config
+        mock_get_active_cfg.return_value = {
+            "model_defaults": {
+                "model": "openai/gpt-5-mini",
+                "temperature": 0.1,
+                "max_tokens": 2000,
+            },
+            "mission_plan": {"nodes": []},
+            "nodes": {"research": {"max_iterations": 4}},
+            "use_robots": True,
+        }
+
+        # Create dummy tools registry (names only)
+        class DummyTool:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        all_tools = [
+            DummyTool("web_search"),
+            DummyTool("arxiv_search"),
+            DummyTool("arxiv_get_content"),
+            DummyTool("wikipedia_search"),
+            DummyTool("wikipedia_get_content"),
+            DummyTool("url_to_markdown"),
+        ]
+        mock_get_tools.return_value = all_tools
+
+        # Mock LLM and capture bound tools
+        mock_llm = MagicMock()
+        bound_llm = MagicMock()
+        bound_llm.invoke.return_value = AIMessage(content="# Data Prospecting Report\nOK")
+
+        def _bind_tools(tools, tool_choice=None):  # noqa: ARG001
+            # Record names for assertions
+            mock_llm.bound_tool_names = [getattr(t, "name", "") for t in tools]
+            return bound_llm
+
+        mock_llm.bind_tools.side_effect = _bind_tools
+        mock_create_llm.return_value = mock_llm
+
+        # Pass-through prompt so pipeline returns bound_llm
+        class DummyPrompt:
+            @classmethod
+            def from_messages(cls, *args, **kwargs):  # noqa: ARG002
+                return cls()
+
+            def partial(self, **kwargs):  # noqa: ARG002
+                return self
+
+            def __or__(self, other):
+                return other
+
+        mock_prompt.from_messages.side_effect = DummyPrompt.from_messages
+
+        # State with mission_config restricting tools to arxiv_search + url_to_markdown
+        state = self.create_test_state(
+            messages=[HumanMessage(content="Start")],
+            current_task={"characteristic": "X", "topic": "Y"},
+            mission_config={
+                "tool_configs": {
+                    "arxiv_search": {"roles": ["research"]},
+                    "url_to_markdown": {"roles": ["research"]},
+                }
+            },
+        )
+
+        _ = research_node(state)
+
+        # Verify only allowed tools (and implied arxiv_get_content) are bound
+        names = getattr(mock_llm, "bound_tool_names", [])
+        assert "web_search" not in names
+        assert "wikipedia_search" not in names
+        assert "wikipedia_get_content" not in names
+        assert "arxiv_search" in names
+        assert "arxiv_get_content" in names  # implied
+        assert "url_to_markdown" in names
+
+    @patch("seek.components.search_graph.nodes.research.get_active_seek_config")
+    @patch("seek.components.search_graph.nodes.research.create_llm")
+    @patch("seek.components.search_graph.nodes.research.get_tools_for_role")
+    @patch("seek.components.search_graph.nodes.research.ChatPromptTemplate")
+    def test_research_node_disables_tools_when_tool_configs_present_without_research_roles(
+        self, mock_prompt, mock_get_tools, mock_create_llm, mock_get_active_cfg
+    ):
+        """If mission_config.tool_configs exists but no entries enable 'research', tools are disabled."""
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        mock_get_active_cfg.return_value = {
+            "model_defaults": {
+                "model": "openai/gpt-5-mini",
+                "temperature": 0.1,
+                "max_tokens": 2000,
+            },
+            "mission_plan": {"nodes": []},
+            "nodes": {"research": {"max_iterations": 3}},
+            "use_robots": True,
+        }
+
+        class DummyTool:
+            def __init__(self, name: str) -> None:
+                self.name = name
+
+        mock_get_tools.return_value = [DummyTool("web_search"), DummyTool("url_to_markdown")]
+
+        mock_llm = MagicMock()
+        bound_llm = MagicMock()
+        # Should still produce a final report with no tools bound in this test harness
+        bound_llm.invoke.return_value = AIMessage(content="# Data Prospecting Report\nOK")
+
+        def _bind_tools(tools, tool_choice=None):  # noqa: ARG001
+            mock_llm.bound_tool_names = [getattr(t, "name", "") for t in tools]
+            return bound_llm
+
+        mock_llm.bind_tools.side_effect = _bind_tools
+        mock_create_llm.return_value = mock_llm
+
+        class DummyPrompt:
+            @classmethod
+            def from_messages(cls, *args, **kwargs):  # noqa: ARG002
+                return cls()
+
+            def partial(self, **kwargs):  # noqa: ARG002
+                return self
+
+            def __or__(self, other):
+                return other
+
+        mock_prompt.from_messages.side_effect = DummyPrompt.from_messages
+
+        state = self.create_test_state(
+            messages=[HumanMessage(content="Start")],
+            current_task={"characteristic": "X", "topic": "Y"},
+            mission_config={
+                # tool_configs present but no roles for research
+                "tool_configs": {
+                    "web_search": {"roles": ["archive"]},
+                }
+            },
+        )
+
+        _ = research_node(state)
+
+        # Verify no tools were bound for research (bind_tools should not be called)
+        assert mock_llm.bind_tools.called is False
+
     @patch("seek.components.search_graph.nodes.utils.get_active_seek_config")
     @patch("seek.components.search_graph.nodes.utils.ChatLiteLLM")
     @patch("seek.components.search_graph.nodes.utils.ChatPromptTemplate")

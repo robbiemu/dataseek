@@ -4,6 +4,7 @@ missions:
     target_size: 110  # Samples per goal
     synthetic_budget: 1.0 # Allow 100% synthetic data to create perfect edge cases
     output_paths:
+      base_path: "examples/datasets/claimify"
       samples_path: "examples/data/datasets/tier1"
       audit_trail_path: "examples/PEDIGREE.md"
     tool_configs:
@@ -48,8 +49,7 @@ missions:
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
-      file_saver:
-        roles: ["archive"]
+
     goals:
       - characteristic: "Verifiability"
         context: "The goal is to find source documents that contain a mix of verifiable facts and subjective, unverifiable content. The ideal document is something like a news report, a product review, or an opinion editorial that blends factual statements (e.g., 'the product costs $50') with opinions (e.g., 'it's a wonderful product'). This mix is essential for training the Selection agent to correctly identify and isolate factual content."
@@ -110,8 +110,7 @@ missions:
         validate_urls: true
         retry_on_failure: true
         max_retries: 2
-      file_saver:
-        roles: ["archive"]
+      # No archive plugins are required; archive node writes procedurally
     goals:
       - characteristic: "Verifiability"
         context: "The goal is to find source documents that contain a mix of verifiable facts and subjective, unverifiable content. The ideal document is something like a news report, a product review, or an opinion editorial that blends factual statements (e.g., 'the product costs $50') with opinions (e.g., 'it's a wonderful product'). This mix is essential for training the Selection agent to correctly identify and isolate factual content."

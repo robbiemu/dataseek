@@ -58,6 +58,8 @@ class ToolManager:
             if "roles" not in cfg:
                 raise ValueError(f"Tool '{plugin_name}' in mission config must have a 'roles' key.")
             roles = cfg.pop("roles")
+
+            # No special injections currently needed for built-in plugins.
             tool_class = PLUGIN_REGISTRY[plugin_name]
             validated_config: BaseModel | None = None
 

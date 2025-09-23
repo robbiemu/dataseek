@@ -48,6 +48,7 @@ class DataSeekState(TypedDict):
         step_count: Counter for tracking recursion steps in the agent graph.
         max_recursion_steps: Maximum allowed recursion steps for the agent graph.
         session_tool_domain_blocklist: List of (tool_name, domain) tuples that have failed in the current session.
+        mission_config: The mission configuration dict for the active mission (tool settings, paths, goals).
     """
     messages: Annotated[list, add_messages]
     run_id: str
@@ -81,3 +82,4 @@ class DataSeekState(TypedDict):
     step_count: int
     max_recursion_steps: int
     session_tool_domain_blocklist: list[tuple[str, str]]
+    mission_config: dict[str, Any]

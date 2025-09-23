@@ -513,9 +513,30 @@ def supervisor_node(state: DataSeekState) -> dict:
                 "session_tool_domain_blocklist": [],  # Reset blocklist after successful archive
             }
         else:
+            # Log failure with a concise, configurable reason snippet
+            try:
+                cfg = get_active_seek_config()
+                nodes_cfg = cfg.get("nodes", {}) if isinstance(cfg.get("nodes", {}), dict) else {}
+                supervisor_cfg = (
+                    nodes_cfg.get("supervisor", {})
+                    if isinstance(nodes_cfg.get("supervisor", {}), dict)
+                    else {}
+                )
+                snippet_len = int(supervisor_cfg.get("fitness_reason_log_chars", 160))
+            except Exception:
+                # Fall back conservatively if config is malformed
+                snippet_len = 160
+
+            reason_text = str(getattr(fitness_report, "reason", ""))
+            reason_snippet = reason_text[:snippet_len]
+
             print(
                 "❌ Supervisor: Detected FAILED fitness report in state. Proposing a new task to the supervisor."
             )
+            if reason_snippet and reason_snippet.strip():
+                print(f"   🧪 Fitness failure reason (first {snippet_len} chars): {reason_snippet}")
+            else:
+                print("   🧪 Fitness failure reason: [none provided by agent]")
             # Clear the fitness report from state
             state_dict = dict(state)
             state_dict["fitness_report"] = None

@@ -1,6 +1,7 @@
 import json
 
 import json_repair
+import litellm
 from langchain_core.messages import AIMessage
 
 from seek.common.config import get_prompt
@@ -13,6 +14,16 @@ from .utils import (
     create_llm,
     get_default_strategy_block,
     strip_reasoning_block,
+)
+
+# Transient endpoint failures that survive litellm's transport-layer retries
+# and should degrade to a deterministic REJECTED report rather than abort the
+# sample cycle. Deliberately narrow: 4xx (auth/validation/config) is excluded
+# so genuine failures still surface instead of being masked as quality rejects.
+TRANSIENT_ENDPOINT_ERRORS: tuple[type[Exception], ...] = (
+    litellm.APIConnectionError,
+    litellm.InternalServerError,
+    litellm.RateLimitError,
 )
 
 
@@ -87,18 +98,26 @@ def fitness_node(state: "DataSeekState") -> dict:
         agent_runnable = create_agent_runnable(
             llm, system_prompt, "fitness", mission_config=mission_config
         )
-        raw_result = agent_runnable.invoke({"messages": state["messages"]})
         try:
-            dethought = strip_reasoning_block(raw_result.content)
-            repaired_data = json_repair.loads(dethought)
-            report = FitnessReport.model_validate(repaired_data)
-        except Exception as parse_error:
-            print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
-            print(f"   Raw content: '{raw_result.content}'")
+            raw_result = agent_runnable.invoke({"messages": state["messages"]})
+        except TRANSIENT_ENDPOINT_ERRORS as endpoint_error:
+            print(f"⚠️ Fitness Node: LLM endpoint unavailable: {endpoint_error}")
             report = FitnessReport(
                 passed=False,
-                reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                reason=f"LLM endpoint unavailable after retries: {endpoint_error}",
             )
+        else:
+            try:
+                dethought = strip_reasoning_block(raw_result.content)
+                repaired_data = json_repair.loads(dethought)
+                report = FitnessReport.model_validate(repaired_data)
+            except Exception as parse_error:
+                print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
+                print(f"   Raw content: '{raw_result.content}'")
+                report = FitnessReport(
+                    passed=False,
+                    reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                )
     else:
         structured_supported = hasattr(llm, "with_structured_output")
 
@@ -131,18 +150,26 @@ def fitness_node(state: "DataSeekState") -> dict:
 
         if report is None:
             agent_runnable = create_agent_runnable(llm, system_prompt, "fitness")
-            raw_result = agent_runnable.invoke({"messages": state["messages"]})
             try:
-                dethought = strip_reasoning_block(raw_result.content)
-                repaired_data = json_repair.loads(dethought)
-                report = FitnessReport.model_validate(repaired_data)
-            except Exception as parse_error:
-                print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
-                print(f"   Raw content: '{raw_result.content}'")
+                raw_result = agent_runnable.invoke({"messages": state["messages"]})
+            except TRANSIENT_ENDPOINT_ERRORS as endpoint_error:
+                print(f"⚠️ Fitness Node: LLM endpoint unavailable: {endpoint_error}")
                 report = FitnessReport(
                     passed=False,
-                    reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                    reason=f"LLM endpoint unavailable after retries: {endpoint_error}",
                 )
+            else:
+                try:
+                    dethought = strip_reasoning_block(raw_result.content)
+                    repaired_data = json_repair.loads(dethought)
+                    report = FitnessReport.model_validate(repaired_data)
+                except Exception as parse_error:
+                    print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
+                    print(f"   Raw content: '{raw_result.content}'")
+                    report = FitnessReport(
+                        passed=False,
+                        reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                    )
 
     # --- END: REVISED PROMPT AND RUNNABLE CONSTRUCTION ---
 

@@ -1,8 +1,10 @@
 """Tests for the Tier B Lean proof-trace integration (challenges C1-C4).
 
 Covers: plugin-tool unification, prompt externalization, the LeanTraceState
-subclass + fitness tool-node gating, the top_p passthrough fix, and the
-provenance guard. Stock behavior is asserted to be unchanged in every case.
+subclass + fitness tool-node gating, the top_p passthrough fix, the
+provenance guard, and the endpoint-failure resilience (max_retries config
++ fitness degrade-on-transient-error). Stock behavior is asserted to be
+unchanged in every case.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import litellm
 import pytest
 import yaml
 
@@ -18,7 +21,9 @@ from seek.common.config import (
     get_prompt,
     set_prompts_config,
 )
+from seek.common.models import FitnessReport
 from seek.components.mission_runner.state import DataSeekState, LeanTraceState
+from seek.components.search_graph.nodes.fitness import fitness_node
 from seek.components.search_graph.nodes.utils import create_llm
 from seek.components.tool_manager.registry import PLUGIN_REGISTRY, register_plugin
 from seek.components.tool_manager.tools import get_plugin_tools_for_role, get_tools_for_role
@@ -343,3 +348,106 @@ def test_archive_provenance_guard_inactive_when_budget_nonzero(monkeypatch):
                     # Should NOT raise
                     result = archive_node(state)
                     assert result["samples_generated"] >= 1
+
+
+# -------------------------
+# Endpoint-failure resilience (max_retries config + fitness degrade guard)
+# -------------------------
+
+
+def _fitness_state(provenance: str = "researched") -> dict:
+    """Minimal state that drives fitness_node down the no-tools fallback path."""
+    return {
+        "messages": [MagicMock()],
+        "current_sample_provenance": provenance,
+        "research_findings": ["# Data Prospecting Report\nsample content"],
+        "current_task": {
+            "characteristic": "test_characteristic",
+            "topic": "test_topic",
+        },
+        "strategy_block": "",
+        "mission_config": {},
+    }
+
+
+def _patch_fitness_llm(monkeypatch):
+    """Patch fitness.create_llm + create_agent_runnable to isolate invoke behavior."""
+    monkeypatch.setattr(
+        "seek.components.search_graph.nodes.fitness.create_llm", lambda _role: MagicMock()
+    )
+    return monkeypatch
+
+
+def test_fitness_node_degrades_on_connection_error(monkeypatch):
+    """A transport connection error degrades to a REJECTED report, not a raise."""
+    _patch_fitness_llm(monkeypatch)
+    err = litellm.APIConnectionError(message="Connection error.", llm_provider="openai", model="x")
+    with patch("seek.components.search_graph.nodes.fitness.create_agent_runnable") as mock_ar:
+        mock_ar.return_value.invoke.side_effect = err
+        result = fitness_node(_fitness_state())
+
+    report = result["fitness_report"]
+    assert isinstance(report, FitnessReport)
+    assert report.passed is False
+    assert "endpoint unavailable" in report.reason.lower()
+
+
+def test_fitness_node_degrades_on_503_queue_full(monkeypatch):
+    """A 503 queue-full (surfaced as InternalServerError) degrades to REJECTED."""
+    _patch_fitness_llm(monkeypatch)
+    err = litellm.InternalServerError(
+        message="request queue is full", llm_provider="openai", model="x"
+    )
+    with patch("seek.components.search_graph.nodes.fitness.create_agent_runnable") as mock_ar:
+        mock_ar.return_value.invoke.side_effect = err
+        result = fitness_node(_fitness_state())
+
+    report = result["fitness_report"]
+    assert isinstance(report, FitnessReport)
+    assert report.passed is False
+    assert "endpoint unavailable" in report.reason.lower()
+
+
+def test_fitness_node_does_not_swallow_4xx_errors(monkeypatch):
+    """4xx errors (auth/validation/config) must still propagate, not be masked as REJECTED."""
+    _patch_fitness_llm(monkeypatch)
+    err = litellm.BadRequestError(message="invalid model", model="x", llm_provider="openai")
+    with patch("seek.components.search_graph.nodes.fitness.create_agent_runnable") as mock_ar:
+        mock_ar.return_value.invoke.side_effect = err
+        with pytest.raises(litellm.BadRequestError):
+            fitness_node(_fitness_state())
+
+
+def test_create_llm_passes_max_retries(monkeypatch):
+    """max_retries from config flows through to ChatLiteLLM (default + node override)."""
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                "max_tokens": 100,
+                "max_retries": 3,
+            }
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("supervisor")
+        assert mock_llm.call_args.kwargs["max_retries"] == 3
+
+    # Node-level override wins
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                "max_tokens": 100,
+                "max_retries": 3,
+            },
+            "mission_plan": {"nodes": [{"name": "fitness", "model": "f", "max_retries": 5}]},
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("fitness")
+        assert mock_llm.call_args.kwargs["max_retries"] == 5

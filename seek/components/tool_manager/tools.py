@@ -143,14 +143,11 @@ def get_tools_for_role(role: str, mission_config: dict[str, Any] | None = None) 
             mapped = {
                 name.lower()
                 for name, cfg in tool_configs.items()
-                if isinstance(cfg, dict) and role_lower in [
-                    str(r).lower() for r in cfg.get("roles", [])
-                ]
+                if isinstance(cfg, dict)
+                and role_lower in [str(r).lower() for r in cfg.get("roles", [])]
             }
             if mapped:
-                tool_names_for_role = [
-                    n for n in tool_names_for_role if n in mapped
-                ]
+                tool_names_for_role = [n for n in tool_names_for_role if n in mapped]
     builtin_tools = [
         all_tools[tool_name] for tool_name in tool_names_for_role if tool_name in all_tools
     ]

@@ -23,6 +23,9 @@ def create_llm(role: str) -> ChatLiteLLM:
     # api_base lets a role target a custom OpenAI-compatible server (e.g. a
     # local sglang/Spark box) instead of the provider's default endpoint.
     default_api_base = model_defaults.get("api_base")
+    # max_retries tunes litellm/langchain transport-layer retries on transient
+    # transport/5xx/429 errors. Left unset → ChatLiteLLM's own default applies.
+    default_max_retries = model_defaults.get("max_retries")
 
     # Try to find node-specific config in mission plan
     node_config = None
@@ -43,6 +46,7 @@ def create_llm(role: str) -> ChatLiteLLM:
         max_tokens = node_config.get("max_tokens", default_max_tokens)
         top_p = node_config.get("top_p", default_top_p)
         api_base = node_config.get("api_base", default_api_base)
+        max_retries = node_config.get("max_retries", default_max_retries)
     else:
         # Fallback to default values from seek config
         model = default_model
@@ -50,6 +54,7 @@ def create_llm(role: str) -> ChatLiteLLM:
         max_tokens = default_max_tokens
         top_p = default_top_p
         api_base = default_api_base
+        max_retries = default_max_retries
 
     # Only pass top_p when explicitly configured. Some providers (e.g. greedy
     # sampling on certain models) reject the parameter entirely, and omitting it
@@ -70,6 +75,12 @@ def create_llm(role: str) -> ChatLiteLLM:
     # lets roles target local servers (e.g. Spark/sglang) rather than the cloud.
     if api_base:
         kwargs["api_base"] = api_base
+    # Only override the langchain retry count when explicitly configured; left
+    # unset, ChatLiteLLM applies its own default. This is the primary mechanism
+    # for absorbing transient transport/5xx/429 errors (e.g. a briefly-full
+    # local server queue) at the transport layer where reconnects are clean.
+    if max_retries is not None:
+        kwargs["max_retries"] = max_retries
     return ChatLiteLLM(**kwargs)
 
 

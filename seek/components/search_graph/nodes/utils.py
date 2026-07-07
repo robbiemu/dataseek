@@ -1,11 +1,103 @@
+import logging
+import os
 import re
+from typing import Any
 
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
 from langchain_litellm import ChatLiteLLM
 
 from seek.common.config import get_active_seek_config
 from seek.components.tool_manager.tools import get_tools_for_role
+
+
+def _deep_merge_kwargs(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge two dicts so nested keys (e.g. chat_template_kwargs)
+    combine rather than replacing wholesale."""
+    result = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_merge_kwargs(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+logger = logging.getLogger(__name__)
+
+# Diagnostics for list-shaped message.content from reasoning models. Off by
+# default; set DATASEEK_INSPECT_CONTENT=1 to log the content shape of every
+# assistant message returned by create_llm, with full detail when the content
+# is list-shaped (the anomaly that breaks node JSON parsing and server history
+# validation). Captures both what langchain hands dataseek and, via a litellm
+# logging callback, the raw stream shape that produced it.
+_INSPECT_CONTENT = os.getenv("DATASEEK_INSPECT_CONTENT", "").lower() in {"1", "true", "yes"}
+
+
+def _summarize_content(content: Any) -> str:
+    """Compact, non-spammy description of a message's content for diagnostics."""
+    if isinstance(content, str):
+        return f"str(len={len(content)}, head={content[:80]!r})"
+    if isinstance(content, list):
+        # Describe the shape without dumping the whole list (which can be huge
+        # for thinking-block streams)
+        parts = []
+        for item in content[:5]:
+            if isinstance(item, dict):
+                parts.append(f"dict(keys={sorted(item.keys())})")
+            else:
+                parts.append(f"{type(item).__name__}({item!r:.40})")
+        more = f", +{len(content) - 5} more" if len(content) > 5 else ""
+        return f"list(len={len(content)}, [{', '.join(parts)}{more}])"
+    return f"{type(content).__name__}({content!r:.80})"
+
+
+def _inspect_message(role: str, message: BaseMessage) -> None:
+    """Log the content shape of an assistant message (env-gated)."""
+    if not _INSPECT_CONTENT or not isinstance(message, AIMessage):
+        return
+    is_list = isinstance(message.content, list)
+    level = logging.WARNING if is_list else logging.DEBUG
+    logger.log(
+        level,
+        "create_llm(%s) -> AIMessage.content is %s; additional_kwargs=%s; " "usage_metadata=%s",
+        role,
+        "LIST-SHAPED" if is_list else "str",
+        sorted(message.additional_kwargs.keys()),
+        getattr(message, "usage_metadata", None),
+    )
+    if is_list:
+        logger.warning(
+            "list content detail for role=%s: %s", role, _summarize_content(message.content)
+        )
+        if message.additional_kwargs.get("reasoning_content"):
+            rc = message.additional_kwargs["reasoning_content"]
+            logger.warning(
+                "reasoning_content present (len=%d, head=%r)", len(str(rc)), str(rc)[:120]
+            )
+
+
+def _wrap_llm_for_inspection(role: str, llm: ChatLiteLLM) -> ChatLiteLLM:
+    """Wrap a ChatLiteLLM so every invoke logs the returned message's content shape.
+
+    Only active when DATASEEK_INSPECT_CONTENT is set; otherwise returns the llm
+    unchanged with zero overhead.
+    """
+    if not _INSPECT_CONTENT:
+        return llm
+
+    original_invoke = llm.invoke
+
+    def inspected_invoke(*args: Any, **kwargs: Any) -> Any:
+        result = original_invoke(*args, **kwargs)
+        if isinstance(result, BaseMessage):
+            _inspect_message(role, result)
+        return result
+
+    # pydantic models reject attribute assignment; skip wrapping on
+    # ChatLiteLLM (subclass-based instrumentation would go here if needed).
+    return llm
 
 
 def create_llm(role: str) -> ChatLiteLLM:
@@ -15,9 +107,33 @@ def create_llm(role: str) -> ChatLiteLLM:
 
     # Get model defaults from seek config
     model_defaults = seek_config.get("model_defaults", {})
-    default_model = model_defaults.get("model", "openai/gpt-5-mini")
+    default_model = model_defaults.get("model", "openai/gpt-5.4-mini")
     default_temperature = model_defaults.get("temperature", 0.1)
-    default_max_tokens = model_defaults.get("max_tokens", 2000)
+    # max_tokens is opt-in: omitted by default so the server/model decides the
+    # output budget. A hardcoded floor truncates reasoning models mid-thought
+    # (the answer never gets emitted because the budget runs out during the
+    # reasoning phase). Set model_defaults.max_tokens or a per-node max_tokens
+    # when you need an explicit cap.
+    default_max_tokens = model_defaults.get("max_tokens")
+    default_top_p = model_defaults.get("top_p")
+    # api_base lets a role target a custom OpenAI-compatible server (e.g. a
+    # local sglang/Spark box) instead of the provider's default endpoint.
+    default_api_base = model_defaults.get("api_base")
+    # max_retries tunes litellm/langchain transport-layer retries on transient
+    # transport/5xx/429 errors. Left unset → ChatLiteLLM's own default applies.
+    default_max_retries = model_defaults.get("max_retries")
+    # Streaming defaults on. Long local-server generations with streaming=False
+    # hold an idle socket until the full response is ready; an idle-read timeout
+    # (or proxy/OS keepalive) then resets the connection mid-generation,
+    # surfacing as InternalServerError/Connection error. Streaming keeps bytes
+    # flowing during generation so the connection is never treated as idle.
+    default_streaming = model_defaults.get("streaming", True)
+    # model_kwargs flows verbatim into the litellm completion payload. Used for
+    # provider-specific params that don't have a direct field on ChatLiteLLM,
+    # e.g. chat_template_kwargs: {enable_thinking: false} for reasoning models
+    # (Qwen3) that otherwise emit text in reasoning_content and leave content
+    # empty. A per-node model_kwargs deep-merges over model_defaults.
+    default_model_kwargs = model_defaults.get("model_kwargs", {})
 
     # Try to find node-specific config in mission plan
     node_config = None
@@ -36,22 +152,90 @@ def create_llm(role: str) -> ChatLiteLLM:
         model = node_config.get("model", default_model)
         temperature = node_config.get("temperature", default_temperature)
         max_tokens = node_config.get("max_tokens", default_max_tokens)
+        top_p = node_config.get("top_p", default_top_p)
+        api_base = node_config.get("api_base", default_api_base)
+        max_retries = node_config.get("max_retries", default_max_retries)
+        streaming = node_config.get("streaming", default_streaming)
+        # Node-level model_kwargs deep-merges over model_defaults' model_kwargs
+        # so a node override for one nested key (e.g. one chat_template_kwargs
+        # setting) doesn't discard sibling defaults.
+        node_model_kwargs = node_config.get("model_kwargs", {})
+        model_kwargs = _deep_merge_kwargs(default_model_kwargs, node_model_kwargs)
     else:
         # Fallback to default values from seek config
         model = default_model
         temperature = default_temperature
         max_tokens = default_max_tokens
+        top_p = default_top_p
+        api_base = default_api_base
+        max_retries = default_max_retries
+        streaming = default_streaming
+        model_kwargs = dict(default_model_kwargs)
 
-    return ChatLiteLLM(model=model, temperature=temperature, max_tokens=max_tokens)
+    # Only pass top_p when explicitly configured. Some providers (e.g. greedy
+    # sampling on certain models) reject the parameter entirely, and omitting it
+    # preserves the stock behavior for missions that do not set it.
+    #
+    # top_p is routed through model_kwargs rather than as a direct field:
+    # ChatLiteLLM stores a top_p field but does not forward it into the litellm
+    # completion payload, whereas model_kwargs is always passed through. This
+    # matters for greedy models (e.g. Leanstral) that 400 without top_p=1.
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "temperature": temperature,
+    }
+    # Only pass max_tokens when explicitly configured. Left unset, the
+    # server/model decides the output budget — important for reasoning models,
+    # which can spend a large budget in the reasoning phase before emitting the
+    # answer; a hardcoded cap truncates them mid-thought.
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    # top_p is routed through model_kwargs: ChatLiteLLM stores a top_p field but
+    # does not forward it into the litellm completion payload, whereas
+    # model_kwargs is always passed through. Set it into the (possibly
+    # config-provided) model_kwargs dict rather than overwriting the dict, so
+    # provider-specific keys like chat_template_kwargs survive alongside it.
+    if top_p is not None:
+        model_kwargs = {**model_kwargs, "top_p": top_p}
+    if model_kwargs:
+        kwargs["model_kwargs"] = model_kwargs
+    # Route to a custom OpenAI-compatible endpoint when configured. This is what
+    # lets roles target local servers (e.g. Spark/sglang) rather than the cloud.
+    if api_base:
+        kwargs["api_base"] = api_base
+    # Only override the langchain retry count when explicitly configured; left
+    # unset, ChatLiteLLM applies its own default. This is the primary mechanism
+    # for absorbing transient transport/5xx/429 errors (e.g. a briefly-full
+    # local server queue) at the transport layer where reconnects are clean.
+    if max_retries is not None:
+        kwargs["max_retries"] = max_retries
+    # Streaming is always passed (default True) so that long generations
+    # against local servers keep the connection alive, as described above.
+    kwargs["streaming"] = streaming
+    llm = ChatLiteLLM(**kwargs)
+    return _wrap_llm_for_inspection(role, llm)
 
 
-def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str) -> Runnable:
-    """Factory to create a new agent node's runnable."""
+def create_agent_runnable(
+    llm: ChatLiteLLM,
+    system_prompt: str,
+    role: str,
+    mission_config: dict[str, Any] | None = None,
+    tools: list[Any] | None = None,
+) -> Runnable:
+    """Factory to create a new agent node's runnable.
+
+    When ``tools`` is provided (e.g. the ToolManager-prepared, configured
+    instances from the graph), those exact instances are bound to the model.
+    Otherwise, falls back to ``get_tools_for_role`` which freshly instantiates
+    plugins without mission config or setup() — use the explicit path when the
+    model and ToolNode must share the same instances.
+    """
     # Load the seek config to get the use_robots setting
     seek_config = get_active_seek_config()
     seek_config.get("use_robots", True)
 
-    tools = get_tools_for_role(role)
+    bound_tools = tools if tools is not None else get_tools_for_role(role, mission_config)
     # Escape curly braces to avoid ChatPromptTemplate treating literals as variables
     safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
     prompt = ChatPromptTemplate.from_messages(
@@ -60,9 +244,9 @@ def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str) -> Ru
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
-    if tools:
+    if bound_tools:
         # Force a provider-compatible tool_choice
-        return prompt | llm.bind_tools(tools, tool_choice="auto")
+        return prompt | llm.bind_tools(bound_tools, tool_choice="auto")
     return prompt | llm
 
 

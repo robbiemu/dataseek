@@ -1,3 +1,13 @@
+# Prompt templates for the Data Seek Agent. Consumed via get_prompt(role, key).
+#
+# To override for a mission: pass `--prompts your_prompts.yaml`. The override is
+# layered over THIS file with per-role replace semantics (NOT a deep key merge):
+#   - A role you specify replaces that role's prompts WHOLESALE. Any key you
+#     don't re-set is EMPTY for your run (it does NOT fall back to this file).
+#     So if you override `research:`, you must re-specify base_prompt,
+#     normal_prompt, AND cached_only_prompt (every key research reads).
+#   - A role you OMIT keeps its bundled prompts from this file unchanged.
+# See docs/guides/prompting-guide.md#overriding-prompts---prompts for details.
 research:
   base_prompt: >
     You are a Data Prospector using a ReAct workflow (Reason + Act with tools).

@@ -2,9 +2,19 @@
 # This file contains the mission parameters and configuration for the Data Seek Agent, separated from the main claimify config.
 
 model_defaults:
-  model: "openai/gpt-5-mini"
+  model: "openai/gpt-5.4-mini"
   temperature: 1
-  max_tokens: 2000
+  # No max_tokens default: let the server/model decide the output budget.
+  # A hardcoded cap truncates reasoning models mid-thought. Set model_defaults.max_tokens
+  # or a per-node max_tokens only when you need an explicit cap.
+  # Retries at the litellm/langchain transport layer on transient transport/5xx/429
+  # errors. Raise for flaky local servers (e.g. sglang with a small request queue),
+  # leave default for cloud. Per-node overrides in mission_plan.nodes win.
+  max_retries: 3
+  # Stream completions. On by default: long local-server generations with
+  # streaming off hold an idle socket that can get reset mid-generation
+  # (InternalServerError/Connection error). Streaming keeps the connection alive.
+  streaming: true
 
 web_search:
   provider: "google/search"
@@ -49,27 +59,22 @@ mission_plan:
   goal: "Find reliable, verifiable data sources to build a training corpus about the safety and efficacy of GLP-1 agonists for weight loss."
   nodes:
     - name: "supervisor"
-      model: "openai/gpt-5-mini"
+      model: "openai/gpt-5.5"
       temperature: 1
-      max_tokens: 65536
     - name: "research"
-      model: "openai/gpt-5-mini"
+      model: "openai/gpt-5.5"
       temperature: 1
-      max_tokens: 65536
       result_char_limit: 65536
       summary_char_limit: 6000
     - name: "fitness"
-      model: "openai/gpt-5-mini"
+      model: "openai/gpt-5.5"
       temperature: 1
-      max_tokens: 65536
     - name: "archive"
-      model: "openai/gpt-5-mini"
+      model: "openai/gpt-5.4-mini"
       temperature: 1
-      max_tokens: 65536
     - name: "synthetic"
-      model: "openai/gpt-5-mini"
+      model: "openai/gpt-5.4-mini"
       temperature: 1
-      max_tokens: 65536
 
 
 

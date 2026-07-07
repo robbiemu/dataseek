@@ -21,7 +21,7 @@ class TestIntegration:
         # Minimal config used by nodes and graph
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -115,7 +115,7 @@ class TestIntegration:
         # Mock config and LLM
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },

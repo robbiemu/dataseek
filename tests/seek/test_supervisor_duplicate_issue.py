@@ -97,7 +97,7 @@ def test_supervisor_prevents_duplicate_consecutive_agent_calls():
         mock_create_llm_func.return_value = mock_llm
         mock_config_func.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },

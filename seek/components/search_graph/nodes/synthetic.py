@@ -47,7 +47,9 @@ def synthetic_node(state: DataSeekState) -> dict:
         characteristic=characteristic, topic=topic, strategy_block=strategy_block
     )
 
-    agent_runnable = create_agent_runnable(llm, system_prompt, "synthetic")
+    agent_runnable = create_agent_runnable(
+        llm, system_prompt, "synthetic", mission_config=state.get("mission_config")
+    )
     result = agent_runnable.invoke({"messages": state["messages"]})
 
     # Process LLM output to match research node format for downstream compatibility

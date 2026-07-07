@@ -5,11 +5,32 @@ Handles loading mission-specific configuration from separate config files.
 
 import logging
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any, Optional
 
 import yaml
 
 from .models import SeekAgentMissionPlanToolConfig
+
+# Repo/package root: seek/common/config.py -> common/ -> seek/ -> repo root.
+# Bundled configs ship as siblings of the seek/ package (config/), so resolving
+# relative to here — not CWD — lets the loaders find them regardless of where
+# `seek` is invoked from (e.g. from a downstream repo that only has ./plugins,
+# where ./config does not exist).
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _resolve_bundled_path(relative_path: str) -> str:
+    """Resolve a bundled config path against the package, falling back to CWD.
+
+    Tries the path relative to the dataseek package root first (so the bundled
+    config/ is found no matter the CWD), then the path as-is (CWD-relative) for
+    backward compatibility with callers that relied on the old behavior.
+    """
+    pkg_candidate = _PACKAGE_ROOT / relative_path
+    if pkg_candidate.is_file():
+        return str(pkg_candidate)
+    return relative_path
 
 
 def merge_configs(default: dict, override: dict) -> dict:
@@ -32,6 +53,7 @@ _active_seek_config: Optional["StructuredSeekConfig"] = None
 
 # Prompts configuration
 _prompts_config: dict | None = None
+_prompts_config_path: str | None = None
 
 
 def set_global_use_robots(use_robots: bool) -> None:
@@ -52,6 +74,18 @@ def set_active_seek_config(config: "StructuredSeekConfig") -> None:
     _active_seek_config = config
 
 
+def set_prompts_config(config_path: str | None) -> None:
+    """Set the path to the prompts configuration and clear any cached copy.
+
+    Mirrors set_active_seek_config so prompts are overridable from the CLI
+    like the seek config. Passing None resets to the bundled default on next
+    load.
+    """
+    global _prompts_config_path, _prompts_config
+    _prompts_config_path = config_path
+    _prompts_config = None
+
+
 def get_active_seek_config() -> "StructuredSeekConfig":
     """Get the active seek configuration, loading defaults if not yet set."""
     global _active_seek_config
@@ -61,16 +95,48 @@ def get_active_seek_config() -> "StructuredSeekConfig":
     return _active_seek_config
 
 
-def load_prompts_config(config_path: str = "config/prompts.yaml") -> dict:
-    """Load prompts configuration from a YAML file."""
+def load_prompts_config(config_path: str | None = None) -> dict:
+    """Load prompts configuration, layering an override over the bundled default.
+
+    The bundled config/prompts.yaml is always loaded as the base. An override
+    path (from set_prompts_config, or this call's config_path) is then applied
+    at the top level: each top-level key (a role, e.g. ``research``) in the
+    override *replaces* the bundled entry for that role wholesale; roles not
+    mentioned in the override keep their bundled prompts entirely.
+
+    This is deliberately a per-role replace, not a deep per-key merge. Prompt
+    roles are cohesive units — a node reads several keys from one role
+    (research uses ``base_prompt`` + ``normal_prompt`` + ``cached_only_prompt``
+    together). Deep-merging one key would leak the bundled sibling keys into a
+    role you're trying to fully replace (e.g. a custom-tools mission overriding
+    ``research.base_prompt`` would still get the bundled
+    ``research.normal_prompt`` instructing the model to use web tools that
+    aren't bound). Per-role replace avoids that, while still letting you omit
+    any role you don't want to change (those keep the bundled prompts).
+    """
     global _prompts_config
-    if _prompts_config is None:
+    if _prompts_config is not None:
+        return _prompts_config
+
+    default_path = _resolve_bundled_path("config/prompts.yaml")
+    try:
+        with open(default_path) as f:
+            _prompts_config = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        logger.error(f"Default prompts configuration file not found: {default_path}")
+        _prompts_config = {}
+
+    override_path = _prompts_config_path or config_path
+    if override_path:
         try:
-            with open(config_path) as f:
-                _prompts_config = yaml.safe_load(f) or {}
+            with open(override_path) as f:
+                override = yaml.safe_load(f) or {}
+            # Top-level per-role replace: an override role replaces the bundled
+            # role wholesale; unmentioned roles are left untouched.
+            _prompts_config.update(override)
         except FileNotFoundError:
-            logger.error(f"Prompts configuration file not found: {config_path}")
-            _prompts_config = {}
+            logger.error(f"Prompts override file not found: {override_path}")
+
     return _prompts_config
 
 
@@ -151,7 +217,7 @@ def load_seek_config(
     Returns:
         StructuredSeekConfig object containing the mission configuration.
     """
-    default_config_path = "config/seek_config.yaml"
+    default_config_path = _resolve_bundled_path("config/seek_config.yaml")
 
     # Load default config
     try:

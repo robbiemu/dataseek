@@ -14,6 +14,7 @@ from .common.config import (
     get_active_seek_config,
     load_seek_config,
     set_active_seek_config,
+    set_prompts_config,
 )
 from .components.mission_runner.mission_runner import MissionRunner
 from .components.search_graph.graph import build_graph
@@ -169,8 +170,12 @@ def run_agent_process(
     mission_plan_path: str = "settings/mission_config.yaml",
     use_robots: bool = True,
     db_path: str = "checkpoints/mission_checkpoints.db",
+    prompts_path: str | None = None,
 ) -> None:
     """Main function to set up and run the seek agent mission."""
+    if prompts_path:
+        set_prompts_config(prompts_path)
+
     with SqliteSaver.from_conn_string(db_path) as checkpointer:
         if resume_from:
             # If resuming, mission_name is not required from the command line
@@ -284,6 +289,17 @@ def run(
     db_path: str | None = typer.Option(
         None, "--db-path", help="Path to the mission checkpoints database."
     ),
+    prompts: str | None = typer.Option(
+        None,
+        "--prompts",
+        help=(
+            "Path to a prompts YAML override. Layered over the bundled "
+            "config/prompts.yaml with per-role replace semantics: a role you "
+            "specify replaces that role's prompts wholesale (re-specify every "
+            "key the node reads); roles you omit keep the bundled prompts. "
+            "See docs/guides/prompting-guide.md."
+        ),
+    ),
 ) -> None:
     # Handle --no-robots flag
     use_robots = not no_robots
@@ -309,6 +325,10 @@ def run(
             "checkpoints/mission_checkpoints.db" if mission_name or resume_from else ":memory:"
         )
 
+    # Coerce typer OptionInfo sentinels to None when run() is called directly
+    # (e.g. from tests) rather than through the resolved CLI.
+    prompts_path = prompts if isinstance(prompts, str) else None
+
     run_agent_process(
         mission_name=mission_name,
         recursion_limit=recursion_limit,
@@ -318,6 +338,7 @@ def run(
         mission_plan_path=mission_config,
         use_robots=use_robots,  # Pass the use_robots parameter
         db_path=db_path,
+        prompts_path=prompts_path,
     )
 
 

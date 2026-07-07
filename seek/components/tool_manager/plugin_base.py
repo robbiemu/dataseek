@@ -6,7 +6,13 @@ from pydantic import BaseModel
 
 
 class BaseTool(LangChainBaseTool):
-    """Base for tool plugins compatible with LangGraph's ToolNode."""
+    """Base for tool plugins compatible with LangGraph's ToolNode.
+
+    Subclasses MUST define ``args_schema`` (a pydantic BaseModel) so the model
+    sees real parameter names. Without it, LangChain derives the schema from
+    ``_run(**kwargs)`` and exposes a useless ``kwargs`` parameter — the model
+    doesn't know what arguments to pass.
+    """
 
     # Optional metadata (class-level, not Pydantic fields)
     version: ClassVar[str] = "1.0.0"
@@ -17,8 +23,16 @@ class BaseTool(LangChainBaseTool):
     # Instance configuration (kept as field to allow passing at init time)
     config: BaseModel | None = None
 
-    def _run(self, *args: Any, **kwargs: Any) -> Any:  # pragma: no cover - sync not used
-        raise NotImplementedError("This tool does not support synchronous execution.")
+    def _run(self, *args: Any, **kwargs: Any) -> Any:
+        """Bridge sync invocation to the async implementation.
+
+        MissionRunner drives the graph synchronously (app.stream), so ToolNode
+        calls tool.invoke() which hits this method. We bridge to _arun() via
+        asyncio.run() so async-only plugins work in the sync graph path.
+        """
+        import asyncio
+
+        return asyncio.run(self._arun(*args, **kwargs))
 
     # Optional lifecycle hooks
     async def setup(self) -> None:

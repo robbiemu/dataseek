@@ -88,7 +88,7 @@ def research_node(state: "DataSeekState") -> dict:
     seek_config = get_active_seek_config()
     use_robots = seek_config.get("use_robots", True)
 
-    all_research_tools = get_tools_for_role("research")
+    all_research_tools = get_tools_for_role("research", state.get("mission_config"))
     print(f"   Tools available (global): {[t.name for t in all_research_tools]}")
 
     # Honor mission_config.tool_configs roles: only enable tools explicitly listed for 'research'.
@@ -191,7 +191,9 @@ def research_node(state: "DataSeekState") -> dict:
             if entry["url"] in {normalize_url(url) for url in allowed_urls}
         ]
 
-        print(f"   🗂️  Research: Found {len(allowed_cache_entries)} cached entries for allowed URLs")
+        print(
+            f"   🗂️  Research: Found {len(allowed_cache_entries)} cached entries for allowed URLs"
+        )
 
         # Build cached entries description for LLM
         cache_descriptions = []

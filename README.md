@@ -5,6 +5,17 @@ DataSeek is a versatile, extensible framework for autonomous data collection and
 ![dataseek_manga_v2](https://github.com/user-attachments/assets/52527858-6764-415f-87b3-148f06dad23c)
 
 
+## What's new in 0.3.0
+
+- **Local model server support** — roles can target any OpenAI-compatible endpoint (`api_base`), e.g. a local sglang/Spark box, instead of the cloud provider.
+- **Reasoning-model support** — provider-specific params like `chat_template_kwargs` flow through to the server via the new `model_kwargs` config block, so reasoning models (Qwen3, etc.) populate `content` correctly. `max_tokens` is now opt-in (no hardcoded cap that truncates reasoning mid-thought).
+- **Streaming by default** — long generations no longer drop with `Connection error` against local servers.
+- **Extension points for downstream pipelines** — externalizable prompts (`--prompts`), a unified plugin registry (`@register_plugin` is now live for node agents), a tool-driven fitness node, and `top_p`/`max_retries` config.
+- **Resilience** — transient endpoint failures degrade to a deterministic REJECTED report instead of aborting the sample cycle.
+- **Security** — LiteLLM bumped to clear CVE-2026-42271 (RCE) and related advisories; all custom patches verified compatible.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release notes.
+
 ## Overview
 
 DataSeek is a powerful tool for automated data collection and prospecting. It uses advanced AI techniques to search, validate, and organize data from various sources including academic papers, Wikipedia, and web searches.
@@ -16,6 +27,9 @@ DataSeek is a powerful tool for automated data collection and prospecting. It us
 - Support for academic papers (arXiv), Wikipedia, and web searches
 - Built-in validation and filtering mechanisms
 - Command-line interface for easy execution
+- Pluggable: register your own tools via `@register_plugin` and map them to any agent role
+- Model-flexible: cloud providers via LiteLLM, or any OpenAI-compatible local server (`api_base`), including reasoning models (`model_kwargs` passthrough)
+- Externalizable prompts and per-node model/sampler configuration
 
 ## Quickstart
 

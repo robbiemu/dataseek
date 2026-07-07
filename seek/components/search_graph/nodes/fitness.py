@@ -1,11 +1,15 @@
 import json
+from collections.abc import Sequence
 
 import json_repair
+import litellm
 from langchain_core.messages import AIMessage
+from langchain_core.tools import BaseTool as LangChainBaseTool
 
 from seek.common.config import get_prompt
 from seek.common.models import FitnessReport
 from seek.components.mission_runner.state import DataSeekState
+from seek.components.tool_manager.tools import get_tools_for_role
 
 from .utils import (
     create_agent_runnable,
@@ -14,9 +18,28 @@ from .utils import (
     strip_reasoning_block,
 )
 
+# Transient endpoint failures that survive litellm's transport-layer retries
+# and should degrade to a deterministic REJECTED report rather than abort the
+# sample cycle. Deliberately narrow: 4xx (auth/validation/config) is excluded
+# so genuine failures still surface instead of being masked as quality rejects.
+TRANSIENT_ENDPOINT_ERRORS: tuple[type[Exception], ...] = (
+    litellm.APIConnectionError,
+    litellm.InternalServerError,
+    litellm.RateLimitError,
+)
 
-def fitness_node(state: "DataSeekState") -> dict:
-    """The fitness node, responsible for evaluating content and producing a structured report."""
+
+def fitness_node(
+    state: "DataSeekState",
+    configured_tools: Sequence[LangChainBaseTool] | None = None,
+) -> dict:
+    """The fitness node, responsible for evaluating content and producing a structured report.
+
+    When configured_tools is provided (from the graph's ToolManager-prepared
+    toolset), the model is bound against those exact instances — the same ones
+    ToolNode executes. This avoids a split where the model sees unconfigured
+    freshly-instantiated plugins while ToolNode runs configured ones.
+    """
     llm = create_llm("fitness")
 
     # --- START: PROVENANCE-AWARE LOGIC (Part 3) ---
@@ -74,46 +97,104 @@ def fitness_node(state: "DataSeekState") -> dict:
 
     # Prefer structured output when supported by the LLM wrapper
     report: FitnessReport | None = None
-    structured_supported = hasattr(llm, "with_structured_output")
 
-    if structured_supported:
+    # When tools are mapped to the fitness role via mission_config, drive them
+    # directly via create_agent_runnable so the LLM orchestrates the plugin
+    # tools. Otherwise fall back to the with_structured_output happy path that
+    # stock web-research missions use.
+    mission_config = state.get("mission_config")
+    # Distinguish "graph supplied the toolset" (even if empty — e.g. config
+    # validation failed for every plugin) from "not supplied" (legacy caller).
+    # When supplied, use it as-is so the model and ToolNode share instances.
+    # When not supplied, fall back to get_tools_for_role.
+    if configured_tools is not None:
+        fitness_tools = list(configured_tools)
+    else:
+        fitness_tools = get_tools_for_role("fitness", mission_config)
+    fitness_has_tools = bool(fitness_tools)
+
+    if fitness_has_tools:
+        agent_runnable = create_agent_runnable(llm, system_prompt, "fitness", tools=fitness_tools)
         try:
-            from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-
-            structured_llm = llm.with_structured_output(FitnessReport)
-            safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
-            agent = (
-                ChatPromptTemplate.from_messages(
-                    [("system", safe_system_prompt), MessagesPlaceholder(variable_name="messages")]
-                )
-                | structured_llm
-            )
-            maybe_report = agent.invoke({"messages": state["messages"]})
-            if isinstance(maybe_report, FitnessReport):
-                report = maybe_report
-            else:
-                try:
-                    report = FitnessReport.model_validate(maybe_report)
-                except Exception:
-                    report = None
-        except Exception as e:
-            print(f"⚠️ Fitness Node: Structured output path failed: {e}")
-            report = None
-
-    if report is None:
-        agent_runnable = create_agent_runnable(llm, system_prompt, "fitness")
-        raw_result = agent_runnable.invoke({"messages": state["messages"]})
-        try:
-            dethought = strip_reasoning_block(raw_result.content)
-            repaired_data = json_repair.loads(dethought)
-            report = FitnessReport.model_validate(repaired_data)
-        except Exception as parse_error:
-            print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
-            print(f"   Raw content: '{raw_result.content}'")
+            raw_result = agent_runnable.invoke({"messages": state["messages"]})
+        except TRANSIENT_ENDPOINT_ERRORS as endpoint_error:
+            print(f"⚠️ Fitness Node: LLM endpoint unavailable: {endpoint_error}")
             report = FitnessReport(
                 passed=False,
-                reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                reason=f"LLM endpoint unavailable after retries: {endpoint_error}",
             )
+        else:
+            # If the model emitted tool calls, pass the message through to the
+            # fitness_tools ToolNode for execution. The graph routes
+            # fitness_tools back to fitness so the model can consume the tool
+            # results and produce its final report on a subsequent invocation.
+            if getattr(raw_result, "tool_calls", None):
+                return {
+                    "messages": [raw_result],
+                }
+            try:
+                dethought = strip_reasoning_block(raw_result.content)
+                repaired_data = json_repair.loads(dethought)
+                report = FitnessReport.model_validate(repaired_data)
+            except Exception as parse_error:
+                print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
+                print(f"   Raw content: '{raw_result.content}'")
+                report = FitnessReport(
+                    passed=False,
+                    reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                )
+    else:
+        structured_supported = hasattr(llm, "with_structured_output")
+
+        if structured_supported:
+            try:
+                from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+                structured_llm = llm.with_structured_output(FitnessReport)
+                safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
+                agent = (
+                    ChatPromptTemplate.from_messages(
+                        [
+                            ("system", safe_system_prompt),
+                            MessagesPlaceholder(variable_name="messages"),
+                        ]
+                    )
+                    | structured_llm
+                )
+                maybe_report = agent.invoke({"messages": state["messages"]})
+                if isinstance(maybe_report, FitnessReport):
+                    report = maybe_report
+                else:
+                    try:
+                        report = FitnessReport.model_validate(maybe_report)
+                    except Exception:
+                        report = None
+            except Exception as e:
+                print(f"⚠️ Fitness Node: Structured output path failed: {e}")
+                report = None
+
+        if report is None:
+            agent_runnable = create_agent_runnable(llm, system_prompt, "fitness")
+            try:
+                raw_result = agent_runnable.invoke({"messages": state["messages"]})
+            except TRANSIENT_ENDPOINT_ERRORS as endpoint_error:
+                print(f"⚠️ Fitness Node: LLM endpoint unavailable: {endpoint_error}")
+                report = FitnessReport(
+                    passed=False,
+                    reason=f"LLM endpoint unavailable after retries: {endpoint_error}",
+                )
+            else:
+                try:
+                    dethought = strip_reasoning_block(raw_result.content)
+                    repaired_data = json_repair.loads(dethought)
+                    report = FitnessReport.model_validate(repaired_data)
+                except Exception as parse_error:
+                    print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
+                    print(f"   Raw content: '{raw_result.content}'")
+                    report = FitnessReport(
+                        passed=False,
+                        reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                    )
 
     # --- END: REVISED PROMPT AND RUNNABLE CONSTRUCTION ---
 

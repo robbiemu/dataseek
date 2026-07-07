@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage
 
-from seek.common.config import get_active_seek_config, get_prompt
+from seek.common.config import get_prompt
 from seek.components.mission_runner.state import DataSeekState
 from seek.components.tool_manager.tools import write_file
 
@@ -16,13 +16,23 @@ def archive_node(state: "DataSeekState") -> dict:
     The archive node, responsible for saving data and updating the audit trail
     using a procedural approach.
     """
-    # Load seek config instead of main config for writer paths
-    get_active_seek_config()
     llm = create_llm("archive")
 
     # Extract content from research findings
     provenance = state.get("current_sample_provenance", "synthetic")
     print(f"   🏷️  Archive: Received provenance '{provenance}' from state")
+
+    # Provenance guard: when the mission allows zero synthetic samples, refuse
+    # to archive anything marked synthetic. Reads from state (where MissionRunner
+    # writes the per-mission resolved budget) rather than the global seek config,
+    # so a mission with synthetic_budget: 0 in its YAML is enforced even when
+    # the global config doesn't set it.
+    synthetic_budget = state.get("synthetic_budget", 1.0)
+    if synthetic_budget == 0 and provenance == "synthetic":
+        raise AssertionError(
+            "Provenance guard: synthetic_budget is 0 but a synthetic sample reached "
+            "archive. This violates the mission's real-data-only guarantee."
+        )
     messages = state.get("messages", [])
     research_findings_any = state.get("research_findings", [])
 
@@ -62,7 +72,9 @@ def archive_node(state: "DataSeekState") -> dict:
     # Request raw markdown string directly from LLM
     tpl = get_prompt("archive", "base_prompt")
     system_prompt = tpl.format(provenance=provenance, characteristic=characteristic)
-    agent_runnable = create_agent_runnable(llm, system_prompt, "archive")
+    agent_runnable = create_agent_runnable(
+        llm, system_prompt, "archive", mission_config=state.get("mission_config")
+    )
     llm_result = agent_runnable.invoke({"messages": messages})
 
     # The LLM's raw output is now our entry markdown. No parsing needed.

@@ -121,12 +121,23 @@ def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> An
 
     # When the fitness node has tools, it forms a ReAct loop:
     # fitness → fitness_tools → fitness (model consumes tool results and either
-    # calls more tools or produces its final report). When the model returns a
-    # response with no tool_calls, fitness_node parses it into a FitnessReport
-    # and returns to the supervisor. Without tools, fitness flows straight back.
+    # calls more tools or produces its final report). The transition from
+    # fitness is conditional: if the model emitted tool_calls, route to
+    # fitness_tools for execution; otherwise route to supervisor (the model
+    # returned its final report). Without tools, fitness flows straight back.
     if has_fitness_tools:
-        workflow.add_edge("fitness", "fitness_tools")
         workflow.add_edge("fitness_tools", "fitness")
+
+        def fitness_router(state: DataSeekState) -> str:
+            """Route to fitness_tools if the model emitted tool calls; else supervisor."""
+            last = state["messages"][-1]
+            return "fitness_tools" if getattr(last, "tool_calls", None) else "supervisor"
+
+        workflow.add_conditional_edges(
+            "fitness",
+            fitness_router,
+            {"fitness_tools": "fitness_tools", "supervisor": "supervisor"},
+        )
     else:
         workflow.add_edge("fitness", "supervisor")
 

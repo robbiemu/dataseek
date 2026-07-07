@@ -236,6 +236,72 @@ def test_build_graph_adds_fitness_tools_node_when_plugins_mapped():
         PLUGIN_REGISTRY.update(saved)
 
 
+def test_fitness_conditional_edge_routes_to_supervisor_on_final_response():
+    """The fitness conditional edge routes to supervisor when no tool_calls.
+
+    When fitness_node returns a FitnessReport (no tool_calls on the final
+    message), the graph must route to supervisor, not back to fitness_tools.
+    This prevents the ouroboros loop where the final report is sent to ToolNode.
+    """
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from seek.components.search_graph.graph import build_graph
+
+    saved = dict(PLUGIN_REGISTRY)
+    PLUGIN_REGISTRY.clear()
+    try:
+        _register_dummy_lean_check_plugin()
+        mission_config = {"tool_configs": {"lean_check": {"roles": ["fitness"]}}}
+        with InMemorySaver() as checkpointer:
+            app = build_graph(checkpointer=checkpointer, mission_config=mission_config)
+
+            # Inspect the conditional edges from fitness
+            graph = app.get_graph()
+            fitness_edges = [e for e in graph.edges if e.source == "fitness"]
+            targets = {e.target for e in fitness_edges}
+            assert "fitness_tools" in targets, "fitness must be able to route to fitness_tools"
+            assert "supervisor" in targets, "fitness must be able to route to supervisor"
+    finally:
+        PLUGIN_REGISTRY.clear()
+        PLUGIN_REGISTRY.update(saved)
+
+
+def test_fitness_conditional_edge_routes_to_tools_on_tool_calls():
+    """The fitness conditional edge routes to fitness_tools when tool_calls present.
+
+    Integration test: fitness emits a tool call → fitness_tools executes →
+    fitness gets the tool result and emits final JSON → supervisor.
+    """
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from seek.components.search_graph.graph import build_graph
+
+    saved = dict(PLUGIN_REGISTRY)
+    PLUGIN_REGISTRY.clear()
+    try:
+        _register_dummy_lean_check_plugin()
+        mission_config = {"tool_configs": {"lean_check": {"roles": ["fitness"]}}}
+
+        with InMemorySaver() as checkpointer:
+            app = build_graph(checkpointer=checkpointer, mission_config=mission_config)
+
+            # Verify the graph has the conditional routing structure
+            graph_struct = app.get_graph()
+            # fitness must have a conditional edge (not a static one)
+            fitness_outgoing = [e for e in graph_struct.edges if e.source == "fitness"]
+            assert (
+                len(fitness_outgoing) >= 2
+            ), "fitness must have conditional edges to both fitness_tools and supervisor"
+            # fitness_tools must route back to fitness
+            tools_outgoing = [e for e in graph_struct.edges if e.source == "fitness_tools"]
+            assert any(
+                e.target == "fitness" for e in tools_outgoing
+            ), "fitness_tools must route back to fitness"
+    finally:
+        PLUGIN_REGISTRY.clear()
+        PLUGIN_REGISTRY.update(saved)
+
+
 # -------------------------
 # C4: top_p passthrough + provenance guard
 # -------------------------

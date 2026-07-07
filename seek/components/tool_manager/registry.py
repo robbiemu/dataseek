@@ -19,9 +19,20 @@ def register_plugin(cls: type[BaseTool]) -> type[BaseTool]:
     Uses a defensive lookup for the plugin name to avoid issues with
     Pydantic/LangChain model field descriptors at class-level.
     """
-    # Prefer explicit class attribute if present and a string
-    explicit_name = getattr(cls, "name", None)
-    if isinstance(explicit_name, str) and explicit_name:
+    # Prefer explicit class attribute if present and a string.
+    # For pydantic BaseTool subclasses, `cls.name` is a field *descriptor*
+    # (not the string default), so also inspect the pydantic field default.
+    explicit_name = None
+    name_field = getattr(cls, "model_fields", {}).get("name")
+    if name_field is not None:
+        default = getattr(name_field, "default", None)
+        if isinstance(default, str) and default:
+            explicit_name = default
+    if not explicit_name:
+        candidate = getattr(cls, "name", None)
+        if isinstance(candidate, str) and candidate:
+            explicit_name = candidate
+    if explicit_name:
         plugin_name = explicit_name.lower()
     else:
         # Next, attempt to use the module (file) name if available

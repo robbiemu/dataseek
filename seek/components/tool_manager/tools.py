@@ -131,6 +131,26 @@ def get_tools_for_role(role: str, mission_config: dict[str, Any] | None = None) 
         role_mapping["research"].append("documentation_crawler")
 
     tool_names_for_role = role_mapping.get(role, [])
+    # When a mission explicitly maps tools to this role via tool_configs, the
+    # mission becomes authoritative: only keep the hardcoded builtins it also
+    # lists. This lets a mission drop the default web/search plugins (e.g. a
+    # mathlib mission that only wants its own Lean plugins). Missions that do
+    # not configure tools for a role keep the full stock builtin set.
+    if mission_config:
+        tool_configs = mission_config.get("tool_configs")
+        if isinstance(tool_configs, dict):
+            role_lower = (role or "").lower()
+            mapped = {
+                name.lower()
+                for name, cfg in tool_configs.items()
+                if isinstance(cfg, dict) and role_lower in [
+                    str(r).lower() for r in cfg.get("roles", [])
+                ]
+            }
+            if mapped:
+                tool_names_for_role = [
+                    n for n in tool_names_for_role if n in mapped
+                ]
     builtin_tools = [
         all_tools[tool_name] for tool_name in tool_names_for_role if tool_name in all_tools
     ]

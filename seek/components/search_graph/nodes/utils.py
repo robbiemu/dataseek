@@ -20,6 +20,9 @@ def create_llm(role: str) -> ChatLiteLLM:
     default_temperature = model_defaults.get("temperature", 0.1)
     default_max_tokens = model_defaults.get("max_tokens", 2000)
     default_top_p = model_defaults.get("top_p")
+    # api_base lets a role target a custom OpenAI-compatible server (e.g. a
+    # local sglang/Spark box) instead of the provider's default endpoint.
+    default_api_base = model_defaults.get("api_base")
 
     # Try to find node-specific config in mission plan
     node_config = None
@@ -39,12 +42,14 @@ def create_llm(role: str) -> ChatLiteLLM:
         temperature = node_config.get("temperature", default_temperature)
         max_tokens = node_config.get("max_tokens", default_max_tokens)
         top_p = node_config.get("top_p", default_top_p)
+        api_base = node_config.get("api_base", default_api_base)
     else:
         # Fallback to default values from seek config
         model = default_model
         temperature = default_temperature
         max_tokens = default_max_tokens
         top_p = default_top_p
+        api_base = default_api_base
 
     # Only pass top_p when explicitly configured. Some providers (e.g. greedy
     # sampling on certain models) reject the parameter entirely, and omitting it
@@ -61,6 +66,10 @@ def create_llm(role: str) -> ChatLiteLLM:
     }
     if top_p is not None:
         kwargs["model_kwargs"] = {"top_p": top_p}
+    # Route to a custom OpenAI-compatible endpoint when configured. This is what
+    # lets roles target local servers (e.g. Spark/sglang) rather than the cloud.
+    if api_base:
+        kwargs["api_base"] = api_base
     return ChatLiteLLM(**kwargs)
 
 

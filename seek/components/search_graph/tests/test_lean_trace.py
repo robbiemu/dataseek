@@ -160,6 +160,43 @@ def test_set_prompts_config_reset_restores_default(tmp_path, monkeypatch):
     assert "Library Cataloger" in bundled
 
 
+def test_bundled_prompts_resolve_from_package_not_cwd(tmp_path, monkeypatch):
+    """The bundled config/prompts.yaml is found even when CWD has no config/.
+
+    Regression guard: when seek is invoked from a downstream repo CWD (so
+    ./plugins is globbed but ./config does not exist), the bundled prompts must
+    still resolve — via a package-relative path, not a CWD-relative one. Without
+    this, omitted roles get empty base prompts because there's no bundled file
+    to fall back onto.
+    """
+    import seek.common.config as cfg
+
+    monkeypatch.setattr(cfg, "_prompts_config", None)
+    monkeypatch.setattr(cfg, "_prompts_config_path", None)
+
+    # Run from a CWD with no config/ dir
+    monkeypatch.chdir(tmp_path)
+    assert not (tmp_path / "config").exists()
+
+    research = get_prompt("research", "base_prompt")
+    fitness = get_prompt("fitness", "base_prompt")
+    assert research, "research prompt must resolve from package, not CWD"
+    assert fitness, "fitness prompt must resolve from package, not CWD"
+
+
+def test_bundled_seek_config_resolves_from_package_not_cwd(tmp_path, monkeypatch):
+    """The bundled config/seek_config.yaml is found even when CWD has no config/."""
+    from seek.common.config import load_seek_config
+
+    monkeypatch.chdir(tmp_path)
+    assert not (tmp_path / "config").exists()
+
+    sc = load_seek_config()
+    assert sc.get("model_defaults", {}).get(
+        "model"
+    ), "seek config must resolve from package, not CWD"
+
+
 # -------------------------
 # C3: fitness tool-node gating
 # -------------------------

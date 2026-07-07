@@ -5,11 +5,32 @@ Handles loading mission-specific configuration from separate config files.
 
 import logging
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any, Optional
 
 import yaml
 
 from .models import SeekAgentMissionPlanToolConfig
+
+# Repo/package root: seek/common/config.py -> common/ -> seek/ -> repo root.
+# Bundled configs ship as siblings of the seek/ package (config/), so resolving
+# relative to here — not CWD — lets the loaders find them regardless of where
+# `seek` is invoked from (e.g. from a downstream repo that only has ./plugins,
+# where ./config does not exist).
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _resolve_bundled_path(relative_path: str) -> str:
+    """Resolve a bundled config path against the package, falling back to CWD.
+
+    Tries the path relative to the dataseek package root first (so the bundled
+    config/ is found no matter the CWD), then the path as-is (CWD-relative) for
+    backward compatibility with callers that relied on the old behavior.
+    """
+    pkg_candidate = _PACKAGE_ROOT / relative_path
+    if pkg_candidate.is_file():
+        return str(pkg_candidate)
+    return relative_path
 
 
 def merge_configs(default: dict, override: dict) -> dict:
@@ -97,7 +118,7 @@ def load_prompts_config(config_path: str | None = None) -> dict:
     if _prompts_config is not None:
         return _prompts_config
 
-    default_path = "config/prompts.yaml"
+    default_path = _resolve_bundled_path("config/prompts.yaml")
     try:
         with open(default_path) as f:
             _prompts_config = yaml.safe_load(f) or {}
@@ -196,7 +217,7 @@ def load_seek_config(
     Returns:
         StructuredSeekConfig object containing the mission configuration.
     """
-    default_config_path = "config/seek_config.yaml"
+    default_config_path = _resolve_bundled_path("config/seek_config.yaml")
 
     # Load default config
     try:

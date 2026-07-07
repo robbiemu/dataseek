@@ -308,8 +308,17 @@ def test_sync_toolnode_executes_async_plugin():
     The production graph is synchronous (app.stream), so ToolNode calls
     tool.invoke() which hits BaseTool._run. Without the sync→async bridge
     in the base class, this raises NotImplementedError.
+
+    Also verifies the args_schema is exposed to the model so it sees real
+    parameter names (not a useless ``kwargs`` wrapper).
     """
+    from pydantic import BaseModel, Field
+
     from seek.components.tool_manager.plugin_base import BaseUtilityTool
+
+    class LeanCheckArgs(BaseModel):
+        proof: str = Field(description="Lean proof term to verify")
+        task_id: str = Field(description="Identifier for this proof task")
 
     calls: list[dict] = []
 
@@ -317,14 +326,24 @@ def test_sync_toolnode_executes_async_plugin():
     class LeanCheckTest(BaseUtilityTool):
         name: str = "lean_check_test"
         description: str = "Checks Lean."
+        args_schema: type[BaseModel] = LeanCheckArgs
 
         async def execute(self, **kwargs: Any) -> dict[str, Any]:
             calls.append(kwargs)
             return {"status": "ok", "verified": True}
 
     tool = LeanCheckTest()
+
+    # The model must see real params, not a kwargs wrapper
+    schema = tool.tool_call_schema.model_json_schema()
+    assert set(schema["properties"]) == {
+        "proof",
+        "task_id",
+    }, "args_schema must expose real params to the model"
+    assert "args" not in schema["properties"]
+    assert "kwargs" not in schema["properties"]
+
     # tool.invoke() is what ToolNode calls internally in the sync graph path.
-    # Before the fix, this raised NotImplementedError("does not support sync").
     result = tool.invoke({"proof": "simp", "task_id": "test"})
 
     assert calls == [

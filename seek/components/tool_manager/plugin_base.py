@@ -6,7 +6,13 @@ from pydantic import BaseModel
 
 
 class BaseTool(LangChainBaseTool):
-    """Base for tool plugins compatible with LangGraph's ToolNode."""
+    """Base for tool plugins compatible with LangGraph's ToolNode.
+
+    Subclasses MUST define ``args_schema`` (a pydantic BaseModel) so the model
+    sees real parameter names. Without it, LangChain derives the schema from
+    ``_run(**kwargs)`` and exposes a useless ``kwargs`` parameter — the model
+    doesn't know what arguments to pass.
+    """
 
     # Optional metadata (class-level, not Pydantic fields)
     version: ClassVar[str] = "1.0.0"

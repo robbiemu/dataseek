@@ -851,3 +851,58 @@ def test_model_kwargs_deep_merges_nested_dicts(monkeypatch):
         # Node override changed enable_thinking, but preserve_thinking from defaults survives
         assert mk["chat_template_kwargs"]["enable_thinking"] is True
         assert mk["chat_template_kwargs"]["preserve_thinking"] is True
+
+
+def test_configured_plugin_shares_instance_between_model_and_toolnode():
+    """The model and ToolNode must use the same configured plugin instance.
+
+    A plugin with ConfigSchema requires its config during execute(). If
+    fitness_node bound a fresh unconfigured instance (the old path), execute()
+    would not see the config. This test proves the configured instance works
+    via the sync invoke path (what ToolNode calls) and that a fresh instance
+    does NOT — demonstrating why threading matters.
+    """
+    from pydantic import BaseModel as PydBaseModel
+    from pydantic import Field as PydField
+
+    from seek.components.tool_manager.plugin_base import BaseUtilityTool
+
+    class CheckArgs(PydBaseModel):
+        task_id: str = PydField(description="Task identifier")
+
+    class CheckConfig(PydBaseModel):
+        required_token: str = PydField(default="UNCONFIGURED")
+
+    saved = dict(PLUGIN_REGISTRY)
+    PLUGIN_REGISTRY.clear()
+    try:
+
+        @register_plugin
+        class ConfiguredCheck(BaseUtilityTool):
+            name: str = "configured_check"
+            description: str = "Checks with a configured token."
+            args_schema: type[PydBaseModel] = CheckArgs
+            ConfigSchema = CheckConfig
+
+            async def execute(self, **kwargs: Any) -> dict[str, Any]:
+                token = self.config.required_token if self.config else "NONE"
+                return {"status": "ok", "token": token}
+
+        # Configured instance (what ToolManager creates + ToolNode executes)
+        configured = ConfiguredCheck(
+            name="configured_check",
+            description="Checks with a configured token.",
+            config=CheckConfig(required_token="SECRET"),
+        )
+        result = configured.invoke({"task_id": "t1"})
+        assert result["token"] == "SECRET", "configured instance sees its config"
+
+        # Fresh instance (what get_plugin_tools_for_role used to create)
+        fresh = ConfiguredCheck(name="configured_check", description="...")
+        fresh_result = fresh.invoke({"task_id": "t2"})
+        assert (
+            fresh_result["token"] == "NONE"
+        ), "fresh instance has no config — this is the split the threading fixes"
+    finally:
+        PLUGIN_REGISTRY.clear()
+        PLUGIN_REGISTRY.update(saved)

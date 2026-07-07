@@ -4,6 +4,7 @@ Builds the LangGraph application graph for the Data Seek agent.
 """
 
 import asyncio
+from functools import partial
 from typing import Any
 
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -36,16 +37,25 @@ def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> An
     """
     workflow = StateGraph(DataSeekState)
 
+    # --- Prepare toolsets (needed before node registration) ---
+    tool_manager = ToolManager()
+    toolsets = asyncio.run(tool_manager.get_toolsets_for_mission(mission_config))
+
+    # Thread the configured, setup()-initialized fitness toolset into fitness_node
+    # so the model and ToolNode share the same instances. Without this, the model
+    # would be bound against freshly instantiated unconfigured plugins while
+    # ToolNode executes the configured ones — a dangerous split.
+    fitness_toolset = toolsets.get("fitness", [])
+
     # --- Define Agent Nodes ---
     workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("research", research_node)
     workflow.add_node("archive", archive_node)
-    workflow.add_node("fitness", fitness_node)
+    if fitness_toolset:
+        workflow.add_node("fitness", partial(fitness_node, configured_tools=fitness_toolset))
+    else:
+        workflow.add_node("fitness", fitness_node)
     workflow.add_node("synthetic", synthetic_node)  # Handles synthetic data generation
-
-    # --- Define Tool Nodes using the new ToolManager ---
-    tool_manager = ToolManager()
-    toolsets = asyncio.run(tool_manager.get_toolsets_for_mission(mission_config))
 
     research_tools_node = ToolNode(toolsets.get("research", []))
     workflow.add_node("research_tools", research_tools_node)
@@ -53,10 +63,9 @@ def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> An
     archive_tools_node = ToolNode(toolsets.get("archive", []))
     workflow.add_node("archive_tools", archive_tools_node)
 
-    # Fitness tools are only present for missions that map plugins to "fitness"
-    # (e.g. the Lean-apply/verify step). When absent, stock behavior is
-    # preserved: the fitness node flows directly back to the supervisor.
-    fitness_toolset = toolsets.get("fitness", [])
+    # Fitness tools (from the same configured toolset) are only present for
+    # missions that map plugins to "fitness". When absent, stock behavior is
+    # preserved: fitness flows directly back to the supervisor.
     has_fitness_tools = bool(fitness_toolset)
     if has_fitness_tools:
         fitness_tools_node = ToolNode(fitness_toolset)

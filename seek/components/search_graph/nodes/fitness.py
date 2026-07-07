@@ -1,8 +1,10 @@
 import json
+from collections.abc import Sequence
 
 import json_repair
 import litellm
 from langchain_core.messages import AIMessage
+from langchain_core.tools import BaseTool as LangChainBaseTool
 
 from seek.common.config import get_prompt
 from seek.common.models import FitnessReport
@@ -27,8 +29,17 @@ TRANSIENT_ENDPOINT_ERRORS: tuple[type[Exception], ...] = (
 )
 
 
-def fitness_node(state: "DataSeekState") -> dict:
-    """The fitness node, responsible for evaluating content and producing a structured report."""
+def fitness_node(
+    state: "DataSeekState",
+    configured_tools: Sequence[LangChainBaseTool] | None = None,
+) -> dict:
+    """The fitness node, responsible for evaluating content and producing a structured report.
+
+    When configured_tools is provided (from the graph's ToolManager-prepared
+    toolset), the model is bound against those exact instances — the same ones
+    ToolNode executes. This avoids a split where the model sees unconfigured
+    freshly-instantiated plugins while ToolNode runs configured ones.
+    """
     llm = create_llm("fitness")
 
     # --- START: PROVENANCE-AWARE LOGIC (Part 3) ---
@@ -92,12 +103,17 @@ def fitness_node(state: "DataSeekState") -> dict:
     # tools. Otherwise fall back to the with_structured_output happy path that
     # stock web-research missions use.
     mission_config = state.get("mission_config")
-    fitness_has_tools = bool(get_tools_for_role("fitness", mission_config))
+    # Prefer configured tools from the graph (same instances ToolNode uses);
+    # fall back to get_tools_for_role for legacy callers not using partial.
+    fitness_tools = (
+        list(configured_tools)
+        if configured_tools
+        else get_tools_for_role("fitness", mission_config)
+    )
+    fitness_has_tools = bool(fitness_tools)
 
     if fitness_has_tools:
-        agent_runnable = create_agent_runnable(
-            llm, system_prompt, "fitness", mission_config=mission_config
-        )
+        agent_runnable = create_agent_runnable(llm, system_prompt, "fitness", tools=fitness_tools)
         try:
             raw_result = agent_runnable.invoke({"messages": state["messages"]})
         except TRANSIENT_ENDPOINT_ERRORS as endpoint_error:

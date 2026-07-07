@@ -221,13 +221,21 @@ def create_agent_runnable(
     system_prompt: str,
     role: str,
     mission_config: dict[str, Any] | None = None,
+    tools: list[Any] | None = None,
 ) -> Runnable:
-    """Factory to create a new agent node's runnable."""
+    """Factory to create a new agent node's runnable.
+
+    When ``tools`` is provided (e.g. the ToolManager-prepared, configured
+    instances from the graph), those exact instances are bound to the model.
+    Otherwise, falls back to ``get_tools_for_role`` which freshly instantiates
+    plugins without mission config or setup() — use the explicit path when the
+    model and ToolNode must share the same instances.
+    """
     # Load the seek config to get the use_robots setting
     seek_config = get_active_seek_config()
     seek_config.get("use_robots", True)
 
-    tools = get_tools_for_role(role, mission_config)
+    bound_tools = tools if tools is not None else get_tools_for_role(role, mission_config)
     # Escape curly braces to avoid ChatPromptTemplate treating literals as variables
     safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
     prompt = ChatPromptTemplate.from_messages(
@@ -236,9 +244,9 @@ def create_agent_runnable(
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
-    if tools:
+    if bound_tools:
         # Force a provider-compatible tool_choice
-        return prompt | llm.bind_tools(tools, tool_choice="auto")
+        return prompt | llm.bind_tools(bound_tools, tool_choice="auto")
     return prompt | llm
 
 

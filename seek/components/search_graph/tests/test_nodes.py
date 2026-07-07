@@ -49,7 +49,7 @@ class TestNodes:
         # Mock config and LLM
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -95,7 +95,7 @@ class TestNodes:
         # Mock config and LLM
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -191,7 +191,7 @@ class TestNodes:
         # Mock seek config
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -277,7 +277,7 @@ class TestNodes:
 
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -343,7 +343,7 @@ class TestNodes:
         # Mock config and LLM
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -391,7 +391,7 @@ class TestNodes:
         # Mock config and LLM
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -450,7 +450,7 @@ class TestNodes:
         # Arrange
         mock_get_active_cfg.return_value = {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },

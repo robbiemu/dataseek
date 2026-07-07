@@ -54,7 +54,7 @@ def test_research_node_uses_config_max_iterations(
     mock_research_config = SeekAgentResearchNodeConfig(max_iterations=5)
     # Provide a dict-like config matching the new loader behavior
     mock_get_active_seek_config.return_value = {
-        "model_defaults": {"model": "openai/gpt-5-mini", "temperature": 0.1, "max_tokens": 2000},
+        "model_defaults": {"model": "openai/gpt-5.4-mini", "temperature": 0.1, "max_tokens": 2000},
         "mission_plan": {"nodes": []},
         "nodes": {"research": mock_research_config.model_dump()},
         "use_robots": True,

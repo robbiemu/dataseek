@@ -37,7 +37,7 @@ def test_seek_agent_runnable_new_mission(
     mock_load_config.return_value = StructuredSeekConfig(
         {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },
@@ -90,7 +90,7 @@ def test_seek_agent_runnable_resume_mission(
     mock_load_config.return_value = StructuredSeekConfig(
         {
             "model_defaults": {
-                "model": "openai/gpt-5-mini",
+                "model": "openai/gpt-5.4-mini",
                 "temperature": 0.1,
                 "max_tokens": 2000,
             },

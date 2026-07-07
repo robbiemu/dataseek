@@ -31,14 +31,12 @@ class MissionStateManager:
     def _create_table(self) -> None:
         """Create the mission_state table if it doesn't exist."""
         cursor = self._conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS mission_state (
                 mission_id TEXT PRIMARY KEY,
                 state TEXT NOT NULL
             )
-        """
-        )
+        """)
         self._conn.commit()
 
     def create_mission(self, mission_id: str, initial_state: dict[str, Any]) -> None:

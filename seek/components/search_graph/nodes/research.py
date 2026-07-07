@@ -191,7 +191,9 @@ def research_node(state: "DataSeekState") -> dict:
             if entry["url"] in {normalize_url(url) for url in allowed_urls}
         ]
 
-        print(f"   🗂️  Research: Found {len(allowed_cache_entries)} cached entries for allowed URLs")
+        print(
+            f"   🗂️  Research: Found {len(allowed_cache_entries)} cached entries for allowed URLs"
+        )
 
         # Build cached entries description for LLM
         cache_descriptions = []

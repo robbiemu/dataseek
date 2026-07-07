@@ -32,6 +32,12 @@ def create_llm(role: str) -> ChatLiteLLM:
     # surfacing as InternalServerError/Connection error. Streaming keeps bytes
     # flowing during generation so the connection is never treated as idle.
     default_streaming = model_defaults.get("streaming", True)
+    # model_kwargs flows verbatim into the litellm completion payload. Used for
+    # provider-specific params that don't have a direct field on ChatLiteLLM,
+    # e.g. chat_template_kwargs: {enable_thinking: false} for reasoning models
+    # (Qwen3) that otherwise emit text in reasoning_content and leave content
+    # empty. A per-node model_kwargs deep-merges over model_defaults.
+    default_model_kwargs = model_defaults.get("model_kwargs", {})
 
     # Try to find node-specific config in mission plan
     node_config = None
@@ -54,6 +60,9 @@ def create_llm(role: str) -> ChatLiteLLM:
         api_base = node_config.get("api_base", default_api_base)
         max_retries = node_config.get("max_retries", default_max_retries)
         streaming = node_config.get("streaming", default_streaming)
+        # Node-level model_kwargs deep-merges over model_defaults' model_kwargs.
+        node_model_kwargs = node_config.get("model_kwargs", {})
+        model_kwargs = {**default_model_kwargs, **node_model_kwargs}
     else:
         # Fallback to default values from seek config
         model = default_model
@@ -63,6 +72,7 @@ def create_llm(role: str) -> ChatLiteLLM:
         api_base = default_api_base
         max_retries = default_max_retries
         streaming = default_streaming
+        model_kwargs = dict(default_model_kwargs)
 
     # Only pass top_p when explicitly configured. Some providers (e.g. greedy
     # sampling on certain models) reject the parameter entirely, and omitting it
@@ -77,8 +87,15 @@ def create_llm(role: str) -> ChatLiteLLM:
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    # top_p is routed through model_kwargs: ChatLiteLLM stores a top_p field but
+    # does not forward it into the litellm completion payload, whereas
+    # model_kwargs is always passed through. Set it into the (possibly
+    # config-provided) model_kwargs dict rather than overwriting the dict, so
+    # provider-specific keys like chat_template_kwargs survive alongside it.
     if top_p is not None:
-        kwargs["model_kwargs"] = {"top_p": top_p}
+        model_kwargs = {**model_kwargs, "top_p": top_p}
+    if model_kwargs:
+        kwargs["model_kwargs"] = model_kwargs
     # Route to a custom OpenAI-compatible endpoint when configured. This is what
     # lets roles target local servers (e.g. Spark/sglang) rather than the cloud.
     if api_base:

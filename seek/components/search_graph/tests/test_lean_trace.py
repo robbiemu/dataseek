@@ -490,3 +490,50 @@ def test_create_llm_streaming_passthrough_and_override(monkeypatch):
     with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
         create_llm("fitness")
         assert mock_llm.call_args.kwargs["streaming"] is True
+
+
+def test_create_llm_merges_model_kwargs_without_clobbering_top_p(monkeypatch):
+    """A config model_kwargs block reaches the server and coexists with top_p.
+
+    Reasoning models (e.g. Qwen3) emit text in reasoning_content and leave
+    content empty unless chat_template_kwargs.enable_thinking=false is sent.
+    That key flows through model_kwargs. Previously create_llm overwrote
+    model_kwargs with only top_p, so the block never reached the server.
+    """
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                "max_tokens": 100,
+                "top_p": 1.0,
+                "model_kwargs": {"chat_template_kwargs": {"enable_thinking": False}},
+            }
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("supervisor")
+        assert mock_llm.call_args.kwargs["model_kwargs"] == {
+            "chat_template_kwargs": {"enable_thinking": False},
+            "top_p": 1.0,
+        }
+
+
+def test_create_llm_node_model_kwargs_deep_merges(monkeypatch):
+    """Node-level model_kwargs merges over model_defaults' (node keys win)."""
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "model_kwargs": {"a": 1, "b": 2},
+            },
+            "mission_plan": {
+                "nodes": [{"name": "fitness", "model": "f", "model_kwargs": {"b": 99, "c": 3}}]
+            },
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("fitness")
+        assert mock_llm.call_args.kwargs["model_kwargs"] == {"a": 1, "b": 99, "c": 3}

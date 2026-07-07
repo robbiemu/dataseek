@@ -4,12 +4,25 @@ import pytest
 
 pytest.importorskip("langsmith")
 
+from langgraph.checkpoint.memory import InMemorySaver
+
 from seek.common.config import StructuredSeekConfig
 from seek.common.models import (
     SeekAgentMissionPlanConfig,
     SeekAgentWriterConfig,
 )
 from seek.main import run
+
+
+def _use_real_checkpointer(mock_sqlite_saver) -> None:
+    """Make the patched SqliteSaver yield a real InMemorySaver.
+
+    langgraph >=1.x validates the checkpointer is a BaseCheckpointSaver, so a
+    bare MagicMock is rejected at compile() time. Returning InMemorySaver keeps
+    the test hermetic while satisfying the validator.
+    """
+    mock_sqlite_saver.from_conn_string.return_value.__enter__.return_value = InMemorySaver()
+    mock_sqlite_saver.from_conn_string.return_value.__exit__.return_value = None
 
 
 @patch("seek.main.input")
@@ -22,6 +35,7 @@ def test_seek_agent_runnable_new_mission(
     """
     Tests that the seek agent can start a new mission.
     """
+    _use_real_checkpointer(mock_sqlite_saver)
     # Mock the input to exit immediately
     mock_input.return_value = "exit"
 
@@ -79,6 +93,7 @@ def test_seek_agent_runnable_resume_mission(
     """
     Tests that the seek agent can resume a mission.
     """
+    _use_real_checkpointer(mock_sqlite_saver)
     # Mock the input to exit immediately
     mock_input.return_value = "exit"
 

@@ -21,7 +21,10 @@ dependencies = [
     "langchain-tavily>=0.2.11",
     "langchain-google-community>=2.0.10",
     "langsmith>=0.4.28",
-    "litellm>=1.77.1",
+    # litellm >=1.83.14 resolves CVE-2026-42271 (RCE), CVE-2026-42208 (SQLi),
+    # and CVE-2026-47101 (privilege escalation), and clears the malicious
+    # 1.82.7/1.82.8 supply-chain range.
+    "litellm>=1.83.14",
     "requests>=2.32.5",
     "html5lib>=1.1",
     "httpx>=0.28.1",

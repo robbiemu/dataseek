@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
@@ -15,9 +16,10 @@ def create_llm(role: str) -> ChatLiteLLM:
 
     # Get model defaults from seek config
     model_defaults = seek_config.get("model_defaults", {})
-    default_model = model_defaults.get("model", "openai/gpt-5-mini")
+    default_model = model_defaults.get("model", "openai/gpt-5.4-mini")
     default_temperature = model_defaults.get("temperature", 0.1)
     default_max_tokens = model_defaults.get("max_tokens", 2000)
+    default_top_p = model_defaults.get("top_p")
 
     # Try to find node-specific config in mission plan
     node_config = None
@@ -36,22 +38,44 @@ def create_llm(role: str) -> ChatLiteLLM:
         model = node_config.get("model", default_model)
         temperature = node_config.get("temperature", default_temperature)
         max_tokens = node_config.get("max_tokens", default_max_tokens)
+        top_p = node_config.get("top_p", default_top_p)
     else:
         # Fallback to default values from seek config
         model = default_model
         temperature = default_temperature
         max_tokens = default_max_tokens
+        top_p = default_top_p
 
-    return ChatLiteLLM(model=model, temperature=temperature, max_tokens=max_tokens)
+    # Only pass top_p when explicitly configured. Some providers (e.g. greedy
+    # sampling on certain models) reject the parameter entirely, and omitting it
+    # preserves the stock behavior for missions that do not set it.
+    #
+    # top_p is routed through model_kwargs rather than as a direct field:
+    # ChatLiteLLM stores a top_p field but does not forward it into the litellm
+    # completion payload, whereas model_kwargs is always passed through. This
+    # matters for greedy models (e.g. Leanstral) that 400 without top_p=1.
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if top_p is not None:
+        kwargs["model_kwargs"] = {"top_p": top_p}
+    return ChatLiteLLM(**kwargs)
 
 
-def create_agent_runnable(llm: ChatLiteLLM, system_prompt: str, role: str) -> Runnable:
+def create_agent_runnable(
+    llm: ChatLiteLLM,
+    system_prompt: str,
+    role: str,
+    mission_config: dict[str, Any] | None = None,
+) -> Runnable:
     """Factory to create a new agent node's runnable."""
     # Load the seek config to get the use_robots setting
     seek_config = get_active_seek_config()
     seek_config.get("use_robots", True)
 
-    tools = get_tools_for_role(role)
+    tools = get_tools_for_role(role, mission_config)
     # Escape curly braces to avoid ChatPromptTemplate treating literals as variables
     safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
     prompt = ChatPromptTemplate.from_messages(

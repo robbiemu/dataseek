@@ -1,12 +1,89 @@
+import logging
+import os
 import re
 from typing import Any
 
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
 from langchain_litellm import ChatLiteLLM
 
 from seek.common.config import get_active_seek_config
 from seek.components.tool_manager.tools import get_tools_for_role
+
+logger = logging.getLogger(__name__)
+
+# Diagnostics for list-shaped message.content from reasoning models. Off by
+# default; set DATASEEK_INSPECT_CONTENT=1 to log the content shape of every
+# assistant message returned by create_llm, with full detail when the content
+# is list-shaped (the anomaly that breaks node JSON parsing and server history
+# validation). Captures both what langchain hands dataseek and, via a litellm
+# logging callback, the raw stream shape that produced it.
+_INSPECT_CONTENT = os.getenv("DATASEEK_INSPECT_CONTENT", "").lower() in {"1", "true", "yes"}
+
+
+def _summarize_content(content: Any) -> str:
+    """Compact, non-spammy description of a message's content for diagnostics."""
+    if isinstance(content, str):
+        return f"str(len={len(content)}, head={content[:80]!r})"
+    if isinstance(content, list):
+        # Describe the shape without dumping the whole list (which can be huge
+        # for thinking-block streams)
+        parts = []
+        for item in content[:5]:
+            if isinstance(item, dict):
+                parts.append(f"dict(keys={sorted(item.keys())})")
+            else:
+                parts.append(f"{type(item).__name__}({item!r:.40})")
+        more = f", +{len(content) - 5} more" if len(content) > 5 else ""
+        return f"list(len={len(content)}, [{', '.join(parts)}{more}])"
+    return f"{type(content).__name__}({content!r:.80})"
+
+
+def _inspect_message(role: str, message: BaseMessage) -> None:
+    """Log the content shape of an assistant message (env-gated)."""
+    if not _INSPECT_CONTENT or not isinstance(message, AIMessage):
+        return
+    is_list = isinstance(message.content, list)
+    level = logging.WARNING if is_list else logging.DEBUG
+    logger.log(
+        level,
+        "create_llm(%s) -> AIMessage.content is %s; additional_kwargs=%s; " "usage_metadata=%s",
+        role,
+        "LIST-SHAPED" if is_list else "str",
+        sorted(message.additional_kwargs.keys()),
+        getattr(message, "usage_metadata", None),
+    )
+    if is_list:
+        logger.warning(
+            "list content detail for role=%s: %s", role, _summarize_content(message.content)
+        )
+        if message.additional_kwargs.get("reasoning_content"):
+            rc = message.additional_kwargs["reasoning_content"]
+            logger.warning(
+                "reasoning_content present (len=%d, head=%r)", len(str(rc)), str(rc)[:120]
+            )
+
+
+def _wrap_llm_for_inspection(role: str, llm: ChatLiteLLM) -> ChatLiteLLM:
+    """Wrap a ChatLiteLLM so every invoke logs the returned message's content shape.
+
+    Only active when DATASEEK_INSPECT_CONTENT is set; otherwise returns the llm
+    unchanged with zero overhead.
+    """
+    if not _INSPECT_CONTENT:
+        return llm
+
+    original_invoke = llm.invoke
+
+    def inspected_invoke(*args: Any, **kwargs: Any) -> Any:
+        result = original_invoke(*args, **kwargs)
+        if isinstance(result, BaseMessage):
+            _inspect_message(role, result)
+        return result
+
+    llm.invoke = inspected_invoke  # type: ignore[method-assign]
+    return llm
 
 
 def create_llm(role: str) -> ChatLiteLLM:
@@ -119,7 +196,8 @@ def create_llm(role: str) -> ChatLiteLLM:
     # Streaming is always passed (default True) so that long generations
     # against local servers keep the connection alive, as described above.
     kwargs["streaming"] = streaming
-    return ChatLiteLLM(**kwargs)
+    llm = ChatLiteLLM(**kwargs)
+    return _wrap_llm_for_inspection(role, llm)
 
 
 def create_agent_runnable(

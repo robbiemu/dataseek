@@ -297,12 +297,14 @@ def test_create_llm_node_config_overrides_default_top_p(monkeypatch):
 
 
 def test_archive_provenance_guard_blocks_synthetic_under_zero_budget(monkeypatch):
-    """A synthetic sample reaching archive under synthetic_budget=0 raises."""
+    """A synthetic sample reaching archive under synthetic_budget=0 (in state) raises."""
+    # synthetic_budget comes from the mission config via MissionRunner into state,
+    # NOT from the global seek config. The guard must read it from state.
     _set_config(
         monkeypatch,
         {
             "model_defaults": {"model": "x", "temperature": 0.1, "max_tokens": 100},
-            "synthetic_budget": 0,
+            # deliberately NO synthetic_budget in seek config
         },
     )
     from seek.components.search_graph.nodes.archive import archive_node
@@ -311,18 +313,18 @@ def test_archive_provenance_guard_blocks_synthetic_under_zero_budget(monkeypatch
         "messages": [],
         "current_sample_provenance": "synthetic",
         "research_findings": ["# Data Prospecting Report\n..."],
+        "synthetic_budget": 0,  # per-mission, in state
     }
     with pytest.raises(AssertionError, match="Provenance guard"):
         archive_node(state)
 
 
 def test_archive_provenance_guard_passes_researched_under_zero_budget(monkeypatch):
-    """A researched sample under budget=0 passes the guard (fails downstream, not at guard)."""
+    """A researched sample under budget=0 (in state) passes the guard."""
     _set_config(
         monkeypatch,
         {
             "model_defaults": {"model": "x", "temperature": 0.1, "max_tokens": 100},
-            "synthetic_budget": 0,
         },
     )
     from seek.components.search_graph.nodes.archive import archive_node
@@ -332,8 +334,8 @@ def test_archive_provenance_guard_passes_researched_under_zero_budget(monkeypatc
         "current_sample_provenance": "researched",
         "research_findings": ["# Data Prospecting Report\n..."],
         "mission_config": {"output_paths": {"base_path": "/tmp/dataseek_test"}},
+        "synthetic_budget": 0,  # per-mission, in state
     }
-    # Guard must not raise; downstream LLM call is expected to fail without a real model.
     with patch("seek.components.search_graph.nodes.archive.create_llm") as mock_llm:
         mock_llm.return_value = MagicMock()
         with patch("seek.components.search_graph.nodes.archive.create_agent_runnable") as mock_ar:
@@ -347,17 +349,15 @@ def test_archive_provenance_guard_passes_researched_under_zero_budget(monkeypatc
                 ) as mock_ap:
                     mock_ap.return_value = {"status": "ok"}
                     result = archive_node(state)
-                    # Guard passed, archive completed
                     assert "samples_generated" in result
 
 
 def test_archive_provenance_guard_inactive_when_budget_nonzero(monkeypatch):
-    """When synthetic_budget > 0, synthetic samples are archived normally."""
+    """When synthetic_budget > 0 (in state), synthetic samples are archived normally."""
     _set_config(
         monkeypatch,
         {
             "model_defaults": {"model": "x", "temperature": 0.1, "max_tokens": 100},
-            "synthetic_budget": 0.5,
         },
     )
     from seek.components.search_graph.nodes.archive import archive_node
@@ -367,6 +367,7 @@ def test_archive_provenance_guard_inactive_when_budget_nonzero(monkeypatch):
         "current_sample_provenance": "synthetic",
         "research_findings": ["# Data Prospecting Report\n..."],
         "mission_config": {"output_paths": {"base_path": "/tmp/dataseek_test"}},
+        "synthetic_budget": 0.5,  # per-mission, in state
     }
     with patch("seek.components.search_graph.nodes.archive.create_llm") as mock_llm:
         mock_llm.return_value = MagicMock()
@@ -390,8 +391,8 @@ def test_archive_provenance_guard_inactive_when_budget_nonzero(monkeypatch):
 # -------------------------
 
 
-def _fitness_state(provenance: str = "researched") -> dict:
-    """Minimal state that drives fitness_node down the no-tools fallback path."""
+def _fitness_state(provenance: str = "researched", mission_config: dict | None = None) -> dict:
+    """Minimal state that drives fitness_node down the fallback path."""
     return {
         "messages": [MagicMock()],
         "current_sample_provenance": provenance,
@@ -401,7 +402,7 @@ def _fitness_state(provenance: str = "researched") -> dict:
             "topic": "test_topic",
         },
         "strategy_block": "",
-        "mission_config": {},
+        "mission_config": mission_config or {},
     }
 
 
@@ -636,3 +637,101 @@ def test_create_llm_passes_max_tokens_when_configured(monkeypatch):
     with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
         create_llm("fitness")
         assert mock_llm.call_args.kwargs["max_tokens"] == 4096
+
+
+# -------------------------
+# PR review fixes: fitness tool loop, provenance state, model_kwargs deep merge
+# -------------------------
+
+
+def test_fitness_node_returns_tool_calls_for_toolnode(monkeypatch):
+    """When the model emits tool_calls, fitness_node passes them through to ToolNode.
+
+    It must NOT parse tool-call response content (which is empty) into a report.
+    """
+    _patch_fitness_llm(monkeypatch)
+    # Map a dummy plugin to fitness so fitness_has_tools is True
+    saved = dict(PLUGIN_REGISTRY)
+    PLUGIN_REGISTRY.clear()
+    try:
+        _register_dummy_lean_check_plugin()
+        # Simulate the LLM returning an AIMessage with tool_calls
+        tool_call_msg = MagicMock()
+        tool_call_msg.tool_calls = [{"name": "lean_check", "args": {"proof": "simp"}}]
+        tool_call_msg.content = ""
+        with patch("seek.components.search_graph.nodes.fitness.create_agent_runnable") as mock_ar:
+            mock_ar.return_value.invoke.return_value = tool_call_msg
+            result = fitness_node(
+                _fitness_state(
+                    mission_config={"tool_configs": {"lean_check": {"roles": ["fitness"]}}}
+                )
+            )
+
+        # Must return the raw message (with tool_calls) for ToolNode to execute,
+        # NOT a replacement AIMessage with a parsed report
+        assert "fitness_report" not in result, "must not emit a report when tool_calls are pending"
+        assert len(result["messages"]) == 1
+        assert result["messages"][0] is tool_call_msg
+    finally:
+        PLUGIN_REGISTRY.clear()
+        PLUGIN_REGISTRY.update(saved)
+
+
+def test_fitness_node_emits_report_when_no_tool_calls(monkeypatch):
+    """When the model returns a final answer (no tool_calls), fitness emits the report."""
+    _patch_fitness_llm(monkeypatch)
+    saved = dict(PLUGIN_REGISTRY)
+    PLUGIN_REGISTRY.clear()
+    try:
+        _register_dummy_lean_check_plugin()
+        final_msg = MagicMock()
+        final_msg.tool_calls = None
+        final_msg.content = '{"passed": true, "reason": "proof verified"}'
+        with patch("seek.components.search_graph.nodes.fitness.create_agent_runnable") as mock_ar:
+            mock_ar.return_value.invoke.return_value = final_msg
+            result = fitness_node(
+                _fitness_state(
+                    mission_config={"tool_configs": {"lean_check": {"roles": ["fitness"]}}}
+                )
+            )
+
+        assert "fitness_report" in result
+        assert result["fitness_report"].passed is True
+    finally:
+        PLUGIN_REGISTRY.clear()
+        PLUGIN_REGISTRY.update(saved)
+
+
+def test_model_kwargs_deep_merges_nested_dicts(monkeypatch):
+    """Node model_kwargs deep-merges nested dicts, not shallow-replaces them.
+
+    A node override for one chat_template_kwargs key must not discard sibling
+    defaults from model_defaults.
+    """
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                "model_kwargs": {
+                    "chat_template_kwargs": {"enable_thinking": False, "preserve_thinking": True}
+                },
+            },
+            "mission_plan": {
+                "nodes": [
+                    {
+                        "name": "fitness",
+                        "model": "f",
+                        "model_kwargs": {"chat_template_kwargs": {"enable_thinking": True}},
+                    }
+                ]
+            },
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("fitness")
+        mk = mock_llm.call_args.kwargs["model_kwargs"]
+        # Node override changed enable_thinking, but preserve_thinking from defaults survives
+        assert mk["chat_template_kwargs"]["enable_thinking"] is True
+        assert mk["chat_template_kwargs"]["preserve_thinking"] is True

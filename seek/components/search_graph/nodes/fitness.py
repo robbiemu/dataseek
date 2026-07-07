@@ -107,6 +107,14 @@ def fitness_node(state: "DataSeekState") -> dict:
                 reason=f"LLM endpoint unavailable after retries: {endpoint_error}",
             )
         else:
+            # If the model emitted tool calls, pass the message through to the
+            # fitness_tools ToolNode for execution. The graph routes
+            # fitness_tools back to fitness so the model can consume the tool
+            # results and produce its final report on a subsequent invocation.
+            if getattr(raw_result, "tool_calls", None):
+                return {
+                    "messages": [raw_result],
+                }
             try:
                 dethought = strip_reasoning_block(raw_result.content)
                 repaired_data = json_repair.loads(dethought)

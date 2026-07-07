@@ -433,34 +433,26 @@ class TestNodes:
         assert "synthetic document" in result["research_findings"][0]
         assert result["current_sample_provenance"] == "synthetic"
 
-    @patch("seek.components.search_graph.nodes.archive.get_active_seek_config")
     @patch("seek.components.search_graph.nodes.archive.create_llm")
     @patch("seek.components.search_graph.nodes.archive.write_file")
     @patch("seek.components.search_graph.nodes.archive.append_to_pedigree")
+    @patch("seek.components.search_graph.nodes.archive.create_agent_runnable")
     @patch("time.strftime")
     def test_archive_node_filepath_generation(
         self,
         mock_strftime,
+        mock_create_agent_runnable,
         mock_append_to_pedigree,
         mock_write_file,
         mock_create_llm,
-        mock_get_active_cfg,
     ):
         """Test that the archive_node generates a deterministic filepath."""
         # Arrange
-        mock_get_active_cfg.return_value = {
-            "model_defaults": {
-                "model": "openai/gpt-5.4-mini",
-                "temperature": 0.1,
-                "max_tokens": 2000,
-            },
-            "mission_plan": {"nodes": []},
-            "nodes": {},
-            "use_robots": True,
-        }
         mock_llm = MagicMock()
         mock_create_llm.return_value = mock_llm
-        mock_llm.invoke.return_value.content = "### 2025-09-04 — Sample Archived..."
+        mock_runnable = MagicMock()
+        mock_runnable.invoke.return_value = MagicMock(content="### 2025-09-04 — Sample Archived...")
+        mock_create_agent_runnable.return_value = mock_runnable
 
         mock_strftime.return_value = "20250904123456"
         mock_write_file.invoke.return_value = {"status": "ok"}

@@ -11,6 +11,19 @@ from langchain_litellm import ChatLiteLLM
 from seek.common.config import get_active_seek_config
 from seek.components.tool_manager.tools import get_tools_for_role
 
+
+def _deep_merge_kwargs(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge two dicts so nested keys (e.g. chat_template_kwargs)
+    combine rather than replacing wholesale."""
+    result = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_merge_kwargs(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 logger = logging.getLogger(__name__)
 
 # Diagnostics for list-shaped message.content from reasoning models. Off by
@@ -143,9 +156,11 @@ def create_llm(role: str) -> ChatLiteLLM:
         api_base = node_config.get("api_base", default_api_base)
         max_retries = node_config.get("max_retries", default_max_retries)
         streaming = node_config.get("streaming", default_streaming)
-        # Node-level model_kwargs deep-merges over model_defaults' model_kwargs.
+        # Node-level model_kwargs deep-merges over model_defaults' model_kwargs
+        # so a node override for one nested key (e.g. one chat_template_kwargs
+        # setting) doesn't discard sibling defaults.
         node_model_kwargs = node_config.get("model_kwargs", {})
-        model_kwargs = {**default_model_kwargs, **node_model_kwargs}
+        model_kwargs = _deep_merge_kwargs(default_model_kwargs, node_model_kwargs)
     else:
         # Fallback to default values from seek config
         model = default_model

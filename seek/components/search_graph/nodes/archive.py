@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage
 
-from seek.common.config import get_active_seek_config, get_prompt
+from seek.common.config import get_prompt
 from seek.components.mission_runner.state import DataSeekState
 from seek.components.tool_manager.tools import write_file
 
@@ -16,8 +16,6 @@ def archive_node(state: "DataSeekState") -> dict:
     The archive node, responsible for saving data and updating the audit trail
     using a procedural approach.
     """
-    # Load seek config instead of main config for writer paths
-    seek_config = get_active_seek_config()
     llm = create_llm("archive")
 
     # Extract content from research findings
@@ -25,9 +23,11 @@ def archive_node(state: "DataSeekState") -> dict:
     print(f"   🏷️  Archive: Received provenance '{provenance}' from state")
 
     # Provenance guard: when the mission allows zero synthetic samples, refuse
-    # to archive anything marked synthetic. This converts the supervisor's
-    # prompt-directed gating (best-effort) into a hard provenance guarantee.
-    synthetic_budget = seek_config.get("synthetic_budget", 1.0)
+    # to archive anything marked synthetic. Reads from state (where MissionRunner
+    # writes the per-mission resolved budget) rather than the global seek config,
+    # so a mission with synthetic_budget: 0 in its YAML is enforced even when
+    # the global config doesn't set it.
+    synthetic_budget = state.get("synthetic_budget", 1.0)
     if synthetic_budget == 0 and provenance == "synthetic":
         raise AssertionError(
             "Provenance guard: synthetic_budget is 0 but a synthetic sample reached "

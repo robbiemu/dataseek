@@ -119,12 +119,14 @@ def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> An
     workflow.add_edge("archive", "archive_tools")
     workflow.add_edge("archive_tools", "supervisor")
 
-    # When the fitness node has tools (e.g. the Lean-apply/verify recipe), its
-    # emitted tool calls execute in a dedicated fitness_tools ToolNode before
-    # returning to the supervisor. Otherwise fitness flows straight back.
+    # When the fitness node has tools, it forms a ReAct loop:
+    # fitness → fitness_tools → fitness (model consumes tool results and either
+    # calls more tools or produces its final report). When the model returns a
+    # response with no tool_calls, fitness_node parses it into a FitnessReport
+    # and returns to the supervisor. Without tools, fitness flows straight back.
     if has_fitness_tools:
         workflow.add_edge("fitness", "fitness_tools")
-        workflow.add_edge("fitness_tools", "supervisor")
+        workflow.add_edge("fitness_tools", "fitness")
     else:
         workflow.add_edge("fitness", "supervisor")
 

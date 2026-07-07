@@ -32,6 +32,7 @@ _active_seek_config: Optional["StructuredSeekConfig"] = None
 
 # Prompts configuration
 _prompts_config: dict | None = None
+_prompts_config_path: str | None = None
 
 
 def set_global_use_robots(use_robots: bool) -> None:
@@ -52,6 +53,18 @@ def set_active_seek_config(config: "StructuredSeekConfig") -> None:
     _active_seek_config = config
 
 
+def set_prompts_config(config_path: str | None) -> None:
+    """Set the path to the prompts configuration and clear any cached copy.
+
+    Mirrors set_active_seek_config so prompts are overridable from the CLI
+    like the seek config. Passing None resets to the bundled default on next
+    load.
+    """
+    global _prompts_config_path, _prompts_config
+    _prompts_config_path = config_path
+    _prompts_config = None
+
+
 def get_active_seek_config() -> "StructuredSeekConfig":
     """Get the active seek configuration, loading defaults if not yet set."""
     global _active_seek_config
@@ -61,16 +74,24 @@ def get_active_seek_config() -> "StructuredSeekConfig":
     return _active_seek_config
 
 
-def load_prompts_config(config_path: str = "config/prompts.yaml") -> dict:
-    """Load prompts configuration from a YAML file."""
+def load_prompts_config(config_path: str | None = None) -> dict:
+    """Load prompts configuration from a YAML file.
+
+    Resolution order: the path set via set_prompts_config, then the path
+    passed to this call, then the bundled default config/prompts.yaml. The
+    loaded configuration is cached for the lifetime of the process.
+    """
     global _prompts_config
-    if _prompts_config is None:
-        try:
-            with open(config_path) as f:
-                _prompts_config = yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            logger.error(f"Prompts configuration file not found: {config_path}")
-            _prompts_config = {}
+    if _prompts_config is not None:
+        return _prompts_config
+
+    resolved_path = _prompts_config_path or config_path or "config/prompts.yaml"
+    try:
+        with open(resolved_path) as f:
+            _prompts_config = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        logger.error(f"Prompts configuration file not found: {resolved_path}")
+        _prompts_config = {}
     return _prompts_config
 
 

@@ -88,7 +88,7 @@ def research_node(state: "DataSeekState") -> dict:
     seek_config = get_active_seek_config()
     use_robots = seek_config.get("use_robots", True)
 
-    all_research_tools = get_tools_for_role("research")
+    all_research_tools = get_tools_for_role("research", state.get("mission_config"))
     print(f"   Tools available (global): {[t.name for t in all_research_tools]}")
 
     # Honor mission_config.tool_configs roles: only enable tools explicitly listed for 'research'.

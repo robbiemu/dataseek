@@ -83,3 +83,20 @@ class DataSeekState(TypedDict):
     max_recursion_steps: int
     session_tool_domain_blocklist: list[tuple[str, str]]
     mission_config: dict[str, Any]
+
+
+class LeanTraceState(DataSeekState):
+    """State for the Lean proof-trace collection pipeline.
+
+    Subclass of DataSeekState so the existing supervisor-routed graph keeps
+    working; these additional fields carry proof-trace artifacts between the
+    repurposed fitness (Lean-apply/verify) node and the archive node. Stock
+    missions ignore them.
+    """
+
+    theorem: str
+    proof_state: str
+    trace: str
+    verification: str
+    category: str
+    provenance: str

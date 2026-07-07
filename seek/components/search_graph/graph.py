@@ -53,6 +53,15 @@ def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> An
     archive_tools_node = ToolNode(toolsets.get("archive", []))
     workflow.add_node("archive_tools", archive_tools_node)
 
+    # Fitness tools are only present for missions that map plugins to "fitness"
+    # (e.g. the Lean-apply/verify step). When absent, stock behavior is
+    # preserved: the fitness node flows directly back to the supervisor.
+    fitness_toolset = toolsets.get("fitness", [])
+    has_fitness_tools = bool(fitness_toolset)
+    if has_fitness_tools:
+        fitness_tools_node = ToolNode(fitness_toolset)
+        workflow.add_node("fitness_tools", fitness_tools_node)
+
     # --- Wire the Graph ---
     workflow.set_entry_point("supervisor")
 
@@ -110,8 +119,14 @@ def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> An
     workflow.add_edge("archive", "archive_tools")
     workflow.add_edge("archive_tools", "supervisor")
 
-    # Fitness agent flows directly back to supervisor
-    workflow.add_edge("fitness", "supervisor")
+    # When the fitness node has tools (e.g. the Lean-apply/verify recipe), its
+    # emitted tool calls execute in a dedicated fitness_tools ToolNode before
+    # returning to the supervisor. Otherwise fitness flows straight back.
+    if has_fitness_tools:
+        workflow.add_edge("fitness", "fitness_tools")
+        workflow.add_edge("fitness_tools", "supervisor")
+    else:
+        workflow.add_edge("fitness", "supervisor")
 
     # Synthetic data flows directly to archive
     workflow.add_edge("synthetic", "archive")

@@ -6,6 +6,7 @@ from langchain_core.messages import AIMessage
 from seek.common.config import get_prompt
 from seek.common.models import FitnessReport
 from seek.components.mission_runner.state import DataSeekState
+from seek.components.tool_manager.tools import get_tools_for_role
 
 from .utils import (
     create_agent_runnable,
@@ -74,34 +75,18 @@ def fitness_node(state: "DataSeekState") -> dict:
 
     # Prefer structured output when supported by the LLM wrapper
     report: FitnessReport | None = None
-    structured_supported = hasattr(llm, "with_structured_output")
 
-    if structured_supported:
-        try:
-            from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+    # When tools are mapped to the fitness role (e.g. the Lean-apply/verify
+    # recipe), drive them directly via create_agent_runnable so the LLM
+    # orchestrates the plugin tools. Otherwise fall back to the
+    # with_structured_output happy path that stock web-research missions use.
+    mission_config = state.get("mission_config")
+    fitness_has_tools = bool(get_tools_for_role("fitness", mission_config))
 
-            structured_llm = llm.with_structured_output(FitnessReport)
-            safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
-            agent = (
-                ChatPromptTemplate.from_messages(
-                    [("system", safe_system_prompt), MessagesPlaceholder(variable_name="messages")]
-                )
-                | structured_llm
-            )
-            maybe_report = agent.invoke({"messages": state["messages"]})
-            if isinstance(maybe_report, FitnessReport):
-                report = maybe_report
-            else:
-                try:
-                    report = FitnessReport.model_validate(maybe_report)
-                except Exception:
-                    report = None
-        except Exception as e:
-            print(f"⚠️ Fitness Node: Structured output path failed: {e}")
-            report = None
-
-    if report is None:
-        agent_runnable = create_agent_runnable(llm, system_prompt, "fitness")
+    if fitness_has_tools:
+        agent_runnable = create_agent_runnable(
+            llm, system_prompt, "fitness", mission_config=mission_config
+        )
         raw_result = agent_runnable.invoke({"messages": state["messages"]})
         try:
             dethought = strip_reasoning_block(raw_result.content)
@@ -114,6 +99,50 @@ def fitness_node(state: "DataSeekState") -> dict:
                 passed=False,
                 reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
             )
+    else:
+        structured_supported = hasattr(llm, "with_structured_output")
+
+        if structured_supported:
+            try:
+                from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+                structured_llm = llm.with_structured_output(FitnessReport)
+                safe_system_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
+                agent = (
+                    ChatPromptTemplate.from_messages(
+                        [
+                            ("system", safe_system_prompt),
+                            MessagesPlaceholder(variable_name="messages"),
+                        ]
+                    )
+                    | structured_llm
+                )
+                maybe_report = agent.invoke({"messages": state["messages"]})
+                if isinstance(maybe_report, FitnessReport):
+                    report = maybe_report
+                else:
+                    try:
+                        report = FitnessReport.model_validate(maybe_report)
+                    except Exception:
+                        report = None
+            except Exception as e:
+                print(f"⚠️ Fitness Node: Structured output path failed: {e}")
+                report = None
+
+        if report is None:
+            agent_runnable = create_agent_runnable(llm, system_prompt, "fitness")
+            raw_result = agent_runnable.invoke({"messages": state["messages"]})
+            try:
+                dethought = strip_reasoning_block(raw_result.content)
+                repaired_data = json_repair.loads(dethought)
+                report = FitnessReport.model_validate(repaired_data)
+            except Exception as parse_error:
+                print(f"⚠️ Fitness Node: JSON parsing failed: {parse_error}")
+                print(f"   Raw content: '{raw_result.content}'")
+                report = FitnessReport(
+                    passed=False,
+                    reason="The quality inspector LLM failed to produce a valid structured evaluation. The source document could not be reliably assessed.",
+                )
 
     # --- END: REVISED PROMPT AND RUNNABLE CONSTRUCTION ---
 

@@ -87,10 +87,10 @@ def fitness_node(state: "DataSeekState") -> dict:
     # Prefer structured output when supported by the LLM wrapper
     report: FitnessReport | None = None
 
-    # When tools are mapped to the fitness role (e.g. the Lean-apply/verify
-    # recipe), drive them directly via create_agent_runnable so the LLM
-    # orchestrates the plugin tools. Otherwise fall back to the
-    # with_structured_output happy path that stock web-research missions use.
+    # When tools are mapped to the fitness role via mission_config, drive them
+    # directly via create_agent_runnable so the LLM orchestrates the plugin
+    # tools. Otherwise fall back to the with_structured_output happy path that
+    # stock web-research missions use.
     mission_config = state.get("mission_config")
     fitness_has_tools = bool(get_tools_for_role("fitness", mission_config))
 

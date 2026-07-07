@@ -1,10 +1,10 @@
-"""Tests for the Tier B Lean proof-trace integration (challenges C1-C4).
+"""Tests for the plugin/tool, prompt, fitness, and resilience changes.
 
-Covers: plugin-tool unification, prompt externalization, the LeanTraceState
-subclass + fitness tool-node gating, the top_p passthrough fix, the
-provenance guard, and the endpoint-failure resilience (max_retries config
-+ fitness degrade-on-transient-error). Stock behavior is asserted to be
-unchanged in every case.
+Covers: plugin-tool unification, prompt externalization, fitness tool-node
+gating, the top_p passthrough fix, the provenance guard, and the
+endpoint-failure resilience (max_retries config + fitness
+degrade-on-transient-error). Stock behavior is asserted to be unchanged
+in every case.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from seek.common.config import (
     set_prompts_config,
 )
 from seek.common.models import FitnessReport
-from seek.components.mission_runner.state import DataSeekState, LeanTraceState
 from seek.components.search_graph.nodes.fitness import fitness_node
 from seek.components.search_graph.nodes.utils import create_llm
 from seek.components.tool_manager.registry import PLUGIN_REGISTRY, register_plugin
@@ -146,25 +145,8 @@ def test_set_prompts_config_reset_restores_default(tmp_path, monkeypatch):
 
 
 # -------------------------
-# C3: LeanTraceState + fitness tool-node gating
+# C3: fitness tool-node gating
 # -------------------------
-
-
-def test_lean_trace_state_is_superset_of_data_seek_state():
-    """LeanTraceState must add the Lean fields while inheriting all stock fields."""
-    stock_keys = set(DataSeekState.__annotations__.keys())
-    lean_keys = set(LeanTraceState.__annotations__.keys())
-    new_keys = lean_keys - stock_keys
-    assert new_keys == {
-        "theorem",
-        "proof_state",
-        "trace",
-        "verification",
-        "category",
-        "provenance",
-    }
-    # All stock keys are still present
-    assert stock_keys.issubset(lean_keys)
 
 
 def test_build_graph_has_no_fitness_tools_node_for_stock_mission():

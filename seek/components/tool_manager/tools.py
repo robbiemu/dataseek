@@ -133,9 +133,9 @@ def get_tools_for_role(role: str, mission_config: dict[str, Any] | None = None) 
     tool_names_for_role = role_mapping.get(role, [])
     # When a mission explicitly maps tools to this role via tool_configs, the
     # mission becomes authoritative: only keep the hardcoded builtins it also
-    # lists. This lets a mission drop the default web/search plugins (e.g. a
-    # mathlib mission that only wants its own Lean plugins). Missions that do
-    # not configure tools for a role keep the full stock builtin set.
+    # lists. This lets a mission drop the default web/search plugins in favor
+    # of its own registered plugins. Missions that do not configure tools for a
+    # role keep the full stock builtin set.
     if mission_config:
         tool_configs = mission_config.get("tool_configs")
         if isinstance(tool_configs, dict):

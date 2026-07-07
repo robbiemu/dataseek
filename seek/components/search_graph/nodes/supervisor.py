@@ -214,7 +214,7 @@ def supervisor_node(state: DataSeekState) -> dict:
     characteristic = next_task["characteristic"]
     topic = next_task.get("topic", "general domain")
     # Resolve mission config: prefer value from state, else try known file paths
-    mission_config_data = state.get("mission_config")
+    mission_config_data: Any | None = state.get("mission_config")
     if not mission_config_data:
         for path in ("config/mission_config.yaml", "settings/mission_config.yaml"):
             try:

@@ -75,23 +75,47 @@ def get_active_seek_config() -> "StructuredSeekConfig":
 
 
 def load_prompts_config(config_path: str | None = None) -> dict:
-    """Load prompts configuration from a YAML file.
+    """Load prompts configuration, layering an override over the bundled default.
 
-    Resolution order: the path set via set_prompts_config, then the path
-    passed to this call, then the bundled default config/prompts.yaml. The
-    loaded configuration is cached for the lifetime of the process.
+    The bundled config/prompts.yaml is always loaded as the base. An override
+    path (from set_prompts_config, or this call's config_path) is then applied
+    at the top level: each top-level key (a role, e.g. ``research``) in the
+    override *replaces* the bundled entry for that role wholesale; roles not
+    mentioned in the override keep their bundled prompts entirely.
+
+    This is deliberately a per-role replace, not a deep per-key merge. Prompt
+    roles are cohesive units — a node reads several keys from one role
+    (research uses ``base_prompt`` + ``normal_prompt`` + ``cached_only_prompt``
+    together). Deep-merging one key would leak the bundled sibling keys into a
+    role you're trying to fully replace (e.g. a custom-tools mission overriding
+    ``research.base_prompt`` would still get the bundled
+    ``research.normal_prompt`` instructing the model to use web tools that
+    aren't bound). Per-role replace avoids that, while still letting you omit
+    any role you don't want to change (those keep the bundled prompts).
     """
     global _prompts_config
     if _prompts_config is not None:
         return _prompts_config
 
-    resolved_path = _prompts_config_path or config_path or "config/prompts.yaml"
+    default_path = "config/prompts.yaml"
     try:
-        with open(resolved_path) as f:
+        with open(default_path) as f:
             _prompts_config = yaml.safe_load(f) or {}
     except FileNotFoundError:
-        logger.error(f"Prompts configuration file not found: {resolved_path}")
+        logger.error(f"Default prompts configuration file not found: {default_path}")
         _prompts_config = {}
+
+    override_path = _prompts_config_path or config_path
+    if override_path:
+        try:
+            with open(override_path) as f:
+                override = yaml.safe_load(f) or {}
+            # Top-level per-role replace: an override role replaces the bundled
+            # role wholesale; unmentioned roles are left untouched.
+            _prompts_config.update(override)
+        except FileNotFoundError:
+            logger.error(f"Prompts override file not found: {override_path}")
+
     return _prompts_config
 
 

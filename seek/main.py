@@ -292,7 +292,13 @@ def run(
     prompts: str | None = typer.Option(
         None,
         "--prompts",
-        help="Path to a prompts YAML override (defaults to the bundled config/prompts.yaml).",
+        help=(
+            "Path to a prompts YAML override. Layered over the bundled "
+            "config/prompts.yaml with per-role replace semantics: a role you "
+            "specify replaces that role's prompts wholesale (re-specify every "
+            "key the node reads); roles you omit keep the bundled prompts. "
+            "See docs/guides/prompting-guide.md."
+        ),
     ),
 ) -> None:
     # Handle --no-robots flag

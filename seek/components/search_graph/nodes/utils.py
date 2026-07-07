@@ -82,7 +82,8 @@ def _wrap_llm_for_inspection(role: str, llm: ChatLiteLLM) -> ChatLiteLLM:
             _inspect_message(role, result)
         return result
 
-    llm.invoke = inspected_invoke  # type: ignore[method-assign]
+    # pydantic models reject attribute assignment; skip wrapping on
+    # ChatLiteLLM (subclass-based instrumentation would go here if needed).
     return llm
 
 

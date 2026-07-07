@@ -19,6 +19,35 @@ Run:
 python scripts/check_prompts.py --prompts config/prompts.yaml
 ```
 
+## Overriding prompts (`--prompts`)
+
+Pass `--prompts path/to/your_prompts.yaml` to supply your own prompt file. The
+override is layered over the bundled `config/prompts.yaml` with **per-role
+replace** semantics — not a deep per-key merge:
+
+- **A role you specify in the override replaces that role's prompt set
+  wholesale.** If the bundled `research:` has `base_prompt`, `normal_prompt`,
+  and `cached_only_prompt`, and your override specifies `research:` with only
+  `base_prompt`, then `research.normal_prompt` and `research.cached_only_prompt`
+  are **empty** for your run — they do not leak in from the bundled file.
+- **A role you omit from the override keeps its bundled prompts entirely.**
+  If your override has only a `research:` block, then `fitness`, `archive`,
+  `supervisor`, and `synthetic` use their bundled prompts unchanged.
+
+This is deliberate. Prompt roles are cohesive units: nodes read multiple keys
+per role together (for example, `research` concatenates `base_prompt` +
+`normal_prompt`). Deep-merging one key would leak the bundled sibling keys into
+a role you intend to fully replace — so a custom-tools mission overriding
+`research.base_prompt` would still inherit a bundled `research.normal_prompt`
+instructing the model to use web tools that aren't bound. Per-role replace
+avoids that.
+
+**Practical consequence:** when you override a role, you must re-specify every
+key that role's node reads (see the per-node sections below for which keys each
+node uses). For `research`, that's `base_prompt`, `normal_prompt`, and
+`cached_only_prompt`. For roles with only `base_prompt` (`fitness`, `archive`,
+`synthetic`), specifying the role with just `base_prompt` is a full replacement.
+
 ## Common assembly rules
 
 - All system prompts pass through a safety step that escapes curly braces before

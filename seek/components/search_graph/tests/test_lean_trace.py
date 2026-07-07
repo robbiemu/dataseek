@@ -112,19 +112,35 @@ def test_get_tools_for_role_merges_builtin_and_plugin():
 
 
 def test_set_prompts_config_override_takes_effect(tmp_path, monkeypatch):
-    """An override path set via set_prompts_config replaces the bundled prompts."""
+    """An override replaces the roles it specifies; unmentioned roles keep bundled.
+
+    Per-role replace (not deep per-key merge): specifying ``research`` in the
+    override replaces the whole research role wholesale — sibling keys not
+    re-set in the override are gone for that role (not leaked from the base).
+    Roles not mentioned in the override keep their bundled prompts entirely.
+    This matters because nodes read multiple keys per role together (research
+    concatenates base_prompt + normal_prompt); deep-merge would leak the
+    bundled normal_prompt into a custom research role.
+    """
     import seek.common.config as cfg
 
     monkeypatch.setattr(cfg, "_prompts_config", None)
     monkeypatch.setattr(cfg, "_prompts_config_path", None)
 
     override = tmp_path / "prompts.yaml"
+    # Override ONLY archive, with only base_prompt (no other keys)
     override.write_text(
         yaml.dump({"archive": {"base_prompt": "CUSTOM: {provenance} {characteristic}"}})
     )
 
     set_prompts_config(str(override))
+    # The overridden role takes the new value
     assert get_prompt("archive", "base_prompt").startswith("CUSTOM:")
+    # Roles NOT in the override keep their bundled prompts (the bug this guards
+    # against: previously a partial override emptied every other role)
+    assert get_prompt("fitness", "base_prompt"), "fitness prompt must not be empty"
+    assert get_prompt("supervisor", "base_prompt"), "supervisor prompt must not be empty"
+    assert get_prompt("research", "base_prompt"), "research prompt must not be empty"
 
 
 def test_set_prompts_config_reset_restores_default(tmp_path, monkeypatch):

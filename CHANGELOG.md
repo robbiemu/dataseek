@@ -24,9 +24,13 @@ proof-trace pipeline needs to drive dataseek as an engine rather than a fork.
   This unblocks **reasoning models** (e.g. Qwen3) — set
   `model_kwargs: {chat_template_kwargs: {enable_thinking: false}}` and the model populates
   `content` directly instead of leaving it empty in `reasoning_content`.
-- **Externalizable prompts.** New `--prompts` CLI flag and `set_prompts_config()` mirror
-  `--config`/`set_active_seek_config`, so a mission can supply its own prompt templates
-  without editing the bundled `config/prompts.yaml`.
+- **Externalizable prompts.** New `--prompts` CLI flag and `set_prompts_config()` let a
+  mission supply its own prompt templates without editing the bundled
+  `config/prompts.yaml`. The override is layered over the bundled file with **per-role
+  replace** semantics (not a deep key merge): a role you specify replaces that role's
+  prompt set wholesale (re-specify every key the node reads); roles you omit keep their
+  bundled prompts. Documented in the prompting guide, the CLI help, and a header comment
+  in `config/prompts.yaml`.
 - **Unified tool system.** `@register_plugin` is now live for node agents:
   `get_tools_for_role` merges `PLUGIN_REGISTRY` tools mapped via
   `mission_config.tool_configs[tool].roles`. A mission can map its own plugins to any role,

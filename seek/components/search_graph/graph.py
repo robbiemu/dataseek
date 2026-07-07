@@ -51,10 +51,11 @@ def build_graph(checkpointer: SqliteSaver, mission_config: dict[str, Any]) -> An
     workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("research", research_node)
     workflow.add_node("archive", archive_node)
-    if fitness_toolset:
-        workflow.add_node("fitness", partial(fitness_node, configured_tools=fitness_toolset))
-    else:
-        workflow.add_node("fitness", fitness_node)
+    # Always pass the prepared fitness toolset (even when empty) so fitness_node
+    # knows tools were explicitly resolved (None = "not supplied", [] = "supplied
+    # but none survived config validation"). Without this, an empty toolset falls
+    # back to get_tools_for_role which creates fresh unconfigured plugins.
+    workflow.add_node("fitness", partial(fitness_node, configured_tools=fitness_toolset))
     workflow.add_node("synthetic", synthetic_node)  # Handles synthetic data generation
 
     research_tools_node = ToolNode(toolsets.get("research", []))

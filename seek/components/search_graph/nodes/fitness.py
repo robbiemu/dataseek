@@ -103,13 +103,14 @@ def fitness_node(
     # tools. Otherwise fall back to the with_structured_output happy path that
     # stock web-research missions use.
     mission_config = state.get("mission_config")
-    # Prefer configured tools from the graph (same instances ToolNode uses);
-    # fall back to get_tools_for_role for legacy callers not using partial.
-    fitness_tools = (
-        list(configured_tools)
-        if configured_tools
-        else get_tools_for_role("fitness", mission_config)
-    )
+    # Distinguish "graph supplied the toolset" (even if empty — e.g. config
+    # validation failed for every plugin) from "not supplied" (legacy caller).
+    # When supplied, use it as-is so the model and ToolNode share instances.
+    # When not supplied, fall back to get_tools_for_role.
+    if configured_tools is not None:
+        fitness_tools = list(configured_tools)
+    else:
+        fitness_tools = get_tools_for_role("fitness", mission_config)
     fitness_has_tools = bool(fitness_tools)
 
     if fitness_has_tools:

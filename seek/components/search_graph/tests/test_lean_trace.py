@@ -906,3 +906,35 @@ def test_configured_plugin_shares_instance_between_model_and_toolnode():
     finally:
         PLUGIN_REGISTRY.clear()
         PLUGIN_REGISTRY.update(saved)
+
+
+def test_empty_configured_toolset_does_not_fall_back_to_fresh_plugins():
+    """When ToolManager rejects all fitness plugins (empty toolset), fitness_node
+    must NOT fall back to get_tools_for_role (which creates fresh unconfigured
+    instances). The graph always passes configured_tools=[] explicitly; fitness_node
+    treats None as "not supplied" (legacy) and [] as "supplied but empty" (no tools).
+    """
+    from seek.components.search_graph.nodes.fitness import fitness_node
+
+    state = _fitness_state()
+    state["mission_config"] = {"tool_configs": {"lean_check": {"roles": ["fitness"]}}}
+
+    # With configured_tools=[] (explicitly empty), fitness must NOT call
+    # get_tools_for_role, so no fresh plugins are created.
+    with patch("seek.components.search_graph.nodes.fitness.get_tools_for_role") as mock_gtr:
+        mock_gtr.return_value = ["FRESH_UNCONFIGURED"]
+        with patch("seek.components.search_graph.nodes.fitness.create_llm") as mock_llm:
+            mock_llm.return_value = MagicMock()
+            with patch(
+                "seek.components.search_graph.nodes.fitness.create_agent_runnable"
+            ) as mock_ar:
+                mock_runnable = MagicMock()
+                mock_runnable.invoke.return_value = MagicMock(
+                    content='{"passed": false, "reason": "no tools"}'
+                )
+                mock_ar.return_value = mock_runnable
+                fitness_node(state, configured_tools=[])
+
+    # get_tools_for_role must NOT have been called — the empty list means
+    # "graph resolved tools, none survived" not "please find some"
+    mock_gtr.assert_not_called()

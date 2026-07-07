@@ -13,7 +13,7 @@ This guide will walk you through how to use the agent to curate a custom corpus 
 *   **Cleans and Validates:** Extracts core content and runs "fitness checks" to ensure the data is useful.
 *   **Creates an Audit Trail:** Automatically generates a `PEDIGREE.md` file to track the provenance of every piece of data.
 
-The agent is configured to use the `openai/gpt-5-mini` model by default, but this can be changed in the configuration files.
+The agent defaults to `openai/gpt-5.4-mini`, with reasoning-heavy roles (supervisor, research, fitness) routed to `openai/gpt-5.5`. Per-node models are overridable in `config/seek_config.yaml`.
 
 ## 2. Prerequisites
 

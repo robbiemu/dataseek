@@ -19,7 +19,7 @@ This file defines the baseline environment for all missions. It includes tool de
 ```yaml
 # config/seek_config.yaml
 model_defaults:
-  model: "openai/gpt-5-mini"  # Default LLM model for all nodes
+  model: "openai/gpt-5.4-mini"  # Default LLM model (floor; per-node overrides in mission_plan.nodes)
   temperature: 1
   max_tokens: 2000
 

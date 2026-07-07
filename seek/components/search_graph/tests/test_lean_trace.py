@@ -433,3 +433,60 @@ def test_create_llm_passes_max_retries(monkeypatch):
     with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
         create_llm("fitness")
         assert mock_llm.call_args.kwargs["max_retries"] == 5
+
+
+def test_create_llm_defaults_streaming_true(monkeypatch):
+    """With no streaming key in config, create_llm defaults streaming to True.
+
+    Streaming is the root-cause fix for idle-socket resets on long local-server
+    generations, so the safe default is on; cloud endpoints accept it too.
+    """
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                "max_tokens": 100,
+            }
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("supervisor")
+        assert mock_llm.call_args.kwargs["streaming"] is True
+
+
+def test_create_llm_streaming_passthrough_and_override(monkeypatch):
+    """streaming is configurable from model_defaults and overridable per node."""
+    # model_defaults.streaming=False disables it
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                "max_tokens": 100,
+                "streaming": False,
+            }
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("supervisor")
+        assert mock_llm.call_args.kwargs["streaming"] is False
+
+    # node-level override wins over model_defaults
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                "max_tokens": 100,
+                "streaming": False,
+            },
+            "mission_plan": {"nodes": [{"name": "fitness", "model": "f", "streaming": True}]},
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("fitness")
+        assert mock_llm.call_args.kwargs["streaming"] is True

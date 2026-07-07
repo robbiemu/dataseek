@@ -26,6 +26,12 @@ def create_llm(role: str) -> ChatLiteLLM:
     # max_retries tunes litellm/langchain transport-layer retries on transient
     # transport/5xx/429 errors. Left unset → ChatLiteLLM's own default applies.
     default_max_retries = model_defaults.get("max_retries")
+    # Streaming defaults on. Long local-server generations with streaming=False
+    # hold an idle socket until the full response is ready; an idle-read timeout
+    # (or proxy/OS keepalive) then resets the connection mid-generation,
+    # surfacing as InternalServerError/Connection error. Streaming keeps bytes
+    # flowing during generation so the connection is never treated as idle.
+    default_streaming = model_defaults.get("streaming", True)
 
     # Try to find node-specific config in mission plan
     node_config = None
@@ -47,6 +53,7 @@ def create_llm(role: str) -> ChatLiteLLM:
         top_p = node_config.get("top_p", default_top_p)
         api_base = node_config.get("api_base", default_api_base)
         max_retries = node_config.get("max_retries", default_max_retries)
+        streaming = node_config.get("streaming", default_streaming)
     else:
         # Fallback to default values from seek config
         model = default_model
@@ -55,6 +62,7 @@ def create_llm(role: str) -> ChatLiteLLM:
         top_p = default_top_p
         api_base = default_api_base
         max_retries = default_max_retries
+        streaming = default_streaming
 
     # Only pass top_p when explicitly configured. Some providers (e.g. greedy
     # sampling on certain models) reject the parameter entirely, and omitting it
@@ -81,6 +89,9 @@ def create_llm(role: str) -> ChatLiteLLM:
     # local server queue) at the transport layer where reconnects are clean.
     if max_retries is not None:
         kwargs["max_retries"] = max_retries
+    # Streaming is always passed (default True) so that long generations
+    # against local servers keep the connection alive, as described above.
+    kwargs["streaming"] = streaming
     return ChatLiteLLM(**kwargs)
 
 

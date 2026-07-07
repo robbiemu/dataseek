@@ -9,6 +9,10 @@ model_defaults:
   # errors. Raise for flaky local servers (e.g. sglang with a small request queue),
   # leave default for cloud. Per-node overrides in mission_plan.nodes win.
   max_retries: 3
+  # Stream completions. On by default: long local-server generations with
+  # streaming off hold an idle socket that can get reset mid-generation
+  # (InternalServerError/Connection error). Streaming keeps the connection alive.
+  streaming: true
 
 web_search:
   provider: "google/search"

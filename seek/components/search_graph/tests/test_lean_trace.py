@@ -302,6 +302,37 @@ def test_fitness_conditional_edge_routes_to_tools_on_tool_calls():
         PLUGIN_REGISTRY.update(saved)
 
 
+def test_sync_toolnode_executes_async_plugin():
+    """A BaseUtilityTool (async-only execute) runs via sync tool.invoke().
+
+    The production graph is synchronous (app.stream), so ToolNode calls
+    tool.invoke() which hits BaseTool._run. Without the sync→async bridge
+    in the base class, this raises NotImplementedError.
+    """
+    from seek.components.tool_manager.plugin_base import BaseUtilityTool
+
+    calls: list[dict] = []
+
+    @register_plugin
+    class LeanCheckTest(BaseUtilityTool):
+        name: str = "lean_check_test"
+        description: str = "Checks Lean."
+
+        async def execute(self, **kwargs: Any) -> dict[str, Any]:
+            calls.append(kwargs)
+            return {"status": "ok", "verified": True}
+
+    tool = LeanCheckTest()
+    # tool.invoke() is what ToolNode calls internally in the sync graph path.
+    # Before the fix, this raised NotImplementedError("does not support sync").
+    result = tool.invoke({"proof": "simp", "task_id": "test"})
+
+    assert calls == [
+        {"proof": "simp", "task_id": "test"}
+    ], "plugin execute() must have been called via the sync bridge"
+    assert result == {"status": "ok", "verified": True}
+
+
 # -------------------------
 # C4: top_p passthrough + provenance guard
 # -------------------------

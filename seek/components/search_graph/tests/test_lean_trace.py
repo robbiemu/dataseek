@@ -537,3 +537,49 @@ def test_create_llm_node_model_kwargs_deep_merges(monkeypatch):
     with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
         create_llm("fitness")
         assert mock_llm.call_args.kwargs["model_kwargs"] == {"a": 1, "b": 99, "c": 3}
+
+
+def test_create_llm_omits_max_tokens_when_not_configured(monkeypatch):
+    """max_tokens is opt-in: omitted entirely when not in config.
+
+    A hardcoded cap truncates reasoning models mid-thought (the answer never
+    gets emitted because the budget runs out during the reasoning phase).
+    Left unset, the server/model decides the output budget.
+    """
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {
+                "model": "x",
+                "temperature": 0.1,
+                # no max_tokens
+            }
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("supervisor")
+        assert "max_tokens" not in mock_llm.call_args.kwargs
+
+
+def test_create_llm_passes_max_tokens_when_configured(monkeypatch):
+    """When max_tokens IS set (global or per-node), it flows through."""
+    # From model_defaults
+    _set_config(
+        monkeypatch,
+        {"model_defaults": {"model": "x", "temperature": 0.1, "max_tokens": 2000}},
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("supervisor")
+        assert mock_llm.call_args.kwargs["max_tokens"] == 2000
+
+    # Per-node override
+    _set_config(
+        monkeypatch,
+        {
+            "model_defaults": {"model": "x", "temperature": 0.1},
+            "mission_plan": {"nodes": [{"name": "fitness", "model": "f", "max_tokens": 4096}]},
+        },
+    )
+    with patch("seek.components.search_graph.nodes.utils.ChatLiteLLM") as mock_llm:
+        create_llm("fitness")
+        assert mock_llm.call_args.kwargs["max_tokens"] == 4096

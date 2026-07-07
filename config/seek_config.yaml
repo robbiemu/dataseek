@@ -4,7 +4,9 @@
 model_defaults:
   model: "openai/gpt-5.4-mini"
   temperature: 1
-  max_tokens: 2000
+  # No max_tokens default: let the server/model decide the output budget.
+  # A hardcoded cap truncates reasoning models mid-thought. Set model_defaults.max_tokens
+  # or a per-node max_tokens only when you need an explicit cap.
   # Retries at the litellm/langchain transport layer on transient transport/5xx/429
   # errors. Raise for flaky local servers (e.g. sglang with a small request queue),
   # leave default for cloud. Per-node overrides in mission_plan.nodes win.
@@ -59,25 +61,20 @@ mission_plan:
     - name: "supervisor"
       model: "openai/gpt-5.5"
       temperature: 1
-      max_tokens: 65536
     - name: "research"
       model: "openai/gpt-5.5"
       temperature: 1
-      max_tokens: 65536
       result_char_limit: 65536
       summary_char_limit: 6000
     - name: "fitness"
       model: "openai/gpt-5.5"
       temperature: 1
-      max_tokens: 65536
     - name: "archive"
       model: "openai/gpt-5.4-mini"
       temperature: 1
-      max_tokens: 65536
     - name: "synthetic"
       model: "openai/gpt-5.4-mini"
       temperature: 1
-      max_tokens: 65536
 
 
 

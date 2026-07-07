@@ -18,7 +18,12 @@ def create_llm(role: str) -> ChatLiteLLM:
     model_defaults = seek_config.get("model_defaults", {})
     default_model = model_defaults.get("model", "openai/gpt-5.4-mini")
     default_temperature = model_defaults.get("temperature", 0.1)
-    default_max_tokens = model_defaults.get("max_tokens", 2000)
+    # max_tokens is opt-in: omitted by default so the server/model decides the
+    # output budget. A hardcoded floor truncates reasoning models mid-thought
+    # (the answer never gets emitted because the budget runs out during the
+    # reasoning phase). Set model_defaults.max_tokens or a per-node max_tokens
+    # when you need an explicit cap.
+    default_max_tokens = model_defaults.get("max_tokens")
     default_top_p = model_defaults.get("top_p")
     # api_base lets a role target a custom OpenAI-compatible server (e.g. a
     # local sglang/Spark box) instead of the provider's default endpoint.
@@ -85,8 +90,13 @@ def create_llm(role: str) -> ChatLiteLLM:
     kwargs: dict[str, Any] = {
         "model": model,
         "temperature": temperature,
-        "max_tokens": max_tokens,
     }
+    # Only pass max_tokens when explicitly configured. Left unset, the
+    # server/model decides the output budget — important for reasoning models,
+    # which can spend a large budget in the reasoning phase before emitting the
+    # answer; a hardcoded cap truncates them mid-thought.
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
     # top_p is routed through model_kwargs: ChatLiteLLM stores a top_p field but
     # does not forward it into the litellm completion payload, whereas
     # model_kwargs is always passed through. Set it into the (possibly

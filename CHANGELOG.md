@@ -51,6 +51,11 @@ proof-trace pipeline needs to drive dataseek as an engine rather than a fork.
   Unblocks greedy models (e.g. Leanstral at `top_p: 1.0`).
 - **`max_retries` is now configurable** (default 3). Tunes LiteLLM's transport-layer retry
   of transient transport/5xx/429 errors at the layer where reconnects are clean.
+- **`max_tokens` is now opt-in** (no default). Previously the repo defaulted to `2000`
+  (and per-node `65536`); both truncate reasoning models, which spend the budget in the
+  reasoning phase before the answer is emitted. Left unset, the server/model decides the
+  output budget. Set `model_defaults.max_tokens` or a per-node `max_tokens` when you need
+  an explicit cap.
 - **LiteLLM bumped `1.77.1` → `1.83.14+`** (resolved to 1.91.0). Resolves CVE-2026-42271
   (RCE, CISA KEV-listed), CVE-2026-42208 (SQLi), CVE-2026-47101 (privilege escalation),
   and clears the malicious 1.82.7/1.82.8 supply-chain range. All custom LiteLLM patches

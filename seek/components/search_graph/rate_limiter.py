@@ -375,7 +375,10 @@ def resolve_scope_key(
 
         _, provider, _, _ = litellm.get_llm_provider(model, api_base=api_base)
     except Exception:
-        pass  # fall back to the prefix split above
+        logger.debug(
+            "litellm.get_llm_provider failed for %s; falling back to prefix split",
+            model,
+        )
     cred = _credential_identity(provider, api_base, api_key)
     base = f"{provider} | {api_base or 'default'} | {cred}"
     if scope == "provider":

@@ -160,7 +160,11 @@ class _RateLimitedChatLiteLLM(ChatLiteLLM):
         cfg = self._rate_limit_config
         key = self._rate_limit_key
         if cfg is not None and key is not None and cfg.active:
-            RATE_LIMITER.acquire(key, cfg)
+            # acquire() sleeps with time.sleep (sync); offload to a thread so
+            # the event loop is not blocked during real-mode header waits.
+            import asyncio
+
+            await asyncio.to_thread(RATE_LIMITER.acquire, key, cfg)
         try:
             return await super()._agenerate(messages, stop, run_manager, stream, **kwargs)
         except Exception as exc:

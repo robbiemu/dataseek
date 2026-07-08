@@ -151,11 +151,66 @@ class TestParseRateLimitHeaders:
         assert r2.reset_at is not None
 
     def test_ietf_structured_ratelimit_header(self):
-        """IETF draft-11 single structured RateLimit header."""
-        r = parse_rate_limit_headers({"ratelimit": "limit=32, remaining=28; q=1"})
+        """IETF draft-11 RateLimit header: 'policy';r=<remaining>;t=<window>."""
+        r = parse_rate_limit_headers(
+            {"ratelimit": '"default";r=50;t=30', "ratelimit-policy": '"default";q=100;w=60'}
+        )
+        assert r is not None
+        assert r.remaining == 50
+        assert r.limit == 100  # from RateLimit-Policy q=
+        assert r.reset_at is not None  # from t=30
+        assert r.source == "ietf-ratelimit"
+
+    def test_ietf_structured_exhausted(self):
+        """The draft-11 exhausted case: r=0;t=10 -> real mode should sleep ~10s."""
+        r = parse_rate_limit_headers({"ratelimit": '"problemPolicy";r=0;t=10'})
+        assert r is not None
+        assert r.remaining == 0
+        assert r.reset_at is not None
+
+    def test_openai_suffixed_request_headers(self):
+        """OpenAI dimension-suffixed headers with Go-duration reset."""
+        r = parse_rate_limit_headers(
+            {
+                "x-ratelimit-limit-requests": "32",
+                "x-ratelimit-remaining-requests": "0",
+                "x-ratelimit-reset-requests": "6m0s",
+            }
+        )
         assert r is not None
         assert r.limit == 32
-        assert r.remaining == 28
+        assert r.remaining == 0
+        assert r.reset_at is not None
+        assert r.source == "openai-requests"
+
+    def test_openai_reset_go_duration_variants(self):
+        """Go-duration strings OpenAI emits: 1s, 6m0s, 27m28s, 23h59m59s."""
+        for val, expected in [
+            ("1s", 1.0),
+            ("6m0s", 360.0),
+            ("27m28s", 1648.0),
+            ("23h59m59s", 86399.0),
+            ("12ms", 0.012),
+        ]:
+            r = parse_rate_limit_headers(
+                {"x-ratelimit-remaining-requests": "5", "x-ratelimit-reset-requests": val}
+            )
+            assert r is not None
+            assert r.reset_at is not None
+            # reset_at is monotonic+expected; check the delta is ~expected.
+            delta = r.reset_at - time.monotonic()
+            assert expected - 0.5 <= delta <= expected + 0.5, f"{val}: delta={delta}"
+
+    def test_openai_suffixed_does_not_shadow_legacy(self):
+        """Both suffixed and unsuffixed families are recognized independently."""
+        # Suffixed present -> parsed.
+        r1 = parse_rate_limit_headers({"x-ratelimit-remaining-requests": "5"})
+        assert r1 is not None
+        assert r1.remaining == 5
+        # Unsuffixed present -> parsed.
+        r2 = parse_rate_limit_headers({"x-ratelimit-remaining": "3"})
+        assert r2 is not None
+        assert r2.remaining == 3
 
 
 # -------------------------
@@ -347,6 +402,20 @@ class TestRateLimiterReal:
         t0 = time.monotonic()
         rl.acquire("k", cfg)  # second call: limit exhausted
         assert time.monotonic() - t0 >= 8.0  # waits for the 10s window
+
+    def test_real_mode_decrements_remaining_on_acquire(self):
+        """acquire() decrements remaining so concurrent callers don't over-admit."""
+        rl = RateLimiter()
+        cfg = RateLimitConfig(mode="real")
+        rl.update_from_response("k", {"x-ratelimit-remaining-requests": "2"})
+        rl.acquire("k", cfg)
+        assert rl._states["k"].remaining == 1  # decremented
+        rl.acquire("k", cfg)
+        assert rl._states["k"].remaining == 0  # decremented again
+        # Third call should wait (remaining=0, no reset header -> no wait here
+        # since reset_at is None, but remaining is 0 so it won't admit instantly
+        # if a reset were set). Verify remaining stays non-negative.
+        assert rl._states["k"].remaining == 0
 
 
 # -------------------------

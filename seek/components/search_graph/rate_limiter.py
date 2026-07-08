@@ -157,14 +157,29 @@ class RateLimitHeaders:
 def _parse_reset_to_monotonic(value: str) -> float | None:
     """Normalize a reset header value to an absolute monotonic deadline.
 
-    Providers emit reset as either an absolute Unix epoch (seconds) or a
-    relative number of seconds. A value above :data:`_ABSOLUTE_RESET_THRESHOLD`
-    is treated as absolute epoch and converted to a monotonic deadline; a
-    smaller value is treated as relative seconds from now.
+    Handles three forms:
+
+    - **Absolute Unix epoch** (seconds) — a value above
+      :data:`_ABSOLUTE_RESET_THRESHOLD` is treated as epoch and converted to a
+      monotonic deadline.
+    - **Plain relative seconds** — a small numeric value (e.g. ``"60"``).
+    - **Go-style duration string** — OpenAI emits ``"1s"``, ``"6m0s"``,
+      ``"27m28s"``, ``"23h59m59s"``, ``"12ms"`` for reset-requests/tokens.
+      Parsed by :func:`_parse_go_duration`.
+
+    Returns ``None`` if the value cannot be parsed.
     """
+    stripped = value.strip()
+    # Try Go-style duration first (contains a unit letter and isn't pure digits).
+    # "6m0s" -> Go duration; "60" -> plain seconds; "1783515234.5" -> float.
+    if not stripped.lstrip("-").replace(".", "", 1).isdigit():
+        secs = _parse_go_duration(stripped)
+        if secs is not None:
+            return time.monotonic() + secs
+        return None
     try:
-        n = float(value)
-    except (TypeError, ValueError):
+        n = float(stripped)
+    except ValueError:
         return None
     if n <= 0:
         return None
@@ -174,6 +189,40 @@ def _parse_reset_to_monotonic(value: str) -> float | None:
         # monotonic and immune to NTP drift.
         return time.monotonic() + (n - time.time())
     return time.monotonic() + n
+
+
+# Go-duration parser: "6m0s", "1s", "27m28s", "23h59m59s", "12ms", "1h30m".
+_GO_DURATION_RE = re.compile(
+    r"(?P<sign>-?)(?:(?P<h>\d+)h)?(?:(?P<m>\d+)m(?!s))?(?:(?P<s>\d+)s)?"
+    r"(?:(?P<ms>\d+)ms)?(?:(?P<us>\d+)us)?(?:(?P<ns>\d+)ns)?"
+)
+
+
+def _parse_go_duration(value: str) -> float | None:
+    """Parse a Go-style duration string to seconds.
+
+    OpenAI's reset headers (``x-ratelimit-reset-requests``, ``-reset-tokens``)
+    use Go's ``time.Duration`` string format: ``"1s"``, ``"6m0s"``,
+    ``"27m28s"``, ``"23h59m59s"``, ``"12ms"``. Returns ``None`` if the string
+    is not a recognized Go duration.
+    """
+    m = _GO_DURATION_RE.fullmatch(value.strip())
+    if not m:
+        return None
+    parts = {k: int(v) for k, v in m.groupdict().items() if v is not None and k != "sign"}
+    if not parts:
+        return None  # empty or sign-only
+    secs = (
+        parts.get("h", 0) * 3600
+        + parts.get("m", 0) * 60
+        + parts.get("s", 0)
+        + parts.get("ms", 0) / 1000
+        + parts.get("us", 0) / 1_000_000
+        + parts.get("ns", 0) / 1_000_000_000
+    )
+    if m.group("sign") == "-":
+        secs = -secs
+    return secs
 
 
 def _first_header(headers: dict[str, Any], *names: str) -> str | None:
@@ -207,12 +256,23 @@ def parse_rate_limit_headers(headers: dict[str, Any]) -> RateLimitHeaders | None
 
     1. ``Retry-After`` (RFC 7231 §7.1.3) — seconds or HTTP-date.
     2. ``RateLimit`` + ``RateLimit-Policy`` (IETF draft-ietf-httpapi-ratelimit-headers-11)
-       — single structured header, e.g. ``RateLimit: limit=32, remaining=28``.
+       — single structured header using ``r=`` (remaining) and ``t=`` (window
+       seconds), e.g. ``RateLimit: "default";r=50;t=30``. The
+       ``RateLimit-Policy`` header carries ``q=`` (quota limit) and ``w=``
+       (window seconds).
     3. ``RateLimit-Limit`` / ``RateLimit-Remaining`` / ``RateLimit-Reset``
        (earlier IETF draft, separate fields, no ``X-`` prefix).
-    4. ``X-RateLimit-Limit`` / ``X-RateLimit-Remaining`` / ``X-RateLimit-Reset``
-       (de-facto legacy; what OpenAI and OpenRouter actually emit today).
-    5. Best-effort Nvidia ``"32/32"`` limit string (non-standard, low confidence).
+    4. ``X-RateLimit-Limit-Requests`` / ``X-RateLimit-Remaining-Requests`` /
+       ``X-RateLimit-Reset-Requests`` (OpenAI's dimension-suffixed headers;
+       OpenRouter inherits these. Reset values are Go-duration strings like
+       ``"6m0s"``, ``"1s"``).
+    5. ``X-RateLimit-Limit`` / ``X-RateLimit-Remaining`` / ``X-RateLimit-Reset``
+       (de-facto legacy unsuffixed; some providers and community APIs).
+    6. Best-effort Nvidia ``"32/32"`` limit string (non-standard, low confidence).
+
+    Token-budget headers (``x-ratelimit-*-tokens``) are parsed for observability
+    but do not drive pre-call pacing (request-count pacing is the signal that
+    trips 429s in practice).
 
     Returns ``None`` if no recognized rate-limit header is present.
     """
@@ -238,27 +298,37 @@ def parse_rate_limit_headers(headers: dict[str, Any]) -> RateLimitHeaders | None
                 pass
 
     # IETF draft-11 single structured RateLimit header.
+    # Syntax: RateLimit: "policyname";r=<remaining>;t=<window_seconds>
+    # (e.g. RateLimit: "default";r=50;t=30). RateLimit-Policy carries
+    # q=<quota_limit>;w=<window_seconds> for the quota definition.
     ratelimit = _first_header(headers, "ratelimit")
     if ratelimit:
-        # e.g. "limit=32, remaining=28; q=1" — parse limit/remaining key=value
-        # pairs from the first semicolon-delimited segment.
-        primary = ratelimit.split(";")[0]
-        for pair in primary.split(","):
+        # The parameters live after the first ';'. The item before ';' is the
+        # policy name (a quoted string) — not limit/remaining.
+        parts = ratelimit.split(";", 1)
+        params = parts[1] if len(parts) > 1 else parts[0]
+        for pair in params.split(";"):
             kv = pair.strip().split("=", 1)
             if len(kv) != 2:
                 continue
             k, v = kv[0].strip(), kv[1].strip()
-            if k == "limit":
-                with suppress(ValueError):
-                    out.limit = int(v)
-            elif k == "remaining":
+            if k == "r":  # remaining in the current window
                 with suppress(ValueError):
                     out.remaining = int(v)
+            elif k == "t":  # window seconds (reset from now)
+                with suppress(ValueError):
+                    out.reset_at = time.monotonic() + float(v)
         out.policy = _first_header(headers, "ratelimit-policy")
+        # Pull the quota limit (q=) from the policy header if present.
+        if out.policy:
+            for pair in out.policy.split(";")[1:]:
+                kv = pair.strip().split("=", 1)
+                if len(kv) == 2 and kv[0].strip() == "q":
+                    with suppress(ValueError):
+                        out.limit = int(kv[1].strip())
+                    break
         if out.limit is not None or out.remaining is not None:
             out.source = "ietf-ratelimit"
-            # draft-11 reset lives in the policy/quota params; fall through to
-            # the separate reset headers below if present.
 
     # Earlier IETF draft: RateLimit-Limit/Remaining/Reset (no X- prefix).
     if out.limit is None and out.remaining is None:
@@ -272,7 +342,22 @@ def parse_rate_limit_headers(headers: dict[str, Any]) -> RateLimitHeaders | None
                 out.reset_at = _parse_reset_to_monotonic(reset_raw)
             out.source = "ietf-ratelimit-fields"
 
-    # Legacy de-facto: X-RateLimit-Limit/Remaining/Reset.
+    # OpenAI dimension-suffixed: X-RateLimit-*-Requests. These are what OpenAI
+    # and OpenRouter actually emit; the reset value is a Go-duration string.
+    if out.limit is None and out.remaining is None:
+        oai_limit = _parse_comma_first_int(_first_header(headers, "x-ratelimit-limit-requests"))
+        oai_remaining = _parse_comma_first_int(
+            _first_header(headers, "x-ratelimit-remaining-requests")
+        )
+        if oai_limit is not None or oai_remaining is not None:
+            out.limit = oai_limit
+            out.remaining = oai_remaining
+            reset_raw = _first_header(headers, "x-ratelimit-reset-requests")
+            if reset_raw is not None:
+                out.reset_at = _parse_reset_to_monotonic(reset_raw)
+            out.source = "openai-requests"
+
+    # Legacy de-facto unsuffixed: X-RateLimit-Limit/Remaining/Reset.
     if out.limit is None and out.remaining is None:
         xl_limit = _parse_comma_first_int(_first_header(headers, "x-ratelimit-limit"))
         xl_remaining = _parse_comma_first_int(_first_header(headers, "x-ratelimit-remaining"))
@@ -284,10 +369,14 @@ def parse_rate_limit_headers(headers: dict[str, Any]) -> RateLimitHeaders | None
                 out.reset_at = _parse_reset_to_monotonic(reset_raw)
             out.source = "x-ratelimit-legacy"
 
-    # Reset may have been carried by the legacy/ietf fields even when limit/
+    # Reset may have been carried by any of the field families even when limit/
     # remaining came from the structured header. Parse it if still missing.
     if out.reset_at is None:
-        for name in ("ratelimit-reset", "x-ratelimit-reset"):
+        for name in (
+            "ratelimit-reset",
+            "x-ratelimit-reset-requests",
+            "x-ratelimit-reset",
+        ):
             reset_raw = _first_header(headers, name)
             if reset_raw is not None:
                 out.reset_at = _parse_reset_to_monotonic(reset_raw)
@@ -504,9 +593,15 @@ class RateLimiter:
                     wait = self._compute_wait(st, config, now)
 
                 if wait <= 0:
-                    # Admitted: record a timestamp in every active window.
+                    # Admitted: record a timestamp in every active window (manual
+                    # mode) and decrement the header-derived remaining count
+                    # (real mode) so concurrent callers sharing a key don't all
+                    # see the same positive remaining before the next response
+                    # updates state.
                     for window in st.manual_windows:
                         window.append(now)
+                    if config.mode == "real" and st.remaining is not None and st.remaining > 0:
+                        st.remaining -= 1
                     return
                 # Release the lock for the duration of the sleep so other keys
                 # aren't blocked. Re-check on wake in case state moved.
@@ -563,6 +658,8 @@ class RateLimiter:
                     need = window[0] + limit.window_seconds - now
                     if need > wait:
                         wait = need
+
+        return wait
 
         return wait
 

@@ -3,7 +3,9 @@ import os
 import re
 from typing import Any
 
+from langchain_core.callbacks import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun
 from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatResult
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
 from langchain_litellm import ChatLiteLLM
@@ -129,7 +131,14 @@ class _RateLimitedChatLiteLLM(ChatLiteLLM):
         object.__setattr__(self, "_rate_limit_key", key)
         return self
 
-    def _generate(self, messages, stop=None, run_manager=None, stream=None, **kwargs):
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
+        stream: bool | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
         cfg = self._rate_limit_config
         key = self._rate_limit_key
         if cfg is not None and key is not None and cfg.active:
@@ -140,7 +149,14 @@ class _RateLimitedChatLiteLLM(ChatLiteLLM):
             _handle_rate_limit_exception(exc, key)
             raise
 
-    async def _agenerate(self, messages, stop=None, run_manager=None, stream=None, **kwargs):
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        stream: bool | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
         cfg = self._rate_limit_config
         key = self._rate_limit_key
         if cfg is not None and key is not None and cfg.active:
@@ -324,7 +340,9 @@ def create_llm(role: str) -> ChatLiteLLM:
             },
         )
         kwargs["model_kwargs"] = tagged_kwargs
-        llm = _RateLimitedChatLiteLLM(**kwargs)._configure_rate_limit(rl_config, rl_key)
+        llm: ChatLiteLLM = _RateLimitedChatLiteLLM(**kwargs)._configure_rate_limit(
+            rl_config, rl_key
+        )
     else:
         llm = ChatLiteLLM(**kwargs)
     return _wrap_llm_for_inspection(role, llm)

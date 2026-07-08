@@ -6,6 +6,27 @@ Data models for the Data Seek agent.
 from pydantic import BaseModel, Field
 
 
+class SeekAgentRateLimitConfig(BaseModel):
+    """Per-endpoint rate-limit configuration (manual DSL or real HTTP headers)."""
+
+    mode: str = Field(
+        default="off",
+        description="manual = operator-fed DSL quota; real = follow HTTP rate-limit headers; off = none.",
+    )
+    limits: str | None = Field(
+        default=None,
+        description=(
+            'Manual DSL: "<count><unit> [#role][, ...]" with unit in s/m/h/d. '
+            "30m = 30 requests per minute (count-plus-window, not duration). "
+            "Optional in real mode as a fallback ceiling."
+        ),
+    )
+    scope: str = Field(
+        default="model",
+        description="model = per-model identity; provider = shared across models under one credential.",
+    )
+
+
 class SeekAgentMissionPlanNodeConfig(BaseModel):
     """Configuration for a single node in the Seek Agent's mission plan."""
 
@@ -16,6 +37,15 @@ class SeekAgentMissionPlanNodeConfig(BaseModel):
     )
     max_tokens: int = Field(
         default=4096, ge=1, description="Maximum tokens for the model's output."
+    )
+    rate_limit: SeekAgentRateLimitConfig | None = Field(
+        default=None,
+        description=(
+            "Per-endpoint LLM rate limiting. mode='manual' uses the DSL 'limits' "
+            "string (e.g. \"30m #burst, 500h #steady\"); mode='real' follows HTTP "
+            "rate-limit headers; absent/None = off (no limiting, the default). "
+            "scope='model' (default) or 'provider'."
+        ),
     )
 
 

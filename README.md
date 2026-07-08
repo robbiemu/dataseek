@@ -5,6 +5,12 @@ DataSeek is a versatile, extensible framework for autonomous data collection and
 ![dataseek_manga_v2](https://github.com/user-attachments/assets/52527858-6764-415f-87b3-148f06dad23c)
 
 
+## What's new in 0.3.1
+
+- **Per-endpoint LLM rate limiting** — roles can declare a `rate_limit` block in `seek_config.yaml` to pace outbound LLM calls and avoid tripping provider quotas. Two modes: **`manual`** (an operator-fed DSL like `"30m #burst, 500h #steady"` matches any perceived quota at s/m/h/d granularity) and **`real`** (follows official HTTP rate-limit headers — IETF `RateLimit`/`RateLimit-Policy`, legacy `X-RateLimit-*`, `Retry-After` — to pace proactively). `scope: model` (default) or `scope: provider` (shared across models under one credential, for per-key cross-model limits like OpenRouter/Nvidia free tier). Off by default; existing configs unchanged.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release notes.
+
 ## What's new in 0.3.0
 
 - **Local model server support** — roles can target any OpenAI-compatible endpoint (`api_base`), e.g. a local sglang/Spark box, instead of the cloud provider.

@@ -54,6 +54,19 @@ All notable changes to DataSeek are documented in this file. The format is based
   unchanged. No new dependencies. Internal timing uses `time.monotonic()` so NTP
   adjustments cannot move pacing floors mid-wait.
 
+### Fixed
+
+- **Synthetic-budget prompt gating.** When a mission declares `synthetic_budget: 0`
+  (real-data-only), the supervisor prompt no longer surfaces `synthetic` as a
+  routing option. Previously the LLM could still route to the synthetic node,
+  whose output would reach archive and trip the provenance-guard
+  `AssertionError`, crashing the entire mission. Three-layer fix: (1) the
+  `base_prompt` template uses `{synthetic_detail}`/`{synthetic_enum}` placeholders
+  that are empty when budget is 0, so the LLM never sees synthetic as an option;
+  (2) the strategic guidance block is research-focused when budget is 0; (3) a
+  routing guard overrides any LLM hallucination of `synthetic` back to `research`.
+  The archive provenance guard stays as the safety net.
+
 ## [0.3.0] - 2026-07-07
 
 First release with support for local, OpenAI-compatible model servers (sglang, Spark)

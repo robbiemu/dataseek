@@ -8,6 +8,7 @@ DataSeek is a versatile, extensible framework for autonomous data collection and
 ## What's new in 0.3.1
 
 - **Per-endpoint LLM rate limiting** — roles can declare a `rate_limit` block in `seek_config.yaml` to pace outbound LLM calls and avoid tripping provider quotas. Two modes: **`manual`** (an operator-fed DSL like `"30m #burst, 500h #steady"` matches any perceived quota at s/m/h/d granularity) and **`real`** (follows official HTTP rate-limit headers — IETF `RateLimit`/`RateLimit-Policy`, legacy `X-RateLimit-*`, `Retry-After` — to pace proactively). `scope: model` (default) or `scope: provider` (shared across models under one credential, for per-key cross-model limits like OpenRouter/Nvidia free tier). Off by default; existing configs unchanged.
+- **Synthetic-budget prompt gating** — when a mission declares `synthetic_budget: 0` (real-data-only), the supervisor prompt no longer surfaces `synthetic` as a routing option. Previously the LLM could still route to the synthetic node, whose output would trip archive's provenance guard and crash the mission. Now the prompt omits synthetic from the agent list + enum, the strategic guidance is research-focused, and a routing guard overrides any LLM hallucination back to research.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release notes.
 

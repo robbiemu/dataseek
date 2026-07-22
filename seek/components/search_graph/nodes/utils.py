@@ -3,12 +3,19 @@ import os
 import re
 from typing import Any
 
+from langchain_core.callbacks import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun
 from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.outputs import ChatResult
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import Runnable
 from langchain_litellm import ChatLiteLLM
 
 from seek.common.config import get_active_seek_config
+from seek.components.search_graph.rate_limiter import (
+    RATE_LIMITER,
+    RateLimitConfig,
+    resolve_scope_key,
+)
 from seek.components.tool_manager.tools import get_tools_for_role
 
 
@@ -100,6 +107,91 @@ def _wrap_llm_for_inspection(role: str, llm: ChatLiteLLM) -> ChatLiteLLM:
     return llm
 
 
+class _RateLimitedChatLiteLLM(ChatLiteLLM):
+    """ChatLiteLLM subclass that gates each call through the rate limiter.
+
+    Overrides ``_generate``/``_agenerate`` (the LangChain-idiomatic seam) so
+    ``.bind_tools()`` and all inherited behavior is preserved. Each call:
+    1. ``RATE_LIMITER.acquire(key, config)`` — pre-call pacing (manual or real).
+    2. Delegate to ``super()._generate`` (the normal path).
+    3. On a 429-ish exception, call ``apply_retry_after`` to set a one-shot
+       cooldown so the next ``max_retries`` attempt honors the server's
+       ``Retry-After``, then re-raise without altering retry semantics.
+
+    The limiter config + scope key are stashed on the instance at construction
+    (private attributes, the pydantic-v2 pattern for non-validated fields).
+    """
+
+    _rate_limit_config: RateLimitConfig | None = None
+    _rate_limit_key: str | None = None
+
+    def _configure_rate_limit(self, config: RateLimitConfig, key: str) -> "_RateLimitedChatLiteLLM":
+        """Stash the limiter config + resolved scope key on this instance."""
+        object.__setattr__(self, "_rate_limit_config", config)
+        object.__setattr__(self, "_rate_limit_key", key)
+        return self
+
+    def _generate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
+        stream: bool | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        cfg = self._rate_limit_config
+        key = self._rate_limit_key
+        if cfg is not None and key is not None and cfg.active:
+            RATE_LIMITER.acquire(key, cfg)
+        try:
+            return super()._generate(messages, stop, run_manager, stream, **kwargs)
+        except Exception as exc:
+            _handle_rate_limit_exception(exc, key)
+            raise
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
+        stream: bool | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        cfg = self._rate_limit_config
+        key = self._rate_limit_key
+        if cfg is not None and key is not None and cfg.active:
+            # acquire() sleeps with time.sleep (sync); offload to a thread so
+            # the event loop is not blocked during real-mode header waits.
+            import asyncio
+
+            await asyncio.to_thread(RATE_LIMITER.acquire, key, cfg)
+        try:
+            return await super()._agenerate(messages, stop, run_manager, stream, **kwargs)
+        except Exception as exc:
+            _handle_rate_limit_exception(exc, key)
+            raise
+
+
+def _handle_rate_limit_exception(exc: Exception, key: str | None) -> None:
+    """On a 429-ish exception, set a one-shot cooldown from Retry-After.
+
+    litellm populates ``exception.headers`` on RateLimitError (verified in
+    1.91.0). The cooldown gates the next acquire so litellm's own
+    ``max_retries`` retry doesn't immediately re-trip the rate limit. Re-raises
+    nothing — the caller re-raises so retry semantics are untouched.
+    """
+    if key is None:
+        return
+    headers = getattr(exc, "headers", None)
+    if not isinstance(headers, dict):
+        # Some exception types nest the response; try a couple of common attrs.
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            headers = getattr(resp, "headers", None)
+    if isinstance(headers, dict):
+        RATE_LIMITER.apply_retry_after(key, headers)
+
+
 def create_llm(role: str) -> ChatLiteLLM:
     """Creates a configured ChatLiteLLM instance for a given agent role."""
     # Load the seek config
@@ -134,6 +226,11 @@ def create_llm(role: str) -> ChatLiteLLM:
     # (Qwen3) that otherwise emit text in reasoning_content and leave content
     # empty. A per-node model_kwargs deep-merges over model_defaults.
     default_model_kwargs = model_defaults.get("model_kwargs", {})
+    # rate_limit: optional per-endpoint LLM rate limiting (manual DSL or real
+    # HTTP-header-driven). Node-level wins over model_defaults; an absent block
+    # means mode="off" (no limiting, the current behavior). See
+    # seek/components/search_graph/rate_limiter.py for the DSL grammar.
+    default_rate_limit = model_defaults.get("rate_limit")
 
     # Try to find node-specific config in mission plan
     node_config = None
@@ -156,6 +253,7 @@ def create_llm(role: str) -> ChatLiteLLM:
         api_base = node_config.get("api_base", default_api_base)
         max_retries = node_config.get("max_retries", default_max_retries)
         streaming = node_config.get("streaming", default_streaming)
+        rate_limit_raw = node_config.get("rate_limit", default_rate_limit)
         # Node-level model_kwargs deep-merges over model_defaults' model_kwargs
         # so a node override for one nested key (e.g. one chat_template_kwargs
         # setting) doesn't discard sibling defaults.
@@ -170,6 +268,7 @@ def create_llm(role: str) -> ChatLiteLLM:
         api_base = default_api_base
         max_retries = default_max_retries
         streaming = default_streaming
+        rate_limit_raw = default_rate_limit
         model_kwargs = dict(default_model_kwargs)
 
     # Only pass top_p when explicitly configured. Some providers (e.g. greedy
@@ -212,7 +311,44 @@ def create_llm(role: str) -> ChatLiteLLM:
     # Streaming is always passed (default True) so that long generations
     # against local servers keep the connection alive, as described above.
     kwargs["streaming"] = streaming
-    llm = ChatLiteLLM(**kwargs)
+    # Resolve the rate-limit config (parsed per call, not cached by role — the
+    # parser cost is negligible and caching by role breaks if two same-role
+    # nodes resolve different models/api_bases/overrides).
+    rl_config = RateLimitConfig.from_dict(rate_limit_raw)
+    if rl_config.active:
+        # Lazy-register the litellm success callback (idempotent; no-ops on
+        # calls without dataseek metadata, so safe for non-dataseek traffic).
+        from seek.components.search_graph.llm_rate_callback import (
+            register_llm_rate_callbacks,
+        )
+
+        register_llm_rate_callbacks()
+        # Resolve the scope key from the resolved model identity (provider +
+        # api_base + credential + model). Non-secret credential identity via
+        # env-var-name table; see resolve_scope_key in rate_limiter.py.
+        rl_key = resolve_scope_key(
+            model=model, api_base=api_base, api_key=None, scope=rl_config.scope
+        )
+        # Tag each call with the key + mode so the litellm success callback can
+        # recover them (verified to survive into kwargs["litellm_params"]
+        # ["metadata"] on litellm 1.91.0). model_kwargs flows through
+        # ChatLiteLLM's {**params, **kwargs} spread into completion(), so
+        # stashing metadata here tags every call from this LLM instance.
+        tagged_kwargs = _deep_merge_kwargs(
+            kwargs.get("model_kwargs", {}),
+            {
+                "metadata": {
+                    "dataseek_rate_limit_key": rl_key,
+                    "dataseek_rate_limit_mode": rl_config.mode,
+                }
+            },
+        )
+        kwargs["model_kwargs"] = tagged_kwargs
+        llm: ChatLiteLLM = _RateLimitedChatLiteLLM(**kwargs)._configure_rate_limit(
+            rl_config, rl_key
+        )
+    else:
+        llm = ChatLiteLLM(**kwargs)
     return _wrap_llm_for_inspection(role, llm)
 
 

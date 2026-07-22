@@ -187,14 +187,13 @@ supervisor:
 
     Available Agents:
     - `fitness`: Evaluates the quality of a source document.
-    - `archive`: Saves an approved document.
-    - `synthetic`: Generates a document from scratch.
+    - `archive`: Saves an approved document.{synthetic_detail}
     - `end`: Finishes the mission.{research_detail}
 
     OUTPUT FORMAT REQUIREMENT:
     - Respond with ONLY a single JSON object (no prose, no code fences)
     - The JSON MUST contain exactly two keys:
-      - "next_agent": one of [research, fitness, archive, synthetic, end]
+      - "next_agent": one of [research, fitness, archive{synthetic_enum}, end]
       - "new_task": either null OR an object with exactly two string fields: "characteristic" and "topic"
     - Do not include any additional keys or text.
 

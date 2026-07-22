@@ -15,6 +15,31 @@ model_defaults:
   # streaming off hold an idle socket that can get reset mid-generation
   # (InternalServerError/Connection error). Streaming keeps the connection alive.
   streaming: true
+  # LLM rate limiting (optional; absent = mode "off", no limiting — the default).
+  # Two modes, settable here and per-node (node wins over model_defaults):
+  #
+  #   rate_limit:
+  #     mode: manual   # operator-fed quota via the DSL string below
+  #     limits: "30m #burst, 500h #steady, 10000d"
+  #     scope: model   # default; "provider" shares across models under one key
+  #
+  #   rate_limit:
+  #     mode: real     # follow the server's HTTP rate-limit headers
+  #     # limits optional in real mode; used as a fallback ceiling if the server
+  #     # sends no headers (e.g. "10s" caps at 10 requests/second)
+  #
+  # DSL grammar: "<count><unit> [#role][, <count><unit> [#role]]..."
+  #   unit: s (second) | m (minute) | h (hour) | d (day)
+  #   This is COUNT-PLUS-WINDOW, not a duration: "30m" = 30 requests per minute.
+  #   Multiple limits compose; the tightest active bound wins at runtime.
+  #   #role is a freeform tag (burst, steady, free-tier) for logging which bound
+  #   gated a call. MUST be YAML-quoted because "#role" is a YAML comment.
+  #
+  # scope: "model" (default) keys on the full model identity — two nodes pointing
+  #   at the same model+api_base share a quota. "provider" keys on provider +
+  #   credential — use when the provider enforces a per-key cross-model limit
+  #   (e.g. OpenRouter/Nvidia free tier: 550b + hy3 share one 32/window quota).
+  # rate_limit: {mode: off}
 
 web_search:
   provider: "google/search"

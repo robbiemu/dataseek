@@ -938,3 +938,47 @@ def test_empty_configured_toolset_does_not_fall_back_to_fresh_plugins():
     # get_tools_for_role must NOT have been called — the empty list means
     # "graph resolved tools, none survived" not "please find some"
     mock_gtr.assert_not_called()
+
+
+# -------------------------
+# Synthetic-budget gating: hide synthetic from the supervisor when budget=0
+# -------------------------
+
+
+def test_supervisor_prompt_omits_synthetic_when_budget_zero():
+    """The base_prompt template must support {synthetic_detail} and {synthetic_enum}.
+
+    When synthetic_budget is 0, synthetic_detail and synthetic_enum are empty
+    so the LLM never sees 'synthetic' as a routing option.
+    """
+    template = get_prompt("supervisor", "base_prompt")
+    rendered_off = template.format(
+        research_detail="",
+        synthetic_detail="",
+        synthetic_enum="",
+    )
+    assert "`synthetic`" not in rendered_off, "synthetic must not appear when budget=0"
+    assert ", synthetic" not in rendered_off, "enum must not include synthetic when budget=0"
+
+
+def test_supervisor_prompt_includes_synthetic_when_budget_positive():
+    """When budget > 0, the template renders synthetic in both the agent list and enum."""
+    template = get_prompt("supervisor", "base_prompt")
+    rendered_on = template.format(
+        research_detail="",
+        synthetic_detail="\n- `synthetic`: Generates a document from scratch.",
+        synthetic_enum=", synthetic",
+    )
+    assert "`synthetic`" in rendered_on
+    assert ", synthetic" in rendered_on  # in the next_agent enum
+
+
+def test_supervisor_prompt_still_supports_research_detail():
+    """The template must still interpolate research_detail (stock behavior)."""
+    template = get_prompt("supervisor", "base_prompt")
+    rendered = template.format(
+        research_detail="\n- `research`: Finds source documents from the web.",
+        synthetic_detail="\n- `synthetic`: Generates a document from scratch.",
+        synthetic_enum=", synthetic",
+    )
+    assert "`research`" in rendered

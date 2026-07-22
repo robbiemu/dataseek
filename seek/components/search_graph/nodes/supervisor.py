@@ -569,10 +569,9 @@ def supervisor_node(state: DataSeekState) -> dict:
                 last_action_analysis = f"""**3. Last Action Analysis:** FAILURE
    - **Agent:** fitness
    - **Reason:** The agent rejected the previous submission: {fitness_report.reason}
-   - **Guidance:** You need to decide the next action based on the complete history you see. It may be that the current task is difficult to research, and we could more easily make progress on a different task. You have three options:
+   - **Guidance:** You need to decide the next action based on the complete history you see. It may be that the current task is difficult to research, and we could more easily make progress on a different task. You have {"three" if synthetic_budget > 0 else "two"} options:
      1. Delegate to `research` to retry the current task (`{next_task["characteristic"]}` / `{next_task["topic"]}`).
-     2. Delegate to 'synthetic' to complete the task (we have only {max_synthetic_samples - synthetic_samples_generated} of {max_synthetic_samples} submissions remaining that should ideally be synthetic)
-     3. Switch to a different, uncompleted task, such as (`{alt_characteristic}` / `{alt_topic}`), by setting the `new_task` field in your response. If you switch, the researcher's memory will be cleared."""
+     {"2. Delegate to 'synthetic' to complete the task (we have only " + str(max_synthetic_samples - synthetic_samples_generated) + " of " + str(max_synthetic_samples) + " submissions remaining that should ideally be synthetic)\n     3. Switch" if synthetic_budget > 0 else "2. Switch"} to a different, uncompleted task, such as (`{alt_characteristic}` / `{alt_topic}`), by setting the `new_task` field in your response. If you switch, the researcher's memory will be cleared."""
             else:
                 last_action_analysis = f"""**3. Last Action Analysis:** FAILURE
    - **Agent:** fitness
@@ -796,8 +795,22 @@ def supervisor_node(state: DataSeekState) -> dict:
         "\n- `research`: Finds source documents from the web." if not research_is_off_limits else ""
     )
 
+    # Surface the synthetic agent only when its budget allows it. When
+    # synthetic_budget is 0, omit it from both the agent list and the
+    # next_agent enum so the LLM cannot route to synthetic — preventing a
+    # synthetic sample from reaching archive and tripping the provenance guard.
+    synthetic_available = synthetic_budget > 0
+    synthetic_detail = (
+        "\n- `synthetic`: Generates a document from scratch." if synthetic_available else ""
+    )
+    synthetic_enum = ", synthetic" if synthetic_available else ""
+
     base_prompt_template = get_prompt("supervisor", "base_prompt")
-    base_prompt = base_prompt_template.format(research_detail=research_detail)
+    base_prompt = base_prompt_template.format(
+        research_detail=research_detail,
+        synthetic_detail=synthetic_detail,
+        synthetic_enum=synthetic_enum,
+    )
 
     characteristic = next_task.get("characteristic", "N/A")
     topic = next_task.get("topic", "N/A")
@@ -837,7 +850,24 @@ def supervisor_node(state: DataSeekState) -> dict:
         else ""
     )
 
-    strategic_guidance = f"""
+    if synthetic_budget == 0:
+        # Real-data-only mission: synthetic is not an option at all. Give
+        # research-focused guidance without the synthetic budget framing.
+        strategic_guidance = f"""
+**4. Strategic Reasoning Guidance:**
+Your primary goal is generating high-quality, real-data samples from research. This mission does not allow synthetic generation — all samples must come from `research`.
+
+**Mission Progress:**
+- **Generated**: {total_samples_generated}/{total_samples_target} samples ({progress_pct:.0f}% complete)
+- **Research success**: {research_success_rate} (based on recent attempts)
+- **Remaining work**: {remaining_total_work} samples needed
+{research_detail}
+**Decision Framework:**
+1. **Primary consideration**: Which approach is most likely to find a high-quality source for this characteristic/topic?
+2. **Persistence**: If research is failing, consider switching to a different task rather than retrying the same one repeatedly.
+3. **Mission end**: If approaching completion, focus on the remaining highest-value tasks."""
+    else:
+        strategic_guidance = f"""
 **4. Strategic Reasoning Guidance:**
 Your primary goal is generating high-quality samples efficiently. Consider both task requirements and resource management:
 
@@ -942,6 +972,17 @@ Your primary goal is generating high-quality samples efficiently. Consider both 
             print("   ⚠️ Supervisor: LLM chose 'research' despite limit. Overriding to 'end'.")
             # You could also add logic here to try 'synthetic' if it's cheaper and budget allows.
             next_agent = "end"
+
+        # Override synthetic choice when synthetic_budget is 0. The prompt omits
+        # synthetic from the agent list + enum when the budget is zero, but the
+        # LLM may still route there — force it back to research instead of
+        # letting a synthetic sample reach archive and trip the provenance guard.
+        if synthetic_budget == 0 and next_agent == "synthetic":
+            print(
+                "   ⚠️ Supervisor: LLM chose 'synthetic' despite zero budget. "
+                "Overriding to 'research'."
+            )
+            next_agent = "research"
 
         # Handle task switching based on failure patterns
         if decision_obj and decision_obj.new_task:

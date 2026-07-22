@@ -4,6 +4,69 @@ All notable changes to DataSeek are documented in this file. The format is based
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-07-08
+
+### Added
+
+- **Per-endpoint LLM rate limiting.** Roles can now declare a `rate_limit` block
+  in `seek_config.yaml` (under `model_defaults` or per-node; node wins) to pace
+  outbound LLM calls and avoid tripping provider quotas. Two modes:
+
+  - **`manual`** — an operator-fed DSL string matches any perceived provider
+    quota at any granularity:
+    ```yaml
+    rate_limit:
+      mode: manual
+      limits: "30m #burst, 500h #steady, 10000d"
+      scope: provider
+    ```
+    Grammar: `<count><unit> [#role][, ...]` with unit in `s`/`m`/`h`/`d`.
+    `30m` means 30 requests per minute (count-plus-window, not a duration).
+    Multiple limits compose; the tightest active bound wins. `#role` is a freeform
+    tag (`burst`, `steady`, `free-tier`) for logging which bound gated a call.
+
+  - **`real`** — follows official HTTP rate-limit headers to pace proactively
+    without the operator guessing the number. Supports the full IETF family:
+    `RateLimit`/`RateLimit-Policy` (draft-11), `RateLimit-Limit/Remaining/Reset`,
+    legacy `X-RateLimit-*`, and `Retry-After` (RFC 7231). Best-effort parse of
+    Nvidia's non-standard `32/32` limit string.
+
+  Both modes do **pre-call pacing** (sleep before sending if the window is
+  exhausted) and **reactive backoff** (honor `Retry-After` on a 429 that slips
+  through). The limiter sits at `create_llm` via a `ChatLiteLLM` subclass that
+  preserves `.bind_tools()` and all inherited behavior.
+
+- **Scope control.** `scope: model` (default) keys the limiter on the full model
+  identity — two nodes pointing at the same model+`api_base` share a quota
+  automatically. `scope: provider` shares across models under one provider +
+  credential — the right choice when the provider enforces a per-key cross-model
+  limit (e.g. OpenRouter/Nvidia free tier where 550b + hy3 share one 32/window
+  quota). Credential identity is non-secret (env-var name or truncated hash).
+
+- **Lazy, idempotent litellm callback.** A `CustomLogger` success callback feeds
+  response headers into real-mode state. It is registered lazily from
+  `create_llm` only when an endpoint's `mode != off`, and no-ops on calls
+  lacking dataseek metadata — so it is safe for non-dataseek traffic and tests.
+
+### Security
+
+- The rate limiter is off by default (`mode: off`); existing configs are
+  unchanged. No new dependencies. Internal timing uses `time.monotonic()` so NTP
+  adjustments cannot move pacing floors mid-wait.
+
+### Fixed
+
+- **Synthetic-budget prompt gating.** When a mission declares `synthetic_budget: 0`
+  (real-data-only), the supervisor prompt no longer surfaces `synthetic` as a
+  routing option. Previously the LLM could still route to the synthetic node,
+  whose output would reach archive and trip the provenance-guard
+  `AssertionError`, crashing the entire mission. Three-layer fix: (1) the
+  `base_prompt` template uses `{synthetic_detail}`/`{synthetic_enum}` placeholders
+  that are empty when budget is 0, so the LLM never sees synthetic as an option;
+  (2) the strategic guidance block is research-focused when budget is 0; (3) a
+  routing guard overrides any LLM hallucination of `synthetic` back to `research`.
+  The archive provenance guard stays as the safety net.
+
 ## [0.3.0] - 2026-07-07
 
 First release with support for local, OpenAI-compatible model servers (sglang, Spark)
